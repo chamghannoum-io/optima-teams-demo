@@ -1,0 +1,440 @@
+# ═══════════════════════════════════════════════════════════════════════
+# Teams v2 — team as container, groups carry tags and members
+#
+# A team is identified by facility × division × encounter scope and holds no
+# matching criteria of its own. Its groups carry the work item types,
+# departments (or payers), claim statuses and members.
+#
+# Key differences from v1 (teams.graphqls):
+#   - matching moved from team-level tag strings to typed fields on groups
+#   - members live on groups; team roster is the de-duplicated union
+#   - capacity is DERIVED from the de-duplicated roster, never stored
+#   - rotation moves members between groups, not a pointer over users
+#   - AUTH/CLAIM mixing and payer+department mixing are hard-rejected
+# ═══════════════════════════════════════════════════════════════════════
+
+enum RcmTeamDivision { AUTH CLAIM }
+
+enum RcmTeamEncounterScope { OP IP BOTH }
+
+enum RcmTeamLogicAxis { DEPARTMENT PAYER }
+
+"""
+Department vocabulary used for allocation (28 values).
+
+Generated from the deptTagMap in the production allocation workflow, which is the
+vocabulary actually in use. Deliberately not sourced from vendorDepartments: that
+is a per-branch admin list and 19 of the 24 department tags used by production
+teams have no row in it.
+"""
+enum RcmDepartment {
+    "department-E.N.T"
+    E_N_T
+    "department-ICU"
+    ICU
+    "department-anesthesia"
+    ANESTHESIA
+    "department-cardiology"
+    CARDIOLOGY
+    "department-clinical-psychiatry"
+    CLINICAL_PSYCHIATRY
+    "department-cosmetrix"
+    COSMETRIX
+    "department-dental-and-maxillofacial"
+    DENTAL_AND_MAXILLOFACIAL
+    "department-dermatalogy"
+    DERMATALOGY
+    "department-dietician-nutrition"
+    DIETICIAN_NUTRITION
+    "department-emergency"
+    EMERGENCY
+    "department-internal-medicine"
+    INTERNAL_MEDICINE
+    "department-maternity"
+    MATERNITY
+    "department-medical-imaging"
+    MEDICAL_IMAGING
+    "department-neurology"
+    NEUROLOGY
+    "department-neurosurgery"
+    NEUROSURGERY
+    "department-obstetrics-gyne-IVF"
+    OBSTETRICS_GYNE_IVF
+    "department-oncology"
+    ONCOLOGY
+    "department-ophthalmology"
+    OPHTHALMOLOGY
+    "department-optimetry"
+    OPTIMETRY
+    "department-orthopedics"
+    ORTHOPEDICS
+    "department-pediatrics-neonatology"
+    PEDIATRICS_NEONATOLOGY
+    "department-physiotherapy"
+    PHYSIOTHERAPY
+    "department-podiatry"
+    PODIATRY
+    "department-psychiatry"
+    PSYCHIATRY
+    "department-radiology"
+    RADIOLOGY
+    "department-rheumatology"
+    RHEUMATOLOGY
+    "department-surgery"
+    SURGERY
+    "department-urology"
+    UROLOGY
+}
+
+enum RcmWorkItemType {
+    RECONCILIATION
+    CLAIM_SUBMISSION
+    CLAIM_RESUBMISSION
+    CLAIM_VALIDATION
+    AUTHORIZATION_SUBMISSION
+    AUTHORIZATION_RESUBMISSION
+}
+
+# ============================ TYPES ============================
+
+"""Derived capacity. Never stored — computed from the de-duplicated member set."""
+type RcmTeamCapacity {
+    "Distinct users after de-duplication across the team's groups."
+    memberCount: Int!
+    "Summed per-user maximum from assignment settings."
+    totalCapacity: Int!
+    assigned: Int!
+    "totalCapacity - assigned, floored at zero."
+    remaining: Int!
+    """
+    Raw memberships minus distinct members. Explains why a team with 20
+    group memberships may report 16 members.
+    """
+    duplicateMemberships: Int!
+}
+
+"""A user's membership of one group."""
+type RcmTeamGroupMember {
+    id: ID!
+    rcmTeamGroupId: ID!
+    rcmTeamId: ID!
+    userId: ID!
+    user: User
+    "The group this member started in. Immutable across rotations."
+    homeGroupId: ID!
+    lastRotatedAt: Instant
+    "True when the member currently sits somewhere other than their home group."
+    rotatedAway: Boolean!
+}
+
+"""
+A group within a team — the unit that actually carries matching criteria.
+
+Exactly one of departments / payers is populated, per the team's logicAxis.
+There is no 'all departments' wildcard: every department is named explicitly so
+coverage gaps are detectable at configuration time.
+"""
+type RcmTeamGroup {
+    id: ID!
+    createdDate: Instant
+    rcmTeamId: ID!
+    name: String!
+    nameAr: String
+    description: String
+    active: Boolean!
+    workItemTypes: [RcmWorkItemType!]!
+    encounterScope: RcmTeamEncounterScope!
+    "Populated when the team's logicAxis is DEPARTMENT."
+    departments: [RcmDepartment!]
+    "Populated when the team's logicAxis is PAYER."
+    payers: [ID!]
+    """
+    PAYER teams only: this group accepts any payer no group names explicitly.
+    Payer tails are long (56-69 per site, 20-30 below one item a day), so several
+    groups usually share catch-all duty rather than one absorbing everything.
+    """
+    payerCatchAll: Boolean!
+    "Claim statuses this group accepts (coders OPEN/CHECKED, submission VALIDATED)."
+    claimStatuses: [String!]
+    "Position in the team's rotation order."
+    rotationOrder: Int
+    "How many concrete criteria this group declares — higher wins when several match."
+    specificity: Int!
+    members: [RcmTeamGroupMember!]
+    capacity: RcmTeamCapacity
+}
+
+"""What a team's groups do and do not cover. Gaps are allowed but reported."""
+type RcmTeamCoverageReport {
+    "DEPARTMENT teams only. For an ACTIVE team these block activation."
+    uncoveredDepartments: [RcmDepartment!]!
+    "Departments covered by more than one group — allowed, usually a mistake."
+    overlappingDepartments: [RcmDepartment!]!
+    "PAYER teams only."
+    uncoveredPayers: [ID!]!
+    overlappingPayers: [ID!]!
+    uncoveredWorkItemTypes: [RcmWorkItemType!]!
+    "Groups with no members — they can never receive work."
+    emptyGroupIds: [ID!]!
+    complete: Boolean!
+}
+
+"""A suggested department split, offered when a DEPARTMENT team is incomplete."""
+type RcmTeamDepartmentSuggestion {
+    groupId: ID!
+    groupName: String
+    departments: [RcmDepartment!]!
+}
+
+
+"""Projected daily load for one group, against its capacity."""
+type RcmTeamGroupProjection {
+    groupId: ID!
+    groupName: String
+    "Observed mean daily volume for this group's criteria."
+    meanPerDay: Float!
+    "Mean scaled by the facility's P90/P50 burst factor — claims batch heavily."
+    peakPerDay: Float!
+    capacity: Int!
+    memberCount: Int!
+    "meanPerDay / capacity; null when the group has no capacity."
+    utilisation: Float
+    overflowsAtPeak: Boolean!
+}
+
+enum RcmTeamAdviceSeverity {
+    "Work will not be allocated at all under this configuration."
+    BLOCKER
+    "Will overflow at peak, or is badly unbalanced."
+    WARNING
+    INFO
+}
+
+type RcmTeamAdviceFinding {
+    severity: RcmTeamAdviceSeverity!
+    groupId: ID
+    message: String!
+}
+
+"""
+Projected load and configuration warnings.
+
+Advisory: WARNINGs are worth showing but do not block a save. BLOCKERs describe
+configurations that guarantee unallocated work and should require an explicit
+override.
+"""
+type RcmTeamDistributionAdvice {
+    projections: [RcmTeamGroupProjection!]!
+    findings: [RcmTeamAdviceFinding!]!
+    hasBlockers: Boolean!
+    healthy: Boolean!
+}
+
+"""A recommended payer split: named high-volume payers plus shared tail."""
+type RcmTeamPayerPlan {
+    groupId: ID!
+    groupName: String
+    "Payers at or above 10 items/day, packed by volume."
+    namedPayers: [ID!]!
+    "Whether this group also absorbs a share of the long tail."
+    catchAll: Boolean!
+    projectedPerDay: Float!
+}
+
+"""Advisory warning when a user is added while already allocated elsewhere."""
+type RcmTeamMemberWarning {
+    userId: ID!
+    userName: String
+    otherTeamId: ID!
+    otherTeamName: String
+    assignedOnOtherTeam: Int!
+    capacityOnOtherTeam: Int!
+    atCapacity: Boolean!
+}
+
+type RcmTeamV2 {
+    id: ID!
+    createdDate: Instant
+    vendorId: ID
+    name: String!
+    nameAr: String
+    description: String
+    active: Boolean!
+    "Facility this team serves, as a health licence."
+    facilityId: String
+    division: RcmTeamDivision!
+    encounterScope: RcmTeamEncounterScope!
+    "Whether groups split by DEPARTMENT or PAYER. Inherited by every group."
+    logicAxis: RcmTeamLogicAxis!
+    """
+    Net value above which an item is flagged high cost. Null falls back to the
+    95th percentile of the run's values, as in v1.
+    """
+    highCostThreshold: Float
+    branchIds: [ID!]
+    branches: [Branch!]
+    groups: [RcmTeamGroup!]
+    "De-duplicated roster — the union of all group members."
+    members: [RcmTeamGroupMember!]
+    "Derived, never stored."
+    capacity: RcmTeamCapacity
+    coverage: RcmTeamCoverageReport
+    rotationEnabled: Boolean!
+    rotationFrequency: OptimaTeamRotationFrequency
+    nextRotationDate: LocalDate
+    lastRotationAt: Instant
+    "Positions members have shifted from their home groups."
+    rotationOffset: Int
+}
+
+"""Result of a mutation that may carry advisory warnings."""
+type RcmTeamMutationResult {
+    team: RcmTeamV2
+    group: RcmTeamGroup
+    "Non-blocking: the mutation already succeeded."
+    warnings: [RcmTeamMemberWarning!]!
+    coverage: RcmTeamCoverageReport
+}
+
+# ============================ INPUTS ===========================
+
+input RcmTeamGroupInput {
+    name: String!
+    nameAr: String
+    description: String
+    active: Boolean
+    workItemTypes: [RcmWorkItemType!]!
+    encounterScope: RcmTeamEncounterScope!
+    "Provide when the team's logicAxis is DEPARTMENT. Rejected otherwise."
+    departments: [RcmDepartment!]
+    "Provide when the team's logicAxis is PAYER. Rejected otherwise."
+    payers: [ID!]
+    "PAYER teams only: accept any payer no group names explicitly."
+    payerCatchAll: Boolean
+    claimStatuses: [String!]
+    rotationOrder: Int
+    "Initial members. Their home group is set to this group."
+    userIds: [ID!]
+}
+
+input RcmTeamV2Input {
+    name: String!
+    nameAr: String
+    description: String
+    active: Boolean
+    facilityId: String
+    division: RcmTeamDivision!
+    encounterScope: RcmTeamEncounterScope!
+    logicAxis: RcmTeamLogicAxis!
+    highCostThreshold: Float
+    branchIds: [ID!]
+    rotationEnabled: Boolean
+    rotationFrequency: OptimaTeamRotationFrequency
+    "Groups to create with the team. Validated against the team's division and axis."
+    groups: [RcmTeamGroupInput!]
+}
+
+input RcmTeamV2FilterInput {
+    ids: [ID]
+    name: String
+    active: Boolean
+    facilityId: String
+    division: RcmTeamDivision
+    encounterScope: RcmTeamEncounterScope
+    logicAxis: RcmTeamLogicAxis
+    branchIds: [ID!]
+    vendorId: ID
+    "Only teams with at least one group handling this type."
+    workItemType: RcmWorkItemType
+}
+
+# ============================ QUERIES ==========================
+
+extend type Query {
+    """[Optima-Vendor] Retrieve a v2 team with its groups, members and derived capacity.
+    Auth: Permissions(any): view_rcm_team, manage_rcm_team"""
+    optimaTeamV2(id: ID!): RcmTeamV2
+
+    """[Optima-Vendor] List v2 teams. Capacity and coverage are computed per team,
+    so prefer filtering when the list is large.
+    Auth: Permissions(any): view_rcm_team, manage_rcm_team"""
+    optimaTeamsV2(filter: RcmTeamV2FilterInput): [RcmTeamV2!]
+
+    """[Optima-Vendor] Coverage report for a team without loading the whole team.
+    Auth: Permissions(any): view_rcm_team, manage_rcm_team"""
+    optimaTeamV2Coverage(id: ID!): RcmTeamCoverageReport
+
+    """[Optima-Vendor] Suggest an even distribution of the facility's departments across
+    a team's groups. Departments already assigned stay put; the rest are dealt to the
+    emptiest group. Offered when a DEPARTMENT team is incomplete.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2SuggestDepartments(id: ID!): [RcmTeamDepartmentSuggestion!]!
+
+    """[Optima-Vendor] Projected daily load per group with overflow warnings, computed
+    from observed arrival volume. Use it to show the user whether a proposed split will
+    actually hold before they commit to it.
+    Auth: Permissions(any): view_rcm_team, manage_rcm_team"""
+    optimaTeamV2DistributionAdvice(id: ID!): RcmTeamDistributionAdvice
+
+    """[Optima-Vendor] Recommend a payer split: high-volume payers named and packed by
+    volume, the long tail shared across groups as catch-alls.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2SuggestPayers(id: ID!): [RcmTeamPayerPlan!]!
+
+    """[Optima-Vendor] Preview the warnings adding these users to a group would raise,
+    without writing anything. Lets the UI confirm before committing.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2MemberWarnings(groupId: ID!, userIds: [ID!]!): [RcmTeamMemberWarning!]!
+}
+
+# =========================== MUTATIONS =========================
+
+extend type Mutation {
+    """[Optima-Vendor] Create a v2 team, optionally with its groups.
+    Rejects a team whose groups mix AUTH and CLAIM work, or mix payer and
+    department logic.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2Create(input: RcmTeamV2Input!): RcmTeamMutationResult
+
+    """[Optima-Vendor] Update a v2 team. Changing division or logicAxis is rejected
+    while groups exist that would become invalid.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2Update(id: ID!, input: RcmTeamV2Input!): RcmTeamMutationResult
+
+    """[Optima-Vendor] Delete a team and all its groups and memberships.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2Delete(id: ID!): Boolean
+
+    """[Optima-Vendor] Add a group to a team. Validated against the team's division,
+    encounter scope and logic axis.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2GroupCreate(teamId: ID!, input: RcmTeamGroupInput!): RcmTeamMutationResult
+
+    """[Optima-Vendor] Update a group.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2GroupUpdate(groupId: ID!, input: RcmTeamGroupInput!): RcmTeamMutationResult
+
+    """[Optima-Vendor] Delete a group and its memberships.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2GroupDelete(groupId: ID!): Boolean
+
+    """[Optima-Vendor] Add users to a group. Succeeds even when a user already belongs
+    to another team — their existing allocation is returned in warnings so the caller
+    can confirm.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2GroupUserAdd(groupId: ID!, userIds: [ID!]!): RcmTeamMutationResult
+
+    """[Optima-Vendor] Remove users from a group.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2GroupUserRemove(groupId: ID!, userIds: [ID!]!): RcmTeamMutationResult
+
+    """[Optima-Vendor] Advance the team one rotation step: every member moves to the
+    next group in order. Work already assigned stays with the member; only new
+    allocation follows the new group.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2Rotate(id: ID!): RcmTeamV2
+
+    """[Optima-Vendor] Return every member to their home group and clear the offset.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamV2RotationReset(id: ID!): RcmTeamV2
+}

@@ -1,0 +1,29 @@
+{
+  "gatewayBaseUrl": "http://127.0.0.1:4000/api/tool",
+  "fromDate": "2026-08-27",
+  "toDate": "2026-09-04",
+  "branchIds": [],
+  "workItemTypes": [],
+  "dryRun": true,
+  "components": [
+    {
+      "components": [
+        {
+          "componentCode": "T-0001"
+        },
+        {
+          "componentCode": "T-0002"
+        },
+        {
+          "componentCode": "T-0003"
+        },
+        {
+          "componentCode": "T-004"
+        },
+        {
+          "componentCode": "T-0005"
+        }
+      ]
+    }
+  ]
+}

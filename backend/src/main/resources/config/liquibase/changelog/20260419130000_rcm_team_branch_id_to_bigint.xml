@@ -1,0 +1,11 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet author="optima" id="20260419-rcm-team-branch-id-to-bigint">
+        <modifyDataType tableName="rcm_team_branch" columnName="branch_id" newDataType="BIGINT"/>
+        <addNotNullConstraint tableName="rcm_team_branch" columnName="branch_id" columnDataType="BIGINT"/>
+    </changeSet>
+
+</databaseChangeLog>

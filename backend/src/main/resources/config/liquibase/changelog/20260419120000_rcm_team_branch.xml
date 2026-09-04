@@ -1,0 +1,33 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet author="optima" id="20260419-rcm-team-branch">
+        <createTable tableName="rcm_team_branch">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_rcm_team_branch"/>
+            </column>
+            <column name="rcm_team_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="branch_id" type="${varchar}(64)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseColumnNames="rcm_team_id"
+                                 baseTableName="rcm_team_branch"
+                                 constraintName="fk_rcm_team_branch_team"
+                                 referencedColumnNames="id"
+                                 referencedTableName="rcm_team"
+                                 onDelete="CASCADE"/>
+        <createIndex tableName="rcm_team_branch" indexName="idx_rcm_team_branch_team">
+            <column name="rcm_team_id"/>
+        </createIndex>
+        <createIndex tableName="rcm_team_branch" indexName="idx_rcm_team_branch_branch">
+            <column name="branch_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,166 @@
+# Teams (RCM Team) GraphQL schema slice
+# Extracted from src/main/resources/schema/{types,input,enum,queries,mutations}.graphqls
+# Source: optima-3.1.6 @ origin/optima.release.3.3.0
+#
+# In the full app these definitions are spread across the shared schema files and
+# merged by DGS at startup. They are collected here so the Teams contract is
+# readable in one place.
+
+# ============================ ENUMS ============================
+
+enum OptimaTeamRotationFrequency {
+    DAILY,
+    WEEKLY,
+    MONTHLY
+}
+
+enum OptimaTeamUnavailabilityAction {
+    UNASSIGN,
+    REDISTRIBUTE
+}
+
+enum OptimaTagOperation {
+    AND,
+    OR
+}
+
+# ============================ TYPES ============================
+
+type OptimaTeamTag {
+    id: ID!
+    tag: String
+    isGroup: Boolean
+    tagOperation: OptimaTagOperation
+    tags: [OptimaTeamTag!]
+}
+
+type OptimaTeam {
+    id: ID!
+    createdDate: Instant
+    vendorId: ID
+    vendor: Vendor
+    name: String
+    tag: String
+    tags: [OptimaTeamTag!]
+    nameAr: String
+    description: String
+    active: Boolean
+    rotationEnabled: Boolean
+    rotationFrequency: OptimaTeamRotationFrequency
+    nextRotationDate: LocalDate
+    rotationPointer: ID
+    lastRotationAt: Instant
+    usersDetails: [User]
+    branchIds: [ID!]
+    branches: [Branch!]
+    members(availableOnly: Boolean): [OptimaTeamMember!]
+}
+
+type OptimaTeamMember {
+    userId: ID!
+    user: User
+    unavailableToday: Boolean
+    unavailabilities: [OptimaTeamUserUnavailability!]
+}
+
+type OptimaTeamUserUnavailability {
+    id: ID!
+    rcmTeamId: ID
+    userId: ID
+    startDate: LocalDate
+    endDate: LocalDate
+    reason: String
+    cancelled: Boolean
+    activeToday: Boolean
+    createdBy: String
+    createdDate: Instant
+}
+
+# ============================ INPUTS ===========================
+
+input OptimaTeamTagInput {
+    tag: String
+    isGroup: Boolean
+    tagOperation: OptimaTagOperation
+    tags: [OptimaTeamTagInput!]
+}
+
+input OptimaTeamInput {
+    name: String!
+    tag: String
+    tags: [OptimaTeamTagInput!]
+    nameAr: String
+    description: String
+    active: Boolean
+    rotationEnabled: Boolean
+    rotationFrequency: OptimaTeamRotationFrequency
+    users: [ID!]
+    branchIds: [ID!]
+}
+
+
+input OptimaTeamUserUnavailabilityInput {
+    teamId: ID!
+    userId: ID!
+    startDate: LocalDate!
+    endDate: LocalDate!
+    reason: String
+    action: OptimaTeamUnavailabilityAction!
+}
+
+input OptimaTeamFilterInput {
+    ids: [ID]
+    name: String
+    tag: String
+    active: Boolean
+    branchIds: [ID!]
+    vendorId: ID
+}
+
+# ============================ QUERIES ==========================
+
+extend type Query {
+    # ─── Teams ──────────────────────────────────────────────
+
+    """[Optima-Vendor] Retrieve a single RCM team by its ID. Returns team details including assigned members.
+    Auth: Permissions(any): view_rcm_team, manage_rcm_team"""
+    optimaTeam(id: ID!): OptimaTeam
+
+    """[Optima-Vendor] List all RCM teams with optional filtering by name, active status, or member. Returns the full list without pagination.
+    Auth: Permissions(any): view_rcm_team, manage_rcm_team"""
+    optimaTeams(filter: OptimaTeamFilterInput): [OptimaTeam!]
+}
+
+# =========================== MUTATIONS =========================
+
+extend type Mutation {
+    # ─── RCM Team Management ──────────────────────────────────
+
+    """[Optima-Vendor] Create a new RCM (Revenue Cycle Management) team with a name, description, and optional initial members.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamCreate(input: OptimaTeamInput!): OptimaTeam
+
+    """[Optima-Vendor] Update an existing RCM team's name, description, or other properties by its ID.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamUpdate(id: ID!, input: OptimaTeamInput!): OptimaTeam
+
+    """[Optima-Vendor] Add one or more users to an RCM team by their user IDs.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamUserAdd(id: ID!, userIds: [ID!]!): OptimaTeam
+
+    """[Optima-Vendor] Remove one or more users from an RCM team by their user IDs.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamUserRemove(id: ID!, userIds: [ID!]!): OptimaTeam
+
+    """[Optima-Vendor] Record the completion of a rotation run for an RCM team: stores the advanced rotation pointer (if provided), stamps lastRotationAt, and recomputes nextRotationDate from the team's rotation frequency. Intended for the allocation workflow after it performs a rotation.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamRotationComplete(id: ID!, rotationPointer: ID): OptimaTeam
+
+    """[Optima-Vendor] Mark a team member unavailable for a date range. Action UNASSIGN moves the member's active work items to the unassigned bucket; REDISTRIBUTE only records the window so the supervisor can manually redistribute.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamUserUnavailabilitySet(input: OptimaTeamUserUnavailabilityInput!): OptimaTeamUserUnavailability
+
+    """[Optima-Vendor] Cancel an unavailability window (e.g. the member is back early). Soft-cancel: the record is kept for audit.
+    Auth: Permissions(any): manage_rcm_team"""
+    optimaTeamUserUnavailabilityCancel(id: ID!): OptimaTeamUserUnavailability
+}

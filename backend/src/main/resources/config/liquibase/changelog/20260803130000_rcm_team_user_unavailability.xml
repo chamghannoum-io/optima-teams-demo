@@ -1,0 +1,45 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet author="optima" id="20260803-rcm-team-user-unavailability">
+        <createTable tableName="rcm_team_user_unavailability">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_rcm_team_user_unavailability"/>
+            </column>
+            <column name="rcm_team_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="start_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reason" type="${varchar}(500)"/>
+            <column name="cancelled" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="${varchar}(50)"/>
+            <column name="created_date" type="${datetimeType}"/>
+            <column name="last_modified_by" type="${varchar}(50)"/>
+            <column name="last_modified_date" type="${datetimeType}"/>
+        </createTable>
+
+        <addForeignKeyConstraint baseColumnNames="rcm_team_id"
+                                 baseTableName="rcm_team_user_unavailability"
+                                 constraintName="fk_rcm_team_user_unavailability_team"
+                                 referencedColumnNames="id"
+                                 referencedTableName="rcm_team"
+                                 onDelete="CASCADE"/>
+        <createIndex tableName="rcm_team_user_unavailability" indexName="idx_rcm_team_user_unavailability_team_user">
+            <column name="rcm_team_id"/>
+            <column name="user_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

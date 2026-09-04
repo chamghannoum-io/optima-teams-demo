@@ -1,0 +1,16 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet author="optima" id="20260803-rcm-team-rotation">
+        <addColumn tableName="rcm_team">
+            <column name="rotation_enabled" type="BOOLEAN" defaultValueBoolean="false"/>
+            <column name="rotation_frequency" type="${varchar}(20)"/>
+            <column name="next_rotation_date" type="DATE"/>
+            <column name="rotation_pointer" type="BIGINT"/>
+            <column name="last_rotation_at" type="${datetimeType}"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

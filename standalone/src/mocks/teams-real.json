@@ -1,0 +1,3474 @@
+[
+ {
+  "id": "1",
+  "name": "Authorization Team IP/OP (Sharjah)",
+  "nameAr": "Authorization Team IP/OP (Sharjah)",
+  "description": "All departments - IP/OP",
+  "active": true,
+  "tag": "auth-submission, auth-resubmission, department-anesthesia, department-cardiology, department-dental-and-maxillofacial, department-dermatalogy, department-E.N.T, department-internal-medicine, department-neurology, department-neurosurgery, department-surgery, department-dietician-nutrition, department-clinical-psychiatry, department-cosmetrix, department-emergency, department-ICU, encounter_op, encounter_ip",
+  "tags": [
+   {
+    "id": "1",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "32",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "33",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "34",
+      "tag": "department-anesthesia",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "35",
+      "tag": "department-cardiology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "36",
+      "tag": "department-dental-and-maxillofacial",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "37",
+      "tag": "department-dermatalogy",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "38",
+      "tag": "department-E.N.T",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "39",
+      "tag": "department-internal-medicine",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "40",
+      "tag": "department-neurology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "41",
+      "tag": "department-neurosurgery",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "42",
+      "tag": "department-surgery",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "43",
+      "tag": "department-dietician-nutrition",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "44",
+      "tag": "department-clinical-psychiatry",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "45",
+      "tag": "department-cosmetrix",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "46",
+      "tag": "department-emergency",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "47",
+      "tag": "department-ICU",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "48",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "49",
+      "tag": "encounter_ip",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-06-24T07:45:28+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "5"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjU=",
+    "name": "SGH- Sharjah",
+    "nameAr": "المستشفى السعودي الألماني - الشارقة"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjo5NDk=",
+    "firstName": "Zaid",
+    "firstNameAr": null,
+    "lastName": "Kanaan",
+    "lastNameAr": null,
+    "email": "zaid.kanaan@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4NzY=",
+    "firstName": "Anas",
+    "firstNameAr": null,
+    "lastName": "Sabbagh",
+    "lastNameAr": null,
+    "email": "anas.sabbagh@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo5NTE=",
+    "firstName": "Zaid",
+    "firstNameAr": null,
+    "lastName": "Sabbagh",
+    "lastNameAr": null,
+    "email": "zaid.sabbagh@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo5NTA=",
+    "firstName": "Dania",
+    "firstNameAr": null,
+    "lastName": "Kanaan",
+    "lastNameAr": null,
+    "email": "dania.kanaan@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "949",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5NDk=",
+     "firstName": "Zaid",
+     "lastName": "Kanaan",
+     "email": "zaid.kanaan@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "876",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4NzY=",
+     "firstName": "Anas",
+     "lastName": "Sabbagh",
+     "email": "anas.sabbagh@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "951",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5NTE=",
+     "firstName": "Zaid",
+     "lastName": "Sabbagh",
+     "email": "zaid.sabbagh@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "950",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5NTA=",
+     "firstName": "Dania",
+     "lastName": "Kanaan",
+     "email": "dania.kanaan@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "2",
+  "name": "Authorization Team IP  (Ajman)",
+  "nameAr": "Authorization Team IP (Ajman)",
+  "description": "All departments - IP",
+  "active": true,
+  "tag": "auth-submission, encounter_ip, department-anesthesia, department-cardiology, department-clinical-psychiatry, department-cosmetrix, department-dental-and-maxillofacial, department-dermatalogy, department-dietician-nutrition, department-E.N.T, department-emergency, department-ICU, department-internal-medicine",
+  "tags": [
+   {
+    "id": "2",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "50",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "51",
+      "tag": "encounter_ip",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "52",
+      "tag": "department-anesthesia",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "53",
+      "tag": "department-cardiology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "54",
+      "tag": "department-clinical-psychiatry",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "55",
+      "tag": "department-cosmetrix",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "56",
+      "tag": "department-dental-and-maxillofacial",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "57",
+      "tag": "department-dermatalogy",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "58",
+      "tag": "department-dietician-nutrition",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "59",
+      "tag": "department-E.N.T",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "60",
+      "tag": "department-emergency",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "61",
+      "tag": "department-ICU",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "62",
+      "tag": "department-internal-medicine",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-06-24T07:52:11+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "4"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjQ=",
+    "name": "SGH- Ajman",
+    "nameAr": "المستشفى السعودي الألماني - عجمان"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjoxMDM2",
+    "firstName": "Dalia",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "dalia.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDM3",
+    "firstName": "Leen",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "leen.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDM1",
+    "firstName": "Marwan",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "marwan.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDM4",
+    "firstName": "Waleed",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "waleed.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4NjU=",
+    "firstName": "Rana",
+    "firstNameAr": null,
+    "lastName": "Kanaan",
+    "lastNameAr": null,
+    "email": "rana.kanaan@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDA5",
+    "firstName": "Maya",
+    "firstNameAr": null,
+    "lastName": "Chalhoub",
+    "lastNameAr": null,
+    "email": "maya.chalhoub@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "1036",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDM2",
+     "firstName": "Dalia",
+     "lastName": "Aziz",
+     "email": "dalia.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1037",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDM3",
+     "firstName": "Leen",
+     "lastName": "Aziz",
+     "email": "leen.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1035",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDM1",
+     "firstName": "Marwan",
+     "lastName": "Aziz",
+     "email": "marwan.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1038",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDM4",
+     "firstName": "Waleed",
+     "lastName": "Aziz",
+     "email": "waleed.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "865",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4NjU=",
+     "firstName": "Rana",
+     "lastName": "Kanaan",
+     "email": "rana.kanaan@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1009",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDA5",
+     "firstName": "Maya",
+     "lastName": "Chalhoub",
+     "email": "maya.chalhoub@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "3",
+  "name": "Medical Coders (OP)",
+  "nameAr": null,
+  "description": "Medical Coders (OP) for all facilities",
+  "active": true,
+  "tag": "claim-status-open, claim-status-checked, claim-validation, encounter_op",
+  "tags": [
+   {
+    "id": "3",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "63",
+      "tag": "claim-status-open",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "64",
+      "tag": "claim-status-checked",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "65",
+      "tag": "claim-validation",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "66",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-07-01T13:10:51+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "8",
+   "4",
+   "7",
+   "5",
+   "23",
+   "21",
+   "20",
+   "19",
+   "14",
+   "13",
+   "12",
+   "11",
+   "10",
+   "9",
+   "8",
+   "7",
+   "6",
+   "5",
+   "4",
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjg=",
+    "name": "Saudi German Hospital Pharmacy - Ajman",
+    "nameAr": "Saudi German Hospital Pharmacy - Ajman"
+   },
+   {
+    "id": "QnJhbmNoOjQ=",
+    "name": "SGH- Ajman",
+    "nameAr": "المستشفى السعودي الألماني - عجمان"
+   },
+   {
+    "id": "QnJhbmNoOjc=",
+    "name": "Saudi German Hospital Pharmacy - Sharjah",
+    "nameAr": "Saudi German Hospital Pharmacy - Sharjah"
+   },
+   {
+    "id": "QnJhbmNoOjU=",
+    "name": "SGH- Sharjah",
+    "nameAr": "المستشفى السعودي الألماني - الشارقة"
+   },
+   {
+    "id": "QnJhbmNoOjIz",
+    "name": "RAK CLINIC Pharmacy - RIAYATI",
+    "nameAr": "RAK CLINIC Pharmacy - RIAYATI"
+   },
+   {
+    "id": "QnJhbmNoOjIx",
+    "name": "RAK PHARMACY",
+    "nameAr": "RAK PHARMACY"
+   },
+   {
+    "id": "QnJhbmNoOjIw",
+    "name": "RAK CLINIC",
+    "nameAr": "RAK CLINIC"
+   },
+   {
+    "id": "QnJhbmNoOjE5",
+    "name": "Al SUYOH",
+    "nameAr": "Al SUYOH"
+   },
+   {
+    "id": "QnJhbmNoOjE0",
+    "name": "Saudi German Clinics Sports City",
+    "nameAr": "Saudi German Clinics Sports City"
+   },
+   {
+    "id": "QnJhbmNoOjEz",
+    "name": "Saudi German Clinics Serena",
+    "nameAr": "Saudi German Clinics Serena"
+   },
+   {
+    "id": "QnJhbmNoOjEy",
+    "name": "Saudi German Clinics South Village",
+    "nameAr": "Saudi German Clinics South Village"
+   },
+   {
+    "id": "QnJhbmNoOjEx",
+    "name": "Saudi German Clinics - Akoya",
+    "nameAr": "Saudi German Clinics - Akoya"
+   },
+   {
+    "id": "QnJhbmNoOjEw",
+    "name": "Saudi German Clinics - Damac Hills",
+    "nameAr": "Saudi German Clinics - Damac Hills"
+   },
+   {
+    "id": "QnJhbmNoOjk=",
+    "name": "Saudi German Clinics - Jumeirah",
+    "nameAr": "Saudi German Clinics - Jumeirah"
+   },
+   {
+    "id": "QnJhbmNoOjg=",
+    "name": "Saudi German Hospital Pharmacy - Ajman",
+    "nameAr": "Saudi German Hospital Pharmacy - Ajman"
+   },
+   {
+    "id": "QnJhbmNoOjc=",
+    "name": "Saudi German Hospital Pharmacy - Sharjah",
+    "nameAr": "Saudi German Hospital Pharmacy - Sharjah"
+   },
+   {
+    "id": "QnJhbmNoOjY=",
+    "name": "Saudi German Hospital Pharmacy - Dubai",
+    "nameAr": "Saudi German Hospital - Dubai"
+   },
+   {
+    "id": "QnJhbmNoOjU=",
+    "name": "SGH- Sharjah",
+    "nameAr": "المستشفى السعودي الألماني - الشارقة"
+   },
+   {
+    "id": "QnJhbmNoOjQ=",
+    "name": "SGH- Ajman",
+    "nameAr": "المستشفى السعودي الألماني - عجمان"
+   },
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjo2Njk=",
+    "firstName": "Huda",
+    "firstNameAr": null,
+    "lastName": "Rahal",
+    "lastNameAr": null,
+    "email": "huda.rahal@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2Njg=",
+    "firstName": "Adel",
+    "firstNameAr": null,
+    "lastName": "Mansour",
+    "lastNameAr": null,
+    "email": "adel.mansour@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2NzM=",
+    "firstName": "Reem",
+    "firstNameAr": null,
+    "lastName": "Ghanem",
+    "lastNameAr": null,
+    "email": "reem.ghanem@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2NzQ=",
+    "firstName": "Imad",
+    "firstNameAr": null,
+    "lastName": "Mansour",
+    "lastNameAr": null,
+    "email": "imad.mansour@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2NjY=",
+    "firstName": "Yasmin",
+    "firstNameAr": null,
+    "lastName": "Sabbagh",
+    "lastNameAr": null,
+    "email": "yasmin.sabbagh@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo5OTU=",
+    "firstName": "Marwan",
+    "firstNameAr": null,
+    "lastName": "Chalhoub",
+    "lastNameAr": null,
+    "email": "marwan.chalhoub@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2NzY=",
+    "firstName": "Aisha",
+    "firstNameAr": null,
+    "lastName": "Sabbagh",
+    "lastNameAr": null,
+    "email": "aisha.sabbagh@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2NzU=",
+    "firstName": "Jamal",
+    "firstNameAr": null,
+    "lastName": "Kanaan",
+    "lastNameAr": null,
+    "email": "jamal.kanaan@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDQ4",
+    "firstName": "Mariam",
+    "firstNameAr": null,
+    "lastName": "Hakim",
+    "lastNameAr": null,
+    "email": "mariam.hakim@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2NjI=",
+    "firstName": "Zaid",
+    "firstNameAr": null,
+    "lastName": "Zahra",
+    "lastNameAr": null,
+    "email": "zaid.zahra@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2NjA=",
+    "firstName": "Salma",
+    "firstNameAr": null,
+    "lastName": "Rahal",
+    "lastNameAr": null,
+    "email": "salma.rahal@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2NjQ=",
+    "firstName": "Bilal",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "bilal.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2Njc=",
+    "firstName": "Sara",
+    "firstNameAr": null,
+    "lastName": "Haddad",
+    "lastNameAr": null,
+    "email": "sara.haddad@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDQ1",
+    "firstName": "Lina",
+    "firstNameAr": null,
+    "lastName": "Hakim",
+    "lastNameAr": null,
+    "email": "lina.hakim@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDUx",
+    "firstName": "Dania",
+    "firstNameAr": null,
+    "lastName": "Tannous",
+    "lastNameAr": null,
+    "email": "dania.tannous@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDUw",
+    "firstName": "Dania",
+    "firstNameAr": null,
+    "lastName": "Tannous",
+    "lastNameAr": null,
+    "email": "dania.tannous@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDQ2",
+    "firstName": "Huda",
+    "firstNameAr": null,
+    "lastName": "Hakim",
+    "lastNameAr": null,
+    "email": "huda.hakim@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDUy",
+    "firstName": "Lina",
+    "firstNameAr": null,
+    "lastName": "Tannous",
+    "lastNameAr": null,
+    "email": "lina.tannous@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDc0",
+    "firstName": "Rana",
+    "firstNameAr": null,
+    "lastName": "Fares",
+    "lastNameAr": null,
+    "email": "rana.fares@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2NjM=",
+    "firstName": "Ziad",
+    "firstNameAr": null,
+    "lastName": "Tannous",
+    "lastNameAr": null,
+    "email": "ziad.tannous@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "669",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2Njk=",
+     "firstName": "Huda",
+     "lastName": "Rahal",
+     "email": "huda.rahal@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "668",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2Njg=",
+     "firstName": "Adel",
+     "lastName": "Mansour",
+     "email": "adel.mansour@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "673",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2NzM=",
+     "firstName": "Reem",
+     "lastName": "Ghanem",
+     "email": "reem.ghanem@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "674",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2NzQ=",
+     "firstName": "Imad",
+     "lastName": "Mansour",
+     "email": "imad.mansour@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "666",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2NjY=",
+     "firstName": "Yasmin",
+     "lastName": "Sabbagh",
+     "email": "yasmin.sabbagh@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "995",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5OTU=",
+     "firstName": "Marwan",
+     "lastName": "Chalhoub",
+     "email": "marwan.chalhoub@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "676",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2NzY=",
+     "firstName": "Aisha",
+     "lastName": "Sabbagh",
+     "email": "aisha.sabbagh@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "675",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2NzU=",
+     "firstName": "Jamal",
+     "lastName": "Kanaan",
+     "email": "jamal.kanaan@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1048",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDQ4",
+     "firstName": "Mariam",
+     "lastName": "Hakim",
+     "email": "mariam.hakim@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "662",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2NjI=",
+     "firstName": "Zaid",
+     "lastName": "Zahra",
+     "email": "zaid.zahra@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "660",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2NjA=",
+     "firstName": "Salma",
+     "lastName": "Rahal",
+     "email": "salma.rahal@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "664",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2NjQ=",
+     "firstName": "Bilal",
+     "lastName": "Khoury",
+     "email": "bilal.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "667",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2Njc=",
+     "firstName": "Sara",
+     "lastName": "Haddad",
+     "email": "sara.haddad@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1045",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDQ1",
+     "firstName": "Lina",
+     "lastName": "Hakim",
+     "email": "lina.hakim@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1051",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDUx",
+     "firstName": "Dania",
+     "lastName": "Tannous",
+     "email": "dania.tannous@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1050",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDUw",
+     "firstName": "Dania",
+     "lastName": "Tannous",
+     "email": "dania.tannous@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1046",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDQ2",
+     "firstName": "Huda",
+     "lastName": "Hakim",
+     "email": "huda.hakim@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1052",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDUy",
+     "firstName": "Lina",
+     "lastName": "Tannous",
+     "email": "lina.tannous@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1074",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDc0",
+     "firstName": "Rana",
+     "lastName": "Fares",
+     "email": "rana.fares@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "663",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2NjM=",
+     "firstName": "Ziad",
+     "lastName": "Tannous",
+     "email": "ziad.tannous@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "4",
+  "name": "Medical Coders (IP)",
+  "nameAr": null,
+  "description": "Medical Coders (IP) for all facilities",
+  "active": true,
+  "tag": "claim-status-open, claim-status-checked, claim-validation, encounter_ip",
+  "tags": [
+   {
+    "id": "4",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "67",
+      "tag": "claim-status-open",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "68",
+      "tag": "claim-status-checked",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "69",
+      "tag": "claim-validation",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "70",
+      "tag": "encounter_ip",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-07-07T17:01:57+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "23",
+   "21",
+   "20",
+   "19",
+   "14",
+   "13",
+   "12",
+   "11",
+   "10",
+   "9",
+   "7",
+   "8",
+   "6",
+   "5",
+   "4",
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjIz",
+    "name": "RAK CLINIC Pharmacy - RIAYATI",
+    "nameAr": "RAK CLINIC Pharmacy - RIAYATI"
+   },
+   {
+    "id": "QnJhbmNoOjIx",
+    "name": "RAK PHARMACY",
+    "nameAr": "RAK PHARMACY"
+   },
+   {
+    "id": "QnJhbmNoOjIw",
+    "name": "RAK CLINIC",
+    "nameAr": "RAK CLINIC"
+   },
+   {
+    "id": "QnJhbmNoOjE5",
+    "name": "Al SUYOH",
+    "nameAr": "Al SUYOH"
+   },
+   {
+    "id": "QnJhbmNoOjE0",
+    "name": "Saudi German Clinics Sports City",
+    "nameAr": "Saudi German Clinics Sports City"
+   },
+   {
+    "id": "QnJhbmNoOjEz",
+    "name": "Saudi German Clinics Serena",
+    "nameAr": "Saudi German Clinics Serena"
+   },
+   {
+    "id": "QnJhbmNoOjEy",
+    "name": "Saudi German Clinics South Village",
+    "nameAr": "Saudi German Clinics South Village"
+   },
+   {
+    "id": "QnJhbmNoOjEx",
+    "name": "Saudi German Clinics - Akoya",
+    "nameAr": "Saudi German Clinics - Akoya"
+   },
+   {
+    "id": "QnJhbmNoOjEw",
+    "name": "Saudi German Clinics - Damac Hills",
+    "nameAr": "Saudi German Clinics - Damac Hills"
+   },
+   {
+    "id": "QnJhbmNoOjk=",
+    "name": "Saudi German Clinics - Jumeirah",
+    "nameAr": "Saudi German Clinics - Jumeirah"
+   },
+   {
+    "id": "QnJhbmNoOjc=",
+    "name": "Saudi German Hospital Pharmacy - Sharjah",
+    "nameAr": "Saudi German Hospital Pharmacy - Sharjah"
+   },
+   {
+    "id": "QnJhbmNoOjg=",
+    "name": "Saudi German Hospital Pharmacy - Ajman",
+    "nameAr": "Saudi German Hospital Pharmacy - Ajman"
+   },
+   {
+    "id": "QnJhbmNoOjY=",
+    "name": "Saudi German Hospital Pharmacy - Dubai",
+    "nameAr": "Saudi German Hospital - Dubai"
+   },
+   {
+    "id": "QnJhbmNoOjU=",
+    "name": "SGH- Sharjah",
+    "nameAr": "المستشفى السعودي الألماني - الشارقة"
+   },
+   {
+    "id": "QnJhbmNoOjQ=",
+    "name": "SGH- Ajman",
+    "nameAr": "المستشفى السعودي الألماني - عجمان"
+   },
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjo2ODc=",
+    "firstName": "Bilal",
+    "firstNameAr": null,
+    "lastName": "Fares",
+    "lastNameAr": null,
+    "email": "bilal.fares@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2ODU=",
+    "firstName": "Farah",
+    "firstNameAr": null,
+    "lastName": "Chalhoub",
+    "lastNameAr": null,
+    "email": "farah.chalhoub@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2ODY=",
+    "firstName": "Ammar",
+    "firstNameAr": null,
+    "lastName": "Haddad",
+    "lastNameAr": null,
+    "email": "ammar.haddad@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDQ3",
+    "firstName": "Reem",
+    "firstNameAr": null,
+    "lastName": "Hakim",
+    "lastNameAr": null,
+    "email": "reem.hakim@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo2Nzk=",
+    "firstName": "Huda",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "huda.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "687",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2ODc=",
+     "firstName": "Bilal",
+     "lastName": "Fares",
+     "email": "bilal.fares@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "685",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2ODU=",
+     "firstName": "Farah",
+     "lastName": "Chalhoub",
+     "email": "farah.chalhoub@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "686",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2ODY=",
+     "firstName": "Ammar",
+     "lastName": "Haddad",
+     "email": "ammar.haddad@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1047",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDQ3",
+     "firstName": "Reem",
+     "lastName": "Hakim",
+     "email": "reem.hakim@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "679",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo2Nzk=",
+     "firstName": "Huda",
+     "lastName": "Aziz",
+     "email": "huda.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "5",
+  "name": "Claim Submission Officers (OP)",
+  "nameAr": null,
+  "description": "Claim Submission Officers (OP) for all facilities",
+  "active": true,
+  "tag": "claim-status-validated, claim-submission, encounter_op",
+  "tags": [
+   {
+    "id": "5",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "71",
+      "tag": "claim-status-validated",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "72",
+      "tag": "claim-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "73",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-07-07T17:10:38+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "23",
+   "21",
+   "20",
+   "19",
+   "14",
+   "13",
+   "12",
+   "11",
+   "10",
+   "9",
+   "8",
+   "7",
+   "6",
+   "5",
+   "4",
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjIz",
+    "name": "RAK CLINIC Pharmacy - RIAYATI",
+    "nameAr": "RAK CLINIC Pharmacy - RIAYATI"
+   },
+   {
+    "id": "QnJhbmNoOjIx",
+    "name": "RAK PHARMACY",
+    "nameAr": "RAK PHARMACY"
+   },
+   {
+    "id": "QnJhbmNoOjIw",
+    "name": "RAK CLINIC",
+    "nameAr": "RAK CLINIC"
+   },
+   {
+    "id": "QnJhbmNoOjE5",
+    "name": "Al SUYOH",
+    "nameAr": "Al SUYOH"
+   },
+   {
+    "id": "QnJhbmNoOjE0",
+    "name": "Saudi German Clinics Sports City",
+    "nameAr": "Saudi German Clinics Sports City"
+   },
+   {
+    "id": "QnJhbmNoOjEz",
+    "name": "Saudi German Clinics Serena",
+    "nameAr": "Saudi German Clinics Serena"
+   },
+   {
+    "id": "QnJhbmNoOjEy",
+    "name": "Saudi German Clinics South Village",
+    "nameAr": "Saudi German Clinics South Village"
+   },
+   {
+    "id": "QnJhbmNoOjEx",
+    "name": "Saudi German Clinics - Akoya",
+    "nameAr": "Saudi German Clinics - Akoya"
+   },
+   {
+    "id": "QnJhbmNoOjEw",
+    "name": "Saudi German Clinics - Damac Hills",
+    "nameAr": "Saudi German Clinics - Damac Hills"
+   },
+   {
+    "id": "QnJhbmNoOjk=",
+    "name": "Saudi German Clinics - Jumeirah",
+    "nameAr": "Saudi German Clinics - Jumeirah"
+   },
+   {
+    "id": "QnJhbmNoOjg=",
+    "name": "Saudi German Hospital Pharmacy - Ajman",
+    "nameAr": "Saudi German Hospital Pharmacy - Ajman"
+   },
+   {
+    "id": "QnJhbmNoOjc=",
+    "name": "Saudi German Hospital Pharmacy - Sharjah",
+    "nameAr": "Saudi German Hospital Pharmacy - Sharjah"
+   },
+   {
+    "id": "QnJhbmNoOjY=",
+    "name": "Saudi German Hospital Pharmacy - Dubai",
+    "nameAr": "Saudi German Hospital - Dubai"
+   },
+   {
+    "id": "QnJhbmNoOjU=",
+    "name": "SGH- Sharjah",
+    "nameAr": "المستشفى السعودي الألماني - الشارقة"
+   },
+   {
+    "id": "QnJhbmNoOjQ=",
+    "name": "SGH- Ajman",
+    "nameAr": "المستشفى السعودي الألماني - عجمان"
+   },
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjoxMDgw",
+    "firstName": "Huda",
+    "firstNameAr": null,
+    "lastName": "Baroudi",
+    "lastNameAr": null,
+    "email": "huda.baroudi@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4NzM=",
+    "firstName": "Mariam",
+    "firstNameAr": null,
+    "lastName": "Ghanem",
+    "lastNameAr": null,
+    "email": "mariam.ghanem@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDc5",
+    "firstName": "Farah",
+    "firstNameAr": null,
+    "lastName": "Fares",
+    "lastNameAr": null,
+    "email": "farah.fares@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "1080",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDgw",
+     "firstName": "Huda",
+     "lastName": "Baroudi",
+     "email": "huda.baroudi@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "873",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4NzM=",
+     "firstName": "Mariam",
+     "lastName": "Ghanem",
+     "email": "mariam.ghanem@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1079",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDc5",
+     "firstName": "Farah",
+     "lastName": "Fares",
+     "email": "farah.fares@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "6",
+  "name": "Claim Submission Officers (IP)",
+  "nameAr": null,
+  "description": "Claim Submission Officers (IP) for all facilities",
+  "active": true,
+  "tag": "claim-status-validated, claim-submission, encounter_ip",
+  "tags": [
+   {
+    "id": "6",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "74",
+      "tag": "claim-status-validated",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "75",
+      "tag": "claim-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "76",
+      "tag": "encounter_ip",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-07-07T17:13:32+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "23",
+   "21",
+   "20",
+   "19",
+   "14",
+   "13",
+   "12",
+   "11",
+   "10",
+   "9",
+   "8",
+   "7",
+   "6",
+   "5",
+   "4",
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjIz",
+    "name": "RAK CLINIC Pharmacy - RIAYATI",
+    "nameAr": "RAK CLINIC Pharmacy - RIAYATI"
+   },
+   {
+    "id": "QnJhbmNoOjIx",
+    "name": "RAK PHARMACY",
+    "nameAr": "RAK PHARMACY"
+   },
+   {
+    "id": "QnJhbmNoOjIw",
+    "name": "RAK CLINIC",
+    "nameAr": "RAK CLINIC"
+   },
+   {
+    "id": "QnJhbmNoOjE5",
+    "name": "Al SUYOH",
+    "nameAr": "Al SUYOH"
+   },
+   {
+    "id": "QnJhbmNoOjE0",
+    "name": "Saudi German Clinics Sports City",
+    "nameAr": "Saudi German Clinics Sports City"
+   },
+   {
+    "id": "QnJhbmNoOjEz",
+    "name": "Saudi German Clinics Serena",
+    "nameAr": "Saudi German Clinics Serena"
+   },
+   {
+    "id": "QnJhbmNoOjEy",
+    "name": "Saudi German Clinics South Village",
+    "nameAr": "Saudi German Clinics South Village"
+   },
+   {
+    "id": "QnJhbmNoOjEx",
+    "name": "Saudi German Clinics - Akoya",
+    "nameAr": "Saudi German Clinics - Akoya"
+   },
+   {
+    "id": "QnJhbmNoOjEw",
+    "name": "Saudi German Clinics - Damac Hills",
+    "nameAr": "Saudi German Clinics - Damac Hills"
+   },
+   {
+    "id": "QnJhbmNoOjk=",
+    "name": "Saudi German Clinics - Jumeirah",
+    "nameAr": "Saudi German Clinics - Jumeirah"
+   },
+   {
+    "id": "QnJhbmNoOjg=",
+    "name": "Saudi German Hospital Pharmacy - Ajman",
+    "nameAr": "Saudi German Hospital Pharmacy - Ajman"
+   },
+   {
+    "id": "QnJhbmNoOjc=",
+    "name": "Saudi German Hospital Pharmacy - Sharjah",
+    "nameAr": "Saudi German Hospital Pharmacy - Sharjah"
+   },
+   {
+    "id": "QnJhbmNoOjY=",
+    "name": "Saudi German Hospital Pharmacy - Dubai",
+    "nameAr": "Saudi German Hospital - Dubai"
+   },
+   {
+    "id": "QnJhbmNoOjU=",
+    "name": "SGH- Sharjah",
+    "nameAr": "المستشفى السعودي الألماني - الشارقة"
+   },
+   {
+    "id": "QnJhbmNoOjQ=",
+    "name": "SGH- Ajman",
+    "nameAr": "المستشفى السعودي الألماني - عجمان"
+   },
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjoxMDc3",
+    "firstName": "Anas",
+    "firstNameAr": null,
+    "lastName": "Fares",
+    "lastNameAr": null,
+    "email": "anas.fares@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "1077",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDc3",
+     "firstName": "Anas",
+     "lastName": "Fares",
+     "email": "anas.fares@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "7",
+  "name": "Resubmission Analysts",
+  "nameAr": "Resubmission Analysts",
+  "description": "Resubmission Analysts for all facilities",
+  "active": true,
+  "tag": "claim-resubmission",
+  "tags": [
+   {
+    "id": "7",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "77",
+      "tag": "claim-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-07-07T17:18:36+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "23",
+   "21",
+   "20",
+   "19",
+   "13",
+   "14",
+   "12",
+   "11",
+   "10",
+   "9",
+   "8",
+   "7",
+   "6",
+   "5",
+   "4",
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjIz",
+    "name": "RAK CLINIC Pharmacy - RIAYATI",
+    "nameAr": "RAK CLINIC Pharmacy - RIAYATI"
+   },
+   {
+    "id": "QnJhbmNoOjIx",
+    "name": "RAK PHARMACY",
+    "nameAr": "RAK PHARMACY"
+   },
+   {
+    "id": "QnJhbmNoOjIw",
+    "name": "RAK CLINIC",
+    "nameAr": "RAK CLINIC"
+   },
+   {
+    "id": "QnJhbmNoOjE5",
+    "name": "Al SUYOH",
+    "nameAr": "Al SUYOH"
+   },
+   {
+    "id": "QnJhbmNoOjEz",
+    "name": "Saudi German Clinics Serena",
+    "nameAr": "Saudi German Clinics Serena"
+   },
+   {
+    "id": "QnJhbmNoOjE0",
+    "name": "Saudi German Clinics Sports City",
+    "nameAr": "Saudi German Clinics Sports City"
+   },
+   {
+    "id": "QnJhbmNoOjEy",
+    "name": "Saudi German Clinics South Village",
+    "nameAr": "Saudi German Clinics South Village"
+   },
+   {
+    "id": "QnJhbmNoOjEx",
+    "name": "Saudi German Clinics - Akoya",
+    "nameAr": "Saudi German Clinics - Akoya"
+   },
+   {
+    "id": "QnJhbmNoOjEw",
+    "name": "Saudi German Clinics - Damac Hills",
+    "nameAr": "Saudi German Clinics - Damac Hills"
+   },
+   {
+    "id": "QnJhbmNoOjk=",
+    "name": "Saudi German Clinics - Jumeirah",
+    "nameAr": "Saudi German Clinics - Jumeirah"
+   },
+   {
+    "id": "QnJhbmNoOjg=",
+    "name": "Saudi German Hospital Pharmacy - Ajman",
+    "nameAr": "Saudi German Hospital Pharmacy - Ajman"
+   },
+   {
+    "id": "QnJhbmNoOjc=",
+    "name": "Saudi German Hospital Pharmacy - Sharjah",
+    "nameAr": "Saudi German Hospital Pharmacy - Sharjah"
+   },
+   {
+    "id": "QnJhbmNoOjY=",
+    "name": "Saudi German Hospital Pharmacy - Dubai",
+    "nameAr": "Saudi German Hospital - Dubai"
+   },
+   {
+    "id": "QnJhbmNoOjU=",
+    "name": "SGH- Sharjah",
+    "nameAr": "المستشفى السعودي الألماني - الشارقة"
+   },
+   {
+    "id": "QnJhbmNoOjQ=",
+    "name": "SGH- Ajman",
+    "nameAr": "المستشفى السعودي الألماني - عجمان"
+   },
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjo4NDA=",
+    "firstName": "Anas",
+    "firstNameAr": null,
+    "lastName": "Darwish",
+    "lastNameAr": null,
+    "email": "anas.darwish@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4Mjg=",
+    "firstName": "Adel",
+    "firstNameAr": null,
+    "lastName": "Hakim",
+    "lastNameAr": null,
+    "email": "adel.hakim@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4MzI=",
+    "firstName": "Sara",
+    "firstNameAr": null,
+    "lastName": "Saleh",
+    "lastNameAr": null,
+    "email": "sara.saleh@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4MzA=",
+    "firstName": "Adel",
+    "firstNameAr": null,
+    "lastName": "Chalhoub",
+    "lastNameAr": null,
+    "email": "adel.chalhoub@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4MjY=",
+    "firstName": "Yasmin",
+    "firstNameAr": null,
+    "lastName": "Ghanem",
+    "lastNameAr": null,
+    "email": "yasmin.ghanem@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4NDY=",
+    "firstName": "Huda",
+    "firstNameAr": "Parreno",
+    "lastName": "Fares",
+    "lastNameAr": null,
+    "email": "huda.fares@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4NDU=",
+    "firstName": "Adel",
+    "firstNameAr": null,
+    "lastName": "Darwish",
+    "lastNameAr": null,
+    "email": "adel.darwish@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4NDg=",
+    "firstName": "Lina",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "lina.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4NDQ=",
+    "firstName": "Zaid",
+    "firstNameAr": null,
+    "lastName": "Nasser",
+    "lastNameAr": null,
+    "email": "zaid.nasser@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4NTQ=",
+    "firstName": "Farah",
+    "firstNameAr": null,
+    "lastName": "Nasser",
+    "lastNameAr": null,
+    "email": "farah.nasser@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "840",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4NDA=",
+     "firstName": "Anas",
+     "lastName": "Darwish",
+     "email": "anas.darwish@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "828",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4Mjg=",
+     "firstName": "Adel",
+     "lastName": "Hakim",
+     "email": "adel.hakim@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "832",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4MzI=",
+     "firstName": "Sara",
+     "lastName": "Saleh",
+     "email": "sara.saleh@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "830",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4MzA=",
+     "firstName": "Adel",
+     "lastName": "Chalhoub",
+     "email": "adel.chalhoub@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "826",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4MjY=",
+     "firstName": "Yasmin",
+     "lastName": "Ghanem",
+     "email": "yasmin.ghanem@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "846",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4NDY=",
+     "firstName": "Huda",
+     "lastName": "Fares",
+     "email": "huda.fares@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "845",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4NDU=",
+     "firstName": "Adel",
+     "lastName": "Darwish",
+     "email": "adel.darwish@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "848",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4NDg=",
+     "firstName": "Lina",
+     "lastName": "Khoury",
+     "email": "lina.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "844",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4NDQ=",
+     "firstName": "Zaid",
+     "lastName": "Nasser",
+     "email": "zaid.nasser@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "854",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4NTQ=",
+     "firstName": "Farah",
+     "lastName": "Nasser",
+     "email": "farah.nasser@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "8",
+  "name": "Authorization Team OP (Dubai)",
+  "nameAr": "Authorization Team OP (Dubai)",
+  "description": "Dental and Maxillofacial (manual), Back Office Queries (manual), Radiotherapy (manual)",
+  "active": true,
+  "tag": "auth-submission, auth-resubmission, department-dental-and-maxillofacial, encounter_op",
+  "tags": [
+   {
+    "id": "8",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "78",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "79",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "80",
+      "tag": "department-dental-and-maxillofacial",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "81",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-08-06T07:50:09+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjoxMDU1",
+    "firstName": "Noor",
+    "firstNameAr": null,
+    "lastName": "Chalhoub",
+    "lastNameAr": null,
+    "email": "noor.chalhoub@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo5Nzk=",
+    "firstName": "Waleed",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "waleed.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "1055",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDU1",
+     "firstName": "Noor",
+     "lastName": "Chalhoub",
+     "email": "noor.chalhoub@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "979",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5Nzk=",
+     "firstName": "Waleed",
+     "lastName": "Aziz",
+     "email": "waleed.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "9",
+  "name": "Authorization Team OP (Dubai)",
+  "nameAr": "Authorization Team OP (Dubai)",
+  "description": "Obstetrics & Gyne & IVF, Pediatrics & Neonatology, Psychiatry/Psychology, Diet & Nutrition",
+  "active": true,
+  "tag": "auth-resubmission, auth-submission, department-obstetrics-gyne-IVF, department-pediatrics-neonatology, department-psychiatry, department-clinical-psychiatry, department-dietician-nutrition, encounter_op",
+  "tags": [
+   {
+    "id": "9",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "82",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "83",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "84",
+      "tag": "department-obstetrics-gyne-IVF",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "85",
+      "tag": "department-pediatrics-neonatology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "86",
+      "tag": "department-psychiatry",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "87",
+      "tag": "department-clinical-psychiatry",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "88",
+      "tag": "department-dietician-nutrition",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "89",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-08-06T07:55:41+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjo5Nzk=",
+    "firstName": "Waleed",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "waleed.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDU3",
+    "firstName": "Hana",
+    "firstNameAr": null,
+    "lastName": "Chalhoub",
+    "lastNameAr": null,
+    "email": "hana.chalhoub@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "979",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5Nzk=",
+     "firstName": "Waleed",
+     "lastName": "Aziz",
+     "email": "waleed.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1057",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDU3",
+     "firstName": "Hana",
+     "lastName": "Chalhoub",
+     "email": "hana.chalhoub@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "10",
+  "name": "Authorization Team OP (Dubai)",
+  "nameAr": "Authorization Team OP (Dubai)",
+  "description": "E. N. T., Ophthalmology, Nephrology, Hyperbaric Medicine",
+  "active": true,
+  "tag": "auth-resubmission, auth-submission, department-E.N.T, department-ophthalmology, department-internal-medicine, encounter_op",
+  "tags": [
+   {
+    "id": "10",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "90",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "91",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "92",
+      "tag": "department-E.N.T",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "93",
+      "tag": "department-ophthalmology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "94",
+      "tag": "department-internal-medicine",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "95",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-08-06T08:01:57+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjo5Nzk=",
+    "firstName": "Waleed",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "waleed.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDU5",
+    "firstName": "Faris",
+    "firstNameAr": null,
+    "lastName": "Chalhoub",
+    "lastNameAr": null,
+    "email": "faris.chalhoub@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "979",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5Nzk=",
+     "firstName": "Waleed",
+     "lastName": "Aziz",
+     "email": "waleed.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1059",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDU5",
+     "firstName": "Faris",
+     "lastName": "Chalhoub",
+     "email": "faris.chalhoub@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "11",
+  "name": "Authorization Team OP (Dubai)",
+  "nameAr": "Authorization Team OP (Dubai)",
+  "description": "Internal Medicine (Gastroenterology), Family Medicine, Podiatry",
+  "active": true,
+  "tag": "auth-resubmission, auth-submission, department-internal-medicine, department-podiatry, encounter_op",
+  "tags": [
+   {
+    "id": "11",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "96",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "97",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "98",
+      "tag": "department-internal-medicine",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "99",
+      "tag": "department-podiatry",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "100",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-08-06T08:04:50+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjo5Nzk=",
+    "firstName": "Waleed",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "waleed.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "979",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5Nzk=",
+     "firstName": "Waleed",
+     "lastName": "Aziz",
+     "email": "waleed.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "12",
+  "name": "Authorization Team OP (Dubai)",
+  "nameAr": "Authorization Team OP (Dubai)",
+  "description": "Manual - Health Pkg, Dermatalogy, Urology, Internal Medicine (Allergy & Immunology, Pulmonology, Endocrinology)",
+  "active": true,
+  "tag": "auth-resubmission, auth-submission, department-dermatalogy, department-urology, department-internal-medicine",
+  "tags": [
+   {
+    "id": "12",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "101",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "102",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "103",
+      "tag": "department-dermatalogy",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "104",
+      "tag": "department-urology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "105",
+      "tag": "department-internal-medicine",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-08-06T08:13:30+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjoxMDU0",
+    "firstName": "Rami",
+    "firstNameAr": null,
+    "lastName": "Chalhoub",
+    "lastNameAr": null,
+    "email": "rami.chalhoub@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo5Nzk=",
+    "firstName": "Waleed",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "waleed.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "1054",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDU0",
+     "firstName": "Rami",
+     "lastName": "Chalhoub",
+     "email": "rami.chalhoub@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "979",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5Nzk=",
+     "firstName": "Waleed",
+     "lastName": "Aziz",
+     "email": "waleed.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "13",
+  "name": "Authorization Team OP (Dubai)",
+  "nameAr": "Authorization Team OP (Dubai)",
+  "description": "Orthopedics, Neurology (Headache and Migraine), Neurosurgery, Rheumatology, Physiotherapy",
+  "active": true,
+  "tag": "auth-resubmission, auth-submission, department-orthopedics, department-neurology, department-neurosurgery, department-rheumatology, department-physiotherapy, encounter_op",
+  "tags": [
+   {
+    "id": "13",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "106",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "107",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "108",
+      "tag": "department-orthopedics",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "109",
+      "tag": "department-neurology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "110",
+      "tag": "department-neurosurgery",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "111",
+      "tag": "department-rheumatology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "112",
+      "tag": "department-physiotherapy",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "113",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-08-06T08:17:28+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjoxMDU2",
+    "firstName": "Dania",
+    "firstNameAr": null,
+    "lastName": "Chalhoub",
+    "lastNameAr": null,
+    "email": "dania.chalhoub@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo5Nzk=",
+    "firstName": "Waleed",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "waleed.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "1056",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDU2",
+     "firstName": "Dania",
+     "lastName": "Chalhoub",
+     "email": "dania.chalhoub@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "979",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5Nzk=",
+     "firstName": "Waleed",
+     "lastName": "Aziz",
+     "email": "waleed.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "14",
+  "name": "Authorization Team OP (Dubai)",
+  "nameAr": "Authorization Team OP (Dubai)",
+  "description": "Anesthesia, Oncology/ Hematology, Surgery (plastic, briatric, vascular) ,Cardiology Services, Home Care Services (manual)",
+  "active": true,
+  "tag": "auth-resubmission, auth-submission, department-anesthesia, department-oncology, department-surgery, department-cardiology, encounter_op",
+  "tags": [
+   {
+    "id": "14",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "114",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "115",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "116",
+      "tag": "department-anesthesia",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "117",
+      "tag": "department-oncology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "118",
+      "tag": "department-surgery",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "119",
+      "tag": "department-cardiology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "120",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-08-06T08:24:12+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "3"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjo5Nzk=",
+    "firstName": "Waleed",
+    "firstNameAr": null,
+    "lastName": "Aziz",
+    "lastNameAr": null,
+    "email": "waleed.aziz@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "979",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo5Nzk=",
+     "firstName": "Waleed",
+     "lastName": "Aziz",
+     "email": "waleed.aziz@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "15",
+  "name": "Authorization OP Team (Ajman)",
+  "nameAr": "Authorization OP Team (Ajman)",
+  "description": "All departments - OP",
+  "active": true,
+  "tag": "auth-resubmission, auth-submission, encounter_op, department-anesthesia, department-cardiology, department-clinical-psychiatry, department-dental-and-maxillofacial, department-cosmetrix, department-dermatalogy, department-dietician-nutrition, department-E.N.T, department-emergency, department-internal-medicine, department-ICU",
+  "tags": [
+   {
+    "id": "15",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "121",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "122",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "123",
+      "tag": "encounter_op",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "124",
+      "tag": "department-anesthesia",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "125",
+      "tag": "department-cardiology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "126",
+      "tag": "department-clinical-psychiatry",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "127",
+      "tag": "department-dental-and-maxillofacial",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "128",
+      "tag": "department-cosmetrix",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "129",
+      "tag": "department-dermatalogy",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "130",
+      "tag": "department-dietician-nutrition",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "131",
+      "tag": "department-E.N.T",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "132",
+      "tag": "department-emergency",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "133",
+      "tag": "department-internal-medicine",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "134",
+      "tag": "department-ICU",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-08-12T07:58:27+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "8",
+   "4"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjg=",
+    "name": "Saudi German Hospital Pharmacy - Ajman",
+    "nameAr": "Saudi German Hospital Pharmacy - Ajman"
+   },
+   {
+    "id": "QnJhbmNoOjQ=",
+    "name": "SGH- Ajman",
+    "nameAr": "المستشفى السعودي الألماني - عجمان"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjoxMDEx",
+    "firstName": "Hadi",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "hadi.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDEw",
+    "firstName": "Hadi",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "hadi.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDEz",
+    "firstName": "Anas",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "anas.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDEy",
+    "firstName": "Anas",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "anas.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDE0",
+    "firstName": "Waleed",
+    "firstNameAr": null,
+    "lastName": "Haddad",
+    "lastNameAr": null,
+    "email": "waleed.haddad@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjo4Njg=",
+    "firstName": "Reem",
+    "firstNameAr": null,
+    "lastName": "Mansour",
+    "lastNameAr": null,
+    "email": "reem.mansour@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "1011",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDEx",
+     "firstName": "Hadi",
+     "lastName": "Khoury",
+     "email": "hadi.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1010",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDEw",
+     "firstName": "Hadi",
+     "lastName": "Khoury",
+     "email": "hadi.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1013",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDEz",
+     "firstName": "Anas",
+     "lastName": "Khoury",
+     "email": "anas.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1012",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDEy",
+     "firstName": "Anas",
+     "lastName": "Khoury",
+     "email": "anas.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1014",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDE0",
+     "firstName": "Waleed",
+     "lastName": "Haddad",
+     "email": "waleed.haddad@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "868",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjo4Njg=",
+     "firstName": "Reem",
+     "lastName": "Mansour",
+     "email": "reem.mansour@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ },
+ {
+  "id": "16",
+  "name": "Authorization Team IP (Dubai)",
+  "nameAr": "Authorization Team IP (Dubai)",
+  "description": "All departments - IP",
+  "active": true,
+  "tag": "auth-resubmission, auth-submission, encounter_ip, department-anesthesia, department-cardiology, department-clinical-psychiatry, department-cosmetrix, department-dental-and-maxillofacial, department-dermatalogy, department-dietician-nutrition, department-E.N.T, department-emergency, department-ICU, department-internal-medicine",
+  "tags": [
+   {
+    "id": "16",
+    "tag": null,
+    "isGroup": true,
+    "tagOperation": "AND",
+    "tags": [
+     {
+      "id": "135",
+      "tag": "auth-resubmission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "136",
+      "tag": "auth-submission",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "137",
+      "tag": "encounter_ip",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "138",
+      "tag": "department-anesthesia",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "139",
+      "tag": "department-cardiology",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "140",
+      "tag": "department-clinical-psychiatry",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "141",
+      "tag": "department-cosmetrix",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "142",
+      "tag": "department-dental-and-maxillofacial",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "143",
+      "tag": "department-dermatalogy",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "144",
+      "tag": "department-dietician-nutrition",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "145",
+      "tag": "department-E.N.T",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "146",
+      "tag": "department-emergency",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "147",
+      "tag": "department-ICU",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     },
+     {
+      "id": "148",
+      "tag": "department-internal-medicine",
+      "isGroup": false,
+      "tagOperation": null,
+      "tags": []
+     }
+    ]
+   }
+  ],
+  "createdDate": "2026-08-12T08:04:03+00:00",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "nextRotationDate": null,
+  "rotationPointer": null,
+  "branchIds": [
+   "3",
+   "6"
+  ],
+  "branches": [
+   {
+    "id": "QnJhbmNoOjM=",
+    "name": "Saudi German Hospital",
+    "nameAr": "المستشفى السعودي الألماني"
+   },
+   {
+    "id": "QnJhbmNoOjY=",
+    "name": "Saudi German Hospital Pharmacy - Dubai",
+    "nameAr": "Saudi German Hospital - Dubai"
+   }
+  ],
+  "usersDetails": [
+   {
+    "id": "VXNlcjoxMDY1",
+    "firstName": "Amira",
+    "firstNameAr": null,
+    "lastName": "Ghanem",
+    "lastNameAr": null,
+    "email": "amira.ghanem@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDYx",
+    "firstName": "Mariam",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "mariam.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDY2",
+    "firstName": "Bilal",
+    "firstNameAr": null,
+    "lastName": "Haddad",
+    "lastNameAr": null,
+    "email": "bilal.haddad@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDY0",
+    "firstName": "Sara",
+    "firstNameAr": null,
+    "lastName": "Ghanem",
+    "lastNameAr": null,
+    "email": "sara.ghanem@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDYy",
+    "firstName": "Rana",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "rana.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDYw",
+    "firstName": "Adel",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "adel.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDYz",
+    "firstName": "Nabil",
+    "firstNameAr": null,
+    "lastName": "Khoury",
+    "lastNameAr": null,
+    "email": "nabil.khoury@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   },
+   {
+    "id": "VXNlcjoxMDY4",
+    "firstName": "Farah",
+    "firstNameAr": null,
+    "lastName": "Haddad",
+    "lastNameAr": null,
+    "email": "farah.haddad@example.invalid",
+    "appRole": "USER",
+    "isActive": true
+   }
+  ],
+  "members": [
+   {
+    "userId": "1065",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDY1",
+     "firstName": "Amira",
+     "lastName": "Ghanem",
+     "email": "amira.ghanem@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1061",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDYx",
+     "firstName": "Mariam",
+     "lastName": "Khoury",
+     "email": "mariam.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1066",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDY2",
+     "firstName": "Bilal",
+     "lastName": "Haddad",
+     "email": "bilal.haddad@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1064",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDY0",
+     "firstName": "Sara",
+     "lastName": "Ghanem",
+     "email": "sara.ghanem@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1062",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDYy",
+     "firstName": "Rana",
+     "lastName": "Khoury",
+     "email": "rana.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1060",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDYw",
+     "firstName": "Adel",
+     "lastName": "Khoury",
+     "email": "adel.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1063",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDYz",
+     "firstName": "Nabil",
+     "lastName": "Khoury",
+     "email": "nabil.khoury@example.invalid"
+    },
+    "unavailabilities": []
+   },
+   {
+    "userId": "1068",
+    "unavailableToday": false,
+    "user": {
+     "id": "VXNlcjoxMDY4",
+     "firstName": "Farah",
+     "lastName": "Haddad",
+     "email": "farah.haddad@example.invalid"
+    },
+    "unavailabilities": []
+   }
+  ]
+ }
+]

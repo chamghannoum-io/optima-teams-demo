@@ -1,0 +1,340 @@
+# Teams module GraphQL operations
+# Extracted from provider-app/apps/provider/src/features/master-data/graphql/master-data.graphql
+# Source: OptimaUI @ origin/optima/release.3.3.0
+
+query GetOptimaTeams($filter: OptimaTeamFilterInput) {
+  optimaTeams(filter: $filter) {
+    id
+    name
+    nameAr
+    description
+    active
+    tag
+    tags {
+      id
+      tag
+      isGroup
+      tagOperation
+      tags {
+        id
+        tag
+        isGroup
+        tagOperation
+        tags {
+          id
+          tag
+          isGroup
+          tagOperation
+          tags {
+            id
+            tag
+            isGroup
+            tagOperation
+            tags {
+              id
+              tag
+              isGroup
+              tagOperation
+              tags {
+                id
+                tag
+                isGroup
+                tagOperation
+              }
+            }
+          }
+        }
+      }
+    }
+    createdDate
+    rotationEnabled
+    rotationFrequency
+    nextRotationDate
+    branchIds
+    branches {
+      id
+      name
+      nameAr
+    }
+    usersDetails {
+      id
+      firstName
+      firstNameAr
+      lastName
+      lastNameAr
+      email
+      appRole
+      isActive
+    }
+  }
+}
+
+query GetOptimaTeam($id: ID!) {
+  optimaTeam(id: $id) {
+    id
+    name
+    nameAr
+    description
+    active
+    tag
+    tags {
+      id
+      tag
+      isGroup
+      tagOperation
+      tags {
+        id
+        tag
+        isGroup
+        tagOperation
+        tags {
+          id
+          tag
+          isGroup
+          tagOperation
+          tags {
+            id
+            tag
+            isGroup
+            tagOperation
+            tags {
+              id
+              tag
+              isGroup
+              tagOperation
+              tags {
+                id
+                tag
+                isGroup
+                tagOperation
+              }
+            }
+          }
+        }
+      }
+    }
+    createdDate
+    rotationEnabled
+    rotationFrequency
+    nextRotationDate
+    branchIds
+    branches {
+      id
+      name
+      nameAr
+    }
+    usersDetails {
+      id
+      firstName
+      firstNameAr
+      lastName
+      lastNameAr
+      email
+      appRole
+      isActive
+    }
+  }
+}
+
+mutation CreateOptimaTeam($input: OptimaTeamInput!) {
+  optimaTeamCreate(input: $input) {
+    id
+    name
+    nameAr
+    description
+    active
+    tag
+    tags {
+      id
+      tag
+      isGroup
+      tagOperation
+      tags {
+        id
+        tag
+        isGroup
+        tagOperation
+        tags {
+          id
+          tag
+          isGroup
+          tagOperation
+          tags {
+            id
+            tag
+            isGroup
+            tagOperation
+            tags {
+              id
+              tag
+              isGroup
+              tagOperation
+              tags {
+                id
+                tag
+                isGroup
+                tagOperation
+              }
+            }
+          }
+        }
+      }
+    }
+    rotationEnabled
+    rotationFrequency
+    nextRotationDate
+    branchIds
+  }
+}
+
+mutation UpdateOptimaTeam($id: ID!, $input: OptimaTeamInput!) {
+  optimaTeamUpdate(id: $id, input: $input) {
+    id
+    name
+    nameAr
+    description
+    active
+    tag
+    tags {
+      id
+      tag
+      isGroup
+      tagOperation
+      tags {
+        id
+        tag
+        isGroup
+        tagOperation
+        tags {
+          id
+          tag
+          isGroup
+          tagOperation
+          tags {
+            id
+            tag
+            isGroup
+            tagOperation
+            tags {
+              id
+              tag
+              isGroup
+              tagOperation
+              tags {
+                id
+                tag
+                isGroup
+                tagOperation
+              }
+            }
+          }
+        }
+      }
+    }
+    rotationEnabled
+    rotationFrequency
+    nextRotationDate
+    branchIds
+  }
+}
+
+mutation AddOptimaTeamUsers($id: ID!, $userIds: [ID!]!) {
+  optimaTeamUserAdd(id: $id, userIds: $userIds) {
+    id
+    usersDetails {
+      id
+      firstName
+      firstNameAr
+      lastName
+      lastNameAr
+      email
+      appRole
+      isActive
+    }
+  }
+}
+
+mutation RemoveOptimaTeamUsers($id: ID!, $userIds: [ID!]!) {
+  optimaTeamUserRemove(id: $id, userIds: $userIds) {
+    id
+    usersDetails {
+      id
+      firstName
+      firstNameAr
+      lastName
+      lastNameAr
+      email
+      appRole
+      isActive
+    }
+  }
+}
+
+query GetOptimaTeamMembers($id: ID!, $availableOnly: Boolean) {
+  optimaTeam(id: $id) {
+    id
+    members(availableOnly: $availableOnly) {
+      userId
+      user {
+        id
+      }
+      unavailableToday
+      unavailabilities {
+        id
+        startDate
+        endDate
+        reason
+        cancelled
+        activeToday
+        createdBy
+        createdDate
+      }
+    }
+  }
+}
+
+mutation SetOptimaTeamUserUnavailability($input: OptimaTeamUserUnavailabilityInput!) {
+  optimaTeamUserUnavailabilitySet(input: $input) {
+    id
+    rcmTeamId
+    userId
+    startDate
+    endDate
+    reason
+    cancelled
+  }
+}
+
+mutation CancelOptimaTeamUserUnavailability($id: ID!) {
+  optimaTeamUserUnavailabilityCancel(id: $id) {
+    id
+    cancelled
+  }
+}
+
+
+# --- Supporting queries used by the team tag autocomplete ---
+query GetCodeSystemDefinitionsSummary($name: String) {
+  getCodeSystemDefinitionsSummery(name: $name) {
+    activeCodeSystem {
+      id
+    }
+    codeSystemDefinition {
+      code
+      display
+    }
+  }
+}
+
+query GetCodeSystemConceptsForTags($first: Int, $last: Int, $after: String, $before: String, $filter: CodeSystemConceptSearchFilter) {
+  codeSystemConcepts(first: $first, last: $last, after: $after, before: $before, filter: $filter) {
+    edges {
+      node {
+        id
+        code
+        display
+      }
+    }
+  }
+}
+

@@ -1,0 +1,1 @@
+{"operationName":"GetPayersMaster","variables":{"first":500},"query":"query GetPayersMaster($first: Int, $after: String) {\n  payers(first: $first, after: $after) {\n    totalCount\n    pageInfo { hasNextPage endCursor }\n    edges { node { id name nameAr licenseNumber isActive } }\n  }\n}"}

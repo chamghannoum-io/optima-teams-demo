@@ -1,0 +1,45 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet author="optima" id="20260804-rcm-team-branch-sort-order">
+        <addColumn tableName="rcm_team_branch">
+            <column name="sort_order" type="INT"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- Backfill: number each team's branches 0..n-1 by row id, preserving current insertion order.
+         @OrderColumn requires a contiguous index per team. -->
+    <changeSet author="optima" id="20260804-rcm-team-branch-sort-order-backfill-mysql" dbms="mysql, mariadb">
+        <sql>
+            UPDATE rcm_team_branch t
+            JOIN (
+                SELECT id, ROW_NUMBER() OVER (PARTITION BY rcm_team_id ORDER BY id) - 1 AS rn
+                FROM rcm_team_branch
+            ) x ON t.id = x.id
+            SET t.sort_order = x.rn;
+        </sql>
+    </changeSet>
+
+    <changeSet author="optima" id="20260804-rcm-team-branch-sort-order-backfill-mssql" dbms="mssql">
+        <sql>
+            WITH numbered AS (
+                SELECT sort_order, ROW_NUMBER() OVER (PARTITION BY rcm_team_id ORDER BY id) - 1 AS rn
+                FROM rcm_team_branch
+            )
+            UPDATE numbered SET sort_order = rn;
+        </sql>
+    </changeSet>
+
+    <changeSet author="optima" id="20260804-rcm-team-branch-sort-order-backfill-other" dbms="h2, postgresql">
+        <sql>
+            UPDATE rcm_team_branch t
+            SET sort_order = (
+                SELECT COUNT(*) FROM rcm_team_branch t2
+                WHERE t2.rcm_team_id = t.rcm_team_id AND t2.id &lt; t.id
+            );
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,1765 @@
+[
+ {
+  "id": "1",
+  "name": "DXB · AUTH · OP",
+  "nameAr": null,
+  "description": "AUTH worklist for DXB (OP)",
+  "active": true,
+  "facilityId": "DXB",
+  "siteKey": "DHA-F-0046775",
+  "division": "AUTH",
+  "encounterScope": "OP",
+  "logicAxis": "DEPARTMENT",
+  "createdDate": "2026-02-11T00:00:00Z",
+  "rotationEnabled": true,
+  "rotationFrequency": "WEEKLY",
+  "branchIds": [
+   1
+  ],
+  "branches": [
+   {
+    "id": "1",
+    "name": "DXB",
+    "nameAr": null,
+    "healthLicense": "DXB"
+   }
+  ],
+  "groups": [
+   {
+    "id": "1",
+    "name": "Submission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [
+     "Internal Medicine",
+     "Physiotherapy",
+     "Neurology",
+     "Rheumatology",
+     "Neurosurgery"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjo5NDk=",
+      "firstName": "Zaid",
+      "lastName": "Kanaan",
+      "email": "zaid.kanaan@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4NzY=",
+      "firstName": "Anas",
+      "lastName": "Sabbagh",
+      "email": "anas.sabbagh@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo5NTE=",
+      "firstName": "Zaid",
+      "lastName": "Sabbagh",
+      "email": "zaid.sabbagh@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "2",
+    "name": "Resubmission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [
+     "Obstetrics & Gyne & IVF",
+     "Dental and Maxillofacial",
+     "Cardiology Services",
+     "Dermatology",
+     "Ophthalmology",
+     "Oncology",
+     "Cosmetrix",
+     "Psychiatry",
+     "Dietician / Nutrition",
+     "GIHC Oncology",
+     "Plastic/Briatric Surgery",
+     "Dr. Amr El Shawarbi  Neurosurgery Center",
+     "Intensive Care Unit"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjo5NTA=",
+      "firstName": "Dania",
+      "lastName": "Kanaan",
+      "email": "dania.kanaan@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDM2",
+      "firstName": "Dalia",
+      "lastName": "Aziz",
+      "email": "dalia.aziz@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDM3",
+      "firstName": "Leen",
+      "lastName": "Aziz",
+      "email": "leen.aziz@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "3",
+    "name": "Submission & Resubmission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION",
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [
+     "Emergency",
+     "Orthopedics",
+     "Pediatrics & Neonatology",
+     "E. N. T.",
+     "Surgery",
+     "Urology",
+     "Anesthesia",
+     "Oncology/ Hematology",
+     "(unresolved)",
+     "Intensive Care Unit - ICU"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjoxMDM1",
+      "firstName": "Marwan",
+      "lastName": "Aziz",
+      "email": "marwan.aziz@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDM4",
+      "firstName": "Waleed",
+      "lastName": "Aziz",
+      "email": "waleed.aziz@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "2",
+  "name": "DXB · AUTH · IP",
+  "nameAr": null,
+  "description": "AUTH worklist for DXB (IP)",
+  "active": true,
+  "facilityId": "DXB",
+  "siteKey": "DHA-F-0046775",
+  "division": "AUTH",
+  "encounterScope": "IP",
+  "logicAxis": "DEPARTMENT",
+  "createdDate": "2026-03-12T00:00:00Z",
+  "rotationEnabled": true,
+  "rotationFrequency": "WEEKLY",
+  "branchIds": [
+   2
+  ],
+  "branches": [
+   {
+    "id": "2",
+    "name": "DXB",
+    "nameAr": null,
+    "healthLicense": "DXB"
+   }
+  ],
+  "groups": [
+   {
+    "id": "4",
+    "name": "Submission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [
+     "Internal Medicine",
+     "Physiotherapy",
+     "Neurology",
+     "Rheumatology",
+     "Neurosurgery"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjo4NjU=",
+      "firstName": "Rana",
+      "lastName": "Kanaan",
+      "email": "rana.kanaan@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDA5",
+      "firstName": "Maya",
+      "lastName": "Chalhoub",
+      "email": "maya.chalhoub@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDU1",
+      "firstName": "Noor",
+      "lastName": "Chalhoub",
+      "email": "noor.chalhoub@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "5",
+    "name": "Resubmission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [
+     "Obstetrics & Gyne & IVF",
+     "Dental and Maxillofacial",
+     "Cardiology Services",
+     "Dermatology",
+     "Ophthalmology",
+     "Oncology",
+     "Cosmetrix",
+     "Psychiatry",
+     "Dietician / Nutrition",
+     "GIHC Oncology",
+     "Plastic/Briatric Surgery",
+     "Dr. Amr El Shawarbi  Neurosurgery Center",
+     "Intensive Care Unit"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjo5Nzk=",
+      "firstName": "Waleed",
+      "lastName": "Aziz",
+      "email": "waleed.aziz@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDU3",
+      "firstName": "Hana",
+      "lastName": "Chalhoub",
+      "email": "hana.chalhoub@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDU5",
+      "firstName": "Faris",
+      "lastName": "Chalhoub",
+      "email": "faris.chalhoub@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "6",
+    "name": "Submission & Resubmission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION",
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [
+     "Emergency",
+     "Orthopedics",
+     "Pediatrics & Neonatology",
+     "E. N. T.",
+     "Surgery",
+     "Urology",
+     "Anesthesia",
+     "Oncology/ Hematology",
+     "(unresolved)",
+     "Intensive Care Unit - ICU"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjoxMDU0",
+      "firstName": "Rami",
+      "lastName": "Chalhoub",
+      "email": "rami.chalhoub@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDU2",
+      "firstName": "Dania",
+      "lastName": "Chalhoub",
+      "email": "dania.chalhoub@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "3",
+  "name": "DXB · CLAIM · OP",
+  "nameAr": null,
+  "description": "CLAIM worklist for DXB (OP)",
+  "active": true,
+  "facilityId": "DXB",
+  "siteKey": "DHA-F-0046775",
+  "division": "CLAIM",
+  "encounterScope": "OP",
+  "logicAxis": "PAYER",
+  "createdDate": "2026-04-13T00:00:00Z",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "branchIds": [
+   3
+  ],
+  "branches": [
+   {
+    "id": "3",
+    "name": "DXB",
+    "nameAr": null,
+    "healthLicense": "DXB"
+   }
+  ],
+  "groups": [
+   {
+    "id": "7",
+    "name": "Coders — DXB",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_VALIDATION"
+    ],
+    "encounterScope": "OP",
+    "departments": [],
+    "payers": [
+     "INS012",
+     "INS008",
+     "INS137",
+     "INS019",
+     "INS010",
+     "INS013",
+     "INS026",
+     "INS017",
+     "INS005",
+     "INS002",
+     "INS044",
+     "INS001"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "OPEN",
+     "CHECKED"
+    ],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjo2Njk=",
+      "firstName": "Huda",
+      "lastName": "Rahal",
+      "email": "huda.rahal@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2Njg=",
+      "firstName": "Adel",
+      "lastName": "Mansour",
+      "email": "adel.mansour@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NzM=",
+      "firstName": "Reem",
+      "lastName": "Ghanem",
+      "email": "reem.ghanem@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NzQ=",
+      "firstName": "Imad",
+      "lastName": "Mansour",
+      "email": "imad.mansour@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "8",
+    "name": "Submission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_SUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [],
+    "payers": [
+     "INS022",
+     "INS027",
+     "INS134",
+     "INS038",
+     "INS018",
+     "INS041",
+     "INS015",
+     "INS024",
+     "SF0051",
+     "INS035",
+     "INS009",
+     "INS139",
+     "SP0001"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "VALIDATED"
+    ],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjo2NjY=",
+      "firstName": "Yasmin",
+      "lastName": "Sabbagh",
+      "email": "yasmin.sabbagh@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo5OTU=",
+      "firstName": "Marwan",
+      "lastName": "Chalhoub",
+      "email": "marwan.chalhoub@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "9",
+    "name": "Resubmission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_RESUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [],
+    "payers": [],
+    "payerCatchAll": true,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjo2NzY=",
+      "firstName": "Aisha",
+      "lastName": "Sabbagh",
+      "email": "aisha.sabbagh@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NzU=",
+      "firstName": "Jamal",
+      "lastName": "Kanaan",
+      "email": "jamal.kanaan@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "4",
+  "name": "DXB · CLAIM · IP",
+  "nameAr": null,
+  "description": "CLAIM worklist for DXB (IP)",
+  "active": true,
+  "facilityId": "DXB",
+  "siteKey": "DHA-F-0046775",
+  "division": "CLAIM",
+  "encounterScope": "IP",
+  "logicAxis": "PAYER",
+  "createdDate": "2026-05-14T00:00:00Z",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "branchIds": [
+   4
+  ],
+  "branches": [
+   {
+    "id": "4",
+    "name": "DXB",
+    "nameAr": null,
+    "healthLicense": "DXB"
+   }
+  ],
+  "groups": [
+   {
+    "id": "10",
+    "name": "Coders — DXB",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_VALIDATION"
+    ],
+    "encounterScope": "IP",
+    "departments": [],
+    "payers": [
+     "INS012",
+     "INS008",
+     "INS137",
+     "INS019",
+     "INS010",
+     "INS013",
+     "INS026",
+     "INS017",
+     "INS005",
+     "INS002",
+     "INS044",
+     "INS001"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "OPEN",
+     "CHECKED"
+    ],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjoxMDQ4",
+      "firstName": "Mariam",
+      "lastName": "Hakim",
+      "email": "mariam.hakim@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NjI=",
+      "firstName": "Zaid",
+      "lastName": "Zahra",
+      "email": "zaid.zahra@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NjA=",
+      "firstName": "Salma",
+      "lastName": "Rahal",
+      "email": "salma.rahal@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NjQ=",
+      "firstName": "Bilal",
+      "lastName": "Khoury",
+      "email": "bilal.khoury@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "11",
+    "name": "Submission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_SUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [],
+    "payers": [
+     "INS022",
+     "INS027",
+     "INS134",
+     "INS038",
+     "INS018",
+     "INS041",
+     "INS015",
+     "INS024",
+     "SF0051",
+     "INS035",
+     "INS009",
+     "INS139",
+     "SP0001"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "VALIDATED"
+    ],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjo2Njc=",
+      "firstName": "Sara",
+      "lastName": "Haddad",
+      "email": "sara.haddad@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDQ1",
+      "firstName": "Lina",
+      "lastName": "Hakim",
+      "email": "lina.hakim@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "12",
+    "name": "Resubmission — DXB",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_RESUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [],
+    "payers": [],
+    "payerCatchAll": true,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjoxMDUx",
+      "firstName": "Dania",
+      "lastName": "Tannous",
+      "email": "dania.tannous@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDUw",
+      "firstName": "Dania",
+      "lastName": "Tannous",
+      "email": "dania.tannous@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "5",
+  "name": "AJM · AUTH · OP",
+  "nameAr": null,
+  "description": "AUTH worklist for AJM (OP)",
+  "active": true,
+  "facilityId": "AJM",
+  "siteKey": "DHA-F-0000792",
+  "division": "AUTH",
+  "encounterScope": "OP",
+  "logicAxis": "DEPARTMENT",
+  "createdDate": "2026-06-15T00:00:00Z",
+  "rotationEnabled": true,
+  "rotationFrequency": "WEEKLY",
+  "branchIds": [
+   5
+  ],
+  "branches": [
+   {
+    "id": "5",
+    "name": "AJM",
+    "nameAr": null,
+    "healthLicense": "AJM"
+   }
+  ],
+  "groups": [
+   {
+    "id": "13",
+    "name": "Submission — AJM",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [
+     "Internal Medicine",
+     "Cardiology Services",
+     "Urology",
+     "Surgery",
+     "Cosmetrix",
+     "Oncology",
+     "Dr. Amr El Shawarbi  Neurosurgery Center",
+     "GIHC Oncology",
+     "Physiotherapy"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjoxMDEx",
+      "firstName": "Hadi",
+      "lastName": "Khoury",
+      "email": "hadi.khoury@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDEw",
+      "firstName": "Hadi",
+      "lastName": "Khoury",
+      "email": "hadi.khoury@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDEz",
+      "firstName": "Anas",
+      "lastName": "Khoury",
+      "email": "anas.khoury@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "14",
+    "name": "Resubmission — AJM",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [
+     "Pediatrics & Neonatology",
+     "Dermatology",
+     "Neurology",
+     "Orthopedics",
+     "Rheumatology",
+     "Oncology/ Hematology",
+     "(unresolved)"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjoxMDEy",
+      "firstName": "Anas",
+      "lastName": "Khoury",
+      "email": "anas.khoury@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDE0",
+      "firstName": "Waleed",
+      "lastName": "Haddad",
+      "email": "waleed.haddad@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4Njg=",
+      "firstName": "Reem",
+      "lastName": "Mansour",
+      "email": "reem.mansour@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "15",
+    "name": "Submission & Resubmission — AJM",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION",
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [
+     "Obstetrics & Gyne & IVF",
+     "Emergency",
+     "E. N. T.",
+     "Ophthalmology",
+     "Neurosurgery",
+     "Dental and Maxillofacial",
+     "Psychiatry"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjoxMDY1",
+      "firstName": "Amira",
+      "lastName": "Ghanem",
+      "email": "amira.ghanem@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDYx",
+      "firstName": "Mariam",
+      "lastName": "Khoury",
+      "email": "mariam.khoury@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "6",
+  "name": "AJM · AUTH · IP",
+  "nameAr": null,
+  "description": "AUTH worklist for AJM (IP)",
+  "active": true,
+  "facilityId": "AJM",
+  "siteKey": "DHA-F-0000792",
+  "division": "AUTH",
+  "encounterScope": "IP",
+  "logicAxis": "DEPARTMENT",
+  "createdDate": "2026-07-16T00:00:00Z",
+  "rotationEnabled": true,
+  "rotationFrequency": "WEEKLY",
+  "branchIds": [
+   6
+  ],
+  "branches": [
+   {
+    "id": "6",
+    "name": "AJM",
+    "nameAr": null,
+    "healthLicense": "AJM"
+   }
+  ],
+  "groups": [
+   {
+    "id": "16",
+    "name": "Submission — AJM",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [
+     "Internal Medicine",
+     "Cardiology Services",
+     "Urology",
+     "Surgery",
+     "Cosmetrix",
+     "Oncology",
+     "Dr. Amr El Shawarbi  Neurosurgery Center",
+     "GIHC Oncology",
+     "Physiotherapy"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjoxMDY2",
+      "firstName": "Bilal",
+      "lastName": "Haddad",
+      "email": "bilal.haddad@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDY0",
+      "firstName": "Sara",
+      "lastName": "Ghanem",
+      "email": "sara.ghanem@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDYy",
+      "firstName": "Rana",
+      "lastName": "Khoury",
+      "email": "rana.khoury@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "17",
+    "name": "Resubmission — AJM",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [
+     "Pediatrics & Neonatology",
+     "Dermatology",
+     "Neurology",
+     "Orthopedics",
+     "Rheumatology",
+     "Oncology/ Hematology",
+     "(unresolved)"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjoxMDYw",
+      "firstName": "Adel",
+      "lastName": "Khoury",
+      "email": "adel.khoury@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDYz",
+      "firstName": "Nabil",
+      "lastName": "Khoury",
+      "email": "nabil.khoury@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDY4",
+      "firstName": "Farah",
+      "lastName": "Haddad",
+      "email": "farah.haddad@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "18",
+    "name": "Submission & Resubmission — AJM",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION",
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [
+     "Obstetrics & Gyne & IVF",
+     "Emergency",
+     "E. N. T.",
+     "Ophthalmology",
+     "Neurosurgery",
+     "Dental and Maxillofacial",
+     "Psychiatry"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjo5NDk=",
+      "firstName": "Zaid",
+      "lastName": "Kanaan",
+      "email": "zaid.kanaan@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4NzY=",
+      "firstName": "Anas",
+      "lastName": "Sabbagh",
+      "email": "anas.sabbagh@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "7",
+  "name": "AJM · CLAIM · OP",
+  "nameAr": null,
+  "description": "CLAIM worklist for AJM (OP)",
+  "active": true,
+  "facilityId": "AJM",
+  "siteKey": "DHA-F-0000792",
+  "division": "CLAIM",
+  "encounterScope": "OP",
+  "logicAxis": "PAYER",
+  "createdDate": "2026-08-17T00:00:00Z",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "branchIds": [
+   7
+  ],
+  "branches": [
+   {
+    "id": "7",
+    "name": "AJM",
+    "nameAr": null,
+    "healthLicense": "AJM"
+   }
+  ],
+  "groups": [
+   {
+    "id": "19",
+    "name": "Coders — AJM",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_VALIDATION"
+    ],
+    "encounterScope": "OP",
+    "departments": [],
+    "payers": [
+     "INS012",
+     "INS137",
+     "INS008",
+     "INS026",
+     "INS019",
+     "INS010",
+     "INS017",
+     "INS013"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "OPEN",
+     "CHECKED"
+    ],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjoxMDQ2",
+      "firstName": "Huda",
+      "lastName": "Hakim",
+      "email": "huda.hakim@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDUy",
+      "firstName": "Lina",
+      "lastName": "Tannous",
+      "email": "lina.tannous@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDc0",
+      "firstName": "Rana",
+      "lastName": "Fares",
+      "email": "rana.fares@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NjM=",
+      "firstName": "Ziad",
+      "lastName": "Tannous",
+      "email": "ziad.tannous@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "20",
+    "name": "Submission — AJM",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_SUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [],
+    "payers": [
+     "INS002",
+     "INS005",
+     "INS044",
+     "INS001",
+     "INS022",
+     "INS038",
+     "INS027",
+     "INS134"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "VALIDATED"
+    ],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjo2ODc=",
+      "firstName": "Bilal",
+      "lastName": "Fares",
+      "email": "bilal.fares@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2ODU=",
+      "firstName": "Farah",
+      "lastName": "Chalhoub",
+      "email": "farah.chalhoub@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "21",
+    "name": "Resubmission — AJM",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_RESUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [],
+    "payers": [],
+    "payerCatchAll": true,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjo2ODY=",
+      "firstName": "Ammar",
+      "lastName": "Haddad",
+      "email": "ammar.haddad@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDQ3",
+      "firstName": "Reem",
+      "lastName": "Hakim",
+      "email": "reem.hakim@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "8",
+  "name": "SHJ · AUTH · BOTH",
+  "nameAr": null,
+  "description": "AUTH worklist for SHJ (BOTH)",
+  "active": true,
+  "facilityId": "SHJ",
+  "siteKey": "2148 + MOH-F-5000835",
+  "division": "AUTH",
+  "encounterScope": "BOTH",
+  "logicAxis": "DEPARTMENT",
+  "createdDate": "2026-09-18T00:00:00Z",
+  "rotationEnabled": true,
+  "rotationFrequency": "WEEKLY",
+  "branchIds": [
+   8
+  ],
+  "branches": [
+   {
+    "id": "8",
+    "name": "SHJ",
+    "nameAr": null,
+    "healthLicense": "SHJ"
+   }
+  ],
+  "groups": [
+   {
+    "id": "22",
+    "name": "Submission — SHJ",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION"
+    ],
+    "encounterScope": "BOTH",
+    "departments": [
+     "Internal Medicine",
+     "Dermatology",
+     "Neurology",
+     "Cardiology Services",
+     "(unresolved)"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjo5NTE=",
+      "firstName": "Zaid",
+      "lastName": "Sabbagh",
+      "email": "zaid.sabbagh@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo5NTA=",
+      "firstName": "Dania",
+      "lastName": "Kanaan",
+      "email": "dania.kanaan@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDM2",
+      "firstName": "Dalia",
+      "lastName": "Aziz",
+      "email": "dalia.aziz@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "23",
+    "name": "Resubmission — SHJ",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "BOTH",
+    "departments": [
+     "Pediatrics & Neonatology",
+     "E. N. T.",
+     "Ophthalmology",
+     "Neurosurgery",
+     "Rheumatology",
+     "Podiatry",
+     "Physiotherapy"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjoxMDM3",
+      "firstName": "Leen",
+      "lastName": "Aziz",
+      "email": "leen.aziz@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDM1",
+      "firstName": "Marwan",
+      "lastName": "Aziz",
+      "email": "marwan.aziz@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDM4",
+      "firstName": "Waleed",
+      "lastName": "Aziz",
+      "email": "waleed.aziz@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "24",
+    "name": "Submission & Resubmission — SHJ",
+    "active": true,
+    "workItemTypes": [
+     "AUTHORIZATION_SUBMISSION",
+     "AUTHORIZATION_RESUBMISSION"
+    ],
+    "encounterScope": "BOTH",
+    "departments": [
+     "Emergency",
+     "Obstetrics & Gyne & IVF",
+     "Orthopedics",
+     "Urology",
+     "Surgery",
+     "Dental and Maxillofacial",
+     "Oncology",
+     "Psychiatry"
+    ],
+    "payers": [],
+    "payerCatchAll": false,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjo4NjU=",
+      "firstName": "Rana",
+      "lastName": "Kanaan",
+      "email": "rana.kanaan@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDA5",
+      "firstName": "Maya",
+      "lastName": "Chalhoub",
+      "email": "maya.chalhoub@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "9",
+  "name": "SHJ · CLAIM · BOTH",
+  "nameAr": null,
+  "description": "CLAIM worklist for SHJ (BOTH)",
+  "active": true,
+  "facilityId": "SHJ",
+  "siteKey": "2148 + MOH-F-5000835",
+  "division": "CLAIM",
+  "encounterScope": "BOTH",
+  "logicAxis": "PAYER",
+  "createdDate": "2026-01-10T00:00:00Z",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "branchIds": [
+   9
+  ],
+  "branches": [
+   {
+    "id": "9",
+    "name": "SHJ",
+    "nameAr": null,
+    "healthLicense": "SHJ"
+   }
+  ],
+  "groups": [
+   {
+    "id": "25",
+    "name": "Coders — SHJ",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_VALIDATION"
+    ],
+    "encounterScope": "BOTH",
+    "departments": [],
+    "payers": [
+     "INS002",
+     "INS019",
+     "INS017",
+     "INS012",
+     "INS200",
+     "INS026",
+     "INS020",
+     "INS008",
+     "INS044",
+     "INS005"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "OPEN",
+     "CHECKED"
+    ],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjo2Nzk=",
+      "firstName": "Huda",
+      "lastName": "Aziz",
+      "email": "huda.aziz@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDgw",
+      "firstName": "Huda",
+      "lastName": "Baroudi",
+      "email": "huda.baroudi@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4NzM=",
+      "firstName": "Mariam",
+      "lastName": "Ghanem",
+      "email": "mariam.ghanem@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDc5",
+      "firstName": "Farah",
+      "lastName": "Fares",
+      "email": "farah.fares@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "26",
+    "name": "Submission — SHJ",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_SUBMISSION"
+    ],
+    "encounterScope": "BOTH",
+    "departments": [],
+    "payers": [
+     "INS001",
+     "INS137",
+     "INS022",
+     "INS013",
+     "INS010",
+     "INS027",
+     "INS015",
+     "INS038",
+     "INS040",
+     "INS018"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "VALIDATED"
+    ],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjoxMDc3",
+      "firstName": "Anas",
+      "lastName": "Fares",
+      "email": "anas.fares@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4NDA=",
+      "firstName": "Anas",
+      "lastName": "Darwish",
+      "email": "anas.darwish@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "27",
+    "name": "Resubmission — SHJ",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_RESUBMISSION"
+    ],
+    "encounterScope": "BOTH",
+    "departments": [],
+    "payers": [],
+    "payerCatchAll": true,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjo4Mjg=",
+      "firstName": "Adel",
+      "lastName": "Hakim",
+      "email": "adel.hakim@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4MzI=",
+      "firstName": "Sara",
+      "lastName": "Saleh",
+      "email": "sara.saleh@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "10",
+  "name": "RAK · CLAIM · OP",
+  "nameAr": null,
+  "description": "CLAIM worklist for RAK (OP)",
+  "active": true,
+  "facilityId": "RAK",
+  "siteKey": "7510 + MOH-F-1000464",
+  "division": "CLAIM",
+  "encounterScope": "OP",
+  "logicAxis": "PAYER",
+  "createdDate": "2026-02-11T00:00:00Z",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "branchIds": [
+   10
+  ],
+  "branches": [
+   {
+    "id": "10",
+    "name": "RAK",
+    "nameAr": null,
+    "healthLicense": "RAK"
+   }
+  ],
+  "groups": [
+   {
+    "id": "28",
+    "name": "Coders — RAK",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_VALIDATION"
+    ],
+    "encounterScope": "OP",
+    "departments": [],
+    "payers": [
+     "INS002",
+     "INS019",
+     "INS017",
+     "INS012",
+     "INS200",
+     "INS020",
+     "INS008",
+     "INS026",
+     "INS044",
+     "INS005",
+     "INS001",
+     "INS022"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "OPEN",
+     "CHECKED"
+    ],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjo4MzA=",
+      "firstName": "Adel",
+      "lastName": "Chalhoub",
+      "email": "adel.chalhoub@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4MjY=",
+      "firstName": "Yasmin",
+      "lastName": "Ghanem",
+      "email": "yasmin.ghanem@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4NDY=",
+      "firstName": "Huda",
+      "lastName": "Fares",
+      "email": "huda.fares@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4NDU=",
+      "firstName": "Adel",
+      "lastName": "Darwish",
+      "email": "adel.darwish@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "29",
+    "name": "Submission — RAK",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_SUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [],
+    "payers": [
+     "INS137",
+     "INS015",
+     "INS013",
+     "INS010",
+     "INS027",
+     "INS018",
+     "INS040",
+     "INS038",
+     "SF0051",
+     "INS139",
+     "INS134",
+     "INS035"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "VALIDATED"
+    ],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjo4NDg=",
+      "firstName": "Lina",
+      "lastName": "Khoury",
+      "email": "lina.khoury@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo4NDQ=",
+      "firstName": "Zaid",
+      "lastName": "Nasser",
+      "email": "zaid.nasser@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "30",
+    "name": "Resubmission — RAK",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_RESUBMISSION"
+    ],
+    "encounterScope": "OP",
+    "departments": [],
+    "payers": [],
+    "payerCatchAll": true,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjo4NTQ=",
+      "firstName": "Farah",
+      "lastName": "Nasser",
+      "email": "farah.nasser@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "11",
+  "name": "RAK · CLAIM · IP",
+  "nameAr": null,
+  "description": "CLAIM worklist for RAK (IP)",
+  "active": true,
+  "facilityId": "RAK",
+  "siteKey": "7510 + MOH-F-1000464",
+  "division": "CLAIM",
+  "encounterScope": "IP",
+  "logicAxis": "PAYER",
+  "createdDate": "2026-03-12T00:00:00Z",
+  "rotationEnabled": false,
+  "rotationFrequency": null,
+  "branchIds": [
+   11
+  ],
+  "branches": [
+   {
+    "id": "11",
+    "name": "RAK",
+    "nameAr": null,
+    "healthLicense": "RAK"
+   }
+  ],
+  "groups": [
+   {
+    "id": "31",
+    "name": "Coders — RAK",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_VALIDATION"
+    ],
+    "encounterScope": "IP",
+    "departments": [],
+    "payers": [
+     "INS002",
+     "INS019",
+     "INS017",
+     "INS012",
+     "INS200",
+     "INS020",
+     "INS008",
+     "INS026",
+     "INS044",
+     "INS005",
+     "INS001",
+     "INS022"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "OPEN",
+     "CHECKED"
+    ],
+    "rotationOrder": 0,
+    "members": [
+     {
+      "id": "VXNlcjo2Njg=",
+      "firstName": "Adel",
+      "lastName": "Mansour",
+      "email": "adel.mansour@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NzM=",
+      "firstName": "Reem",
+      "lastName": "Ghanem",
+      "email": "reem.ghanem@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NzQ=",
+      "firstName": "Imad",
+      "lastName": "Mansour",
+      "email": "imad.mansour@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NjY=",
+      "firstName": "Yasmin",
+      "lastName": "Sabbagh",
+      "email": "yasmin.sabbagh@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "32",
+    "name": "Submission — RAK",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_SUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [],
+    "payers": [
+     "INS137",
+     "INS015",
+     "INS013",
+     "INS010",
+     "INS027",
+     "INS018",
+     "INS040",
+     "INS038",
+     "SF0051",
+     "INS139",
+     "INS134",
+     "INS035"
+    ],
+    "payerCatchAll": true,
+    "claimStatuses": [
+     "VALIDATED"
+    ],
+    "rotationOrder": 1,
+    "members": [
+     {
+      "id": "VXNlcjo5OTU=",
+      "firstName": "Marwan",
+      "lastName": "Chalhoub",
+      "email": "marwan.chalhoub@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjo2NzY=",
+      "firstName": "Aisha",
+      "lastName": "Sabbagh",
+      "email": "aisha.sabbagh@example.invalid",
+      "isActive": true
+     }
+    ]
+   },
+   {
+    "id": "33",
+    "name": "Resubmission — RAK",
+    "active": true,
+    "workItemTypes": [
+     "CLAIM_RESUBMISSION"
+    ],
+    "encounterScope": "IP",
+    "departments": [],
+    "payers": [],
+    "payerCatchAll": true,
+    "claimStatuses": [],
+    "rotationOrder": 2,
+    "members": [
+     {
+      "id": "VXNlcjo2NzU=",
+      "firstName": "Jamal",
+      "lastName": "Kanaan",
+      "email": "jamal.kanaan@example.invalid",
+      "isActive": true
+     },
+     {
+      "id": "VXNlcjoxMDQ4",
+      "firstName": "Mariam",
+      "lastName": "Hakim",
+      "email": "mariam.hakim@example.invalid",
+      "isActive": true
+     }
+    ]
+   }
+  ]
+ }
+]

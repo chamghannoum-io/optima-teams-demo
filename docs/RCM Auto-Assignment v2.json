@@ -1,0 +1,795 @@
+{
+ "name": "RCM Auto-Assignment v2 (groups)",
+ "nodes": [
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "assignmentAutoAssignV2",
+    "responseMode": "responseNode",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    -1600,
+    0
+   ],
+   "id": "webhook-v2",
+   "name": "Webhook",
+   "webhookId": "rcm-auto-assign-v2"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Gateway context and the run window, off the webhook.\nconst w = $('Webhook').first().json;\nconst h = w.headers || {};\nconst b = w.body || {};\nconst payload = { fromDate: b.fromDate, toDate: b.toDate };\nif (Array.isArray(b.branchIds) && b.branchIds.length) payload.branchIds = b.branchIds;\nif (Array.isArray(b.workItemTypes) && b.workItemTypes.length) payload.workItemTypes = b.workItemTypes;\nreturn { json: {\n  correlationId: h['x-correlation-id'] ?? null,\n  callbackUrl: h['x-callback-url'] ?? null,\n  dryRun: b.dryRun === true,\n  // Self-contained demo: tool payloads supplied in the request itself, so no\n  // gateway (or laptop) needs to be reachable from wherever n8n runs.\n  fixtures: b.fixtures ?? null,\n  payload\n} };"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -1400,
+    0
+   ],
+   "id": "extractinfo",
+   "name": "extractInfo"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Webhook').item.json.body.gatewayBaseUrl ?? 'https://api.uae.iohealth.com/cortex-component-gateway/api/tool' }}/{{ $('Webhook').item.json.body.components[0].components.find(c => c.componentCode.includes('T-0001'))?.componentCode ?? null }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "X-API-Key",
+       "value": "={{ $('Webhook').item.json.headers['x-organization-api-key'] }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={ \"input\": {{ JSON.stringify($json.payload) }} }",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    -1200,
+    0
+   ],
+   "id": "step-0---unassigned-items",
+   "name": "Step 0 - Unassigned Items"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Flatten the queue and rank it. Ranking is UNCHANGED from v1:\n//   auth   -> priority(1-3) + ageDays * 0.7\n//   claims -> valueScore(1-3) + ageDays * 0.7, value scaled to the run's p95\nconst PRIORITY = { HIGH: 3, MEDIUM: 2, LOW: 1 };\nconst CLAIM_TYPES = ['CLAIM_VALIDATION','CLAIM_SUBMISSION','CLAIM_RESUBMISSION','RECONCILIATION'];\nconst now = new Date();\n\n// Source systems label encounters with bed/ER codes; groups are configured OP/IP.\nconst ENCOUNTER = {\n  NO_BED_NO_ER: 'OP', NO_BED_ER: 'OP', DAYCASE_BED_NO_ER: 'OP', DAYCASE_BED_ER: 'IP',\n  INPATIENT_BED_NO_ER: 'IP', INPATIENT_BED_ER: 'IP', NATIONALS_SCREENING: 'OP',\n  NEW_VISA_SCREENING: 'OP', RENEWAL_VISA_SCREENING: 'OP', HOME: 'OP',\n  ASSISTED_LIVING_FACILITY: 'OP', MOBILE_UNIT: 'OP', AMBULANCE_AIR_OR_WATER: 'OP',\n  TELEHEALTH: 'OP', OP: 'OP', IP: 'IP',\n};\n// Department names arrive spelled many ways; groups store a slug. Compare on a\n// normalised key so \"E. N. T.\", \"e.n.t.\" and \"department-E.N.T\" all agree.\nconst deptKey = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');\n\n\nconst entities = [];\nfor (const item of $input.all()) {\n  const d = item.json.data?.assignmentUnassignedEntities ?? item.json.assignmentUnassignedEntities ?? [];\n  for (const e of d) entities.push(e);\n}\n\nconst nets = [];\nfor (const e of entities) {\n  if (!CLAIM_TYPES.includes(e.workItemType)) continue;\n  for (const w of (e.workItems || [])) nets.push(typeof w.net === 'number' ? w.net : 0);\n}\nnets.sort((a, b) => a - b);\nlet ceiling = 1;\nif (nets.length >= 5) {\n  const c = nets[Math.min(nets.length - 1, Math.floor(nets.length * 0.95))];\n  if (c > 0) ceiling = c;\n}\nconst valueScore = (net) =>\n  1 + 2 * Math.max(0, Math.min(1, (typeof net === 'number' ? net : 0) / ceiling));\n\nconst items = [];\nfor (const e of entities) {\n  const isClaim = CLAIM_TYPES.includes(e.workItemType);\n  for (const w of (e.workItems || [])) {\n    const start = w.startDate ? new Date(w.startDate) : now;\n    const ageDays = Math.max(0, (now - start) / 86400000);\n    const base = isClaim ? valueScore(w.net)\n                         : (PRIORITY[String(w.priority || '').toUpperCase()] ?? 1);\n    items.push({\n      id: String(w.id),\n      workItemType: e.workItemType,\n      branchId: e.branchId,\n      facilityId: e.facilityId,\n      department: w.department ?? null,\n      departmentKey: deptKey(w.department),\n      payer: w.insurancePayer ?? null,\n      claimStatus: w.claimStatus ?? null,\n      encounterType: ENCOUNTER[String(w.encounterType || '').toUpperCase()] ?? null,\n      encounterRaw: w.encounterType ?? null,\n      priority: w.priority ?? null,\n      ageDays: Math.round(ageDays * 10) / 10,\n      rank: Math.round((base + ageDays * 0.7) * 100) / 100\n    });\n  }\n}\nitems.sort((a, b) => b.rank - a.rank);\nreturn [{ json: { items, branchIds: [...new Set(items.map(i => i.branchId).filter(Boolean))] } }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -1000,
+    0
+   ],
+   "id": "rank-items",
+   "name": "Rank Items"
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "version": 2
+     },
+     "conditions": [
+      {
+       "leftValue": "={{ $json.items.length }}",
+       "rightValue": 0,
+       "operator": {
+        "type": "number",
+        "operation": "gt"
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    -800,
+    0
+   ],
+   "id": "any-items",
+   "name": "Any items?"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Webhook').item.json.body.gatewayBaseUrl ?? 'https://api.uae.iohealth.com/cortex-component-gateway/api/tool' }}/{{ $('Webhook').item.json.body.components[0].components.find(c => c.componentCode.includes('T-0002'))?.componentCode ?? null }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "X-API-Key",
+       "value": "={{ $('Webhook').item.json.headers['x-organization-api-key'] }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={ \"filter\": { \"ids\": null, \"branchIds\": {{ JSON.stringify($json.branchIds) }}, \"name\": null, \"active\": true } }",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    -600,
+    -100
+   ],
+   "id": "step-1---get-teams",
+   "name": "Step 1 - Get Teams"
+  },
+  {
+   "parameters": {
+    "jsCode": "// v2 matching: teams are containers, GROUPS carry the criteria.\n// A group accepts an item when its work item type, encounter scope, axis value\n// (department or payer) and claim status all admit it. When several accept, the\n// NARROWEST wins - scored by how few values each dimension admits, so a group\n// naming one department beats one naming six. Ties break on specificity order.\nconst ranked = $('Rank Items').first().json.items;\nconst raw = $('Step 1 - Get Teams').first().json;\nconst teams = raw.data?.optimaTeams ?? raw.optimaTeams ?? [];\nconst deptKey = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');\n\nconst SCALE = 100;\nconst narrow = (n) => (n === 0 ? 0 : Math.floor(SCALE / n));\nfunction specificity(g) {\n  return narrow((g.workItemTypes || []).length)\n       + narrow((g.departments || []).length)\n       + (g.payerCatchAll ? 0 : narrow((g.payers || []).length))\n       + narrow((g.claimStatuses || []).length)\n       + (g.encounterScope && g.encounterScope !== 'BOTH' ? SCALE : 0);\n}\nfunction accepts(team, g, item) {\n  if (g.active === false) return false;\n  if (!(g.workItemTypes || []).includes(item.workItemType)) return false;\n  const enc = (item.encounterType || '').toUpperCase();\n  if (enc && g.encounterScope && g.encounterScope !== 'BOTH' && g.encounterScope !== enc) return false;\n  if (team.logicAxis === 'PAYER') {\n    const named = item.payer && (g.payers || []).includes(item.payer);\n    if (!named && !g.payerCatchAll) return false;\n  } else {\n    if (!item.departmentKey) return false;\n    const keys = (g.departments || []).map(deptKey);\n    if (!keys.includes(item.departmentKey)) return false;\n  }\n  const st = g.claimStatuses || [];\n  if (st.length && item.claimStatus && !st.includes(item.claimStatus)) return false;\n  return true;\n}\n\nconst assignments = [];\nconst unmatched = [];\nconst memberIds = new Set();\n\nfor (const item of ranked) {\n  const candidates = [];\n  for (const t of teams) {\n    const branches = t.branches || [];\n    const serves = branches.some(b => b.healthLicense === item.facilityId)\n                || String(t.branchId ?? '') === String(item.branchId);\n    if (branches.length && !serves) continue;\n    for (const g of (t.groups || [])) {\n      if (accepts(t, g, item)) candidates.push({ team: t, group: g, spec: specificity(g) });\n    }\n  }\n  if (!candidates.length) {\n    unmatched.push({ id: item.id, workItemType: item.workItemType,\n                     department: item.department, payer: item.payer,\n                     reason: 'No group accepts this item' });\n    continue;\n  }\n  candidates.sort((a, b) => b.spec - a.spec);\n  const best = candidates[0];\n  const members = (best.group.members || []).map(m => String(m.id ?? m.userId));\n  members.forEach(m => memberIds.add(m));\n  assignments.push({ ...item, teamId: best.team.id, teamName: best.team.name,\n                     groupId: best.group.id, groupName: best.group.name,\n                     groupMembers: members });\n}\n\nreturn [{ json: {\n  assignments, unmatched,\n  userIds: [...memberIds],\n  teamId: assignments[0]?.teamId ?? null,\n  workItemTypes: [...new Set(assignments.map(a => a.workItemType))]\n} }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -400,
+    -100
+   ],
+   "id": "match-groups",
+   "name": "Match Groups"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Webhook').item.json.body.gatewayBaseUrl ?? 'https://api.uae.iohealth.com/cortex-component-gateway/api/tool' }}/{{ $('Webhook').item.json.body.components[0].components.find(c => c.componentCode.includes('T-0003'))?.componentCode ?? null }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "X-API-Key",
+       "value": "={{ $('Webhook').item.json.headers['x-organization-api-key'] }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={ \"userIds\": {{ JSON.stringify($json.userIds) }},\n   \"workItemTypes\": {{ JSON.stringify($json.workItemTypes) }},\n   \"fromDate\": \"{{ $today.format('yyyy-MM-dd') }}\",\n   \"toDate\": \"{{ $today.plus(1,'days').format('yyyy-MM-dd') }}\" }",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    -200,
+    -100
+   ],
+   "id": "step-2---assigned-counts",
+   "name": "Step 2 - Assigned Counts"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Webhook').item.json.body.gatewayBaseUrl ?? 'https://api.uae.iohealth.com/cortex-component-gateway/api/tool' }}/{{ $('Webhook').item.json.body.components[0].components.find(c => c.componentCode.includes('T-004'))?.componentCode ?? null }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "X-API-Key",
+       "value": "={{ $('Webhook').item.json.headers['x-organization-api-key'] }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={ \"teamId\": \"{{ $('Match Groups').item.json.teamId }}\",\n   \"userIds\": {{ JSON.stringify($('Match Groups').item.json.userIds) }} }",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    0,
+    -100
+   ],
+   "id": "step-3---capacities",
+   "name": "Step 3 - Capacities"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Spread each group's matched items across that group's members, respecting\n// remaining capacity (cap - already assigned today). Highest-ranked item first,\n// always to the least-loaded eligible member.\nconst matched = $('Match Groups').first().json;\nconst kpiRaw = $('Step 2 - Assigned Counts').first().json;\nconst capRaw = $('Step 3 - Capacities').first().json;\n\nconst counts = kpiRaw.data?.usersWorkTypeAssignedCounts ?? kpiRaw.usersWorkTypeAssignedCounts ?? [];\nconst caps = capRaw.data?.effectiveAssignmentSettings ?? capRaw.effectiveAssignmentSettings ?? [];\n\nconst AUTH = ['AUTHORIZATION_SUBMISSION', 'AUTHORIZATION_RESUBMISSION'];\nconst assignedBy = {};\nfor (const c of counts) {\n  const uid = String(c.userId);\n  assignedBy[uid] = (assignedBy[uid] ?? 0) + (c.assigned ?? 0);\n}\n\nconst state = {};\nfor (const c of caps) {\n  const uid = String(c.userId);\n  state[uid] = { maxAuth: c.maxAuth ?? 0, maxClaim: c.maxClaim ?? 0, used: assignedBy[uid] ?? 0 };\n}\nconst capLeft = (uid, wit) => {\n  const r = state[uid];\n  if (!r) return 0;\n  return Math.max(0, (AUTH.includes(wit) ? r.maxAuth : r.maxClaim) - r.used);\n};\n\nconst perAssignee = {};\nconst overflow = [];\n\nfor (const item of matched.assignments) {\n  const pool = (item.groupMembers || [])\n    .filter(uid => capLeft(uid, item.workItemType) > 0)\n    .sort((a, b) => (state[a]?.used ?? 0) - (state[b]?.used ?? 0));\n  if (!pool.length) {\n    overflow.push({ id: item.id, groupName: item.groupName,\n                    reason: (item.groupMembers || []).length ? 'Group at capacity' : 'Group has no members' });\n    continue;\n  }\n  const uid = pool[0];\n  state[uid].used += 1;\n  const key = uid + '|' + item.workItemType;\n  if (!perAssignee[key]) {\n    perAssignee[key] = { assigneeId: uid, workItemType: item.workItemType,\n                         teamId: item.teamId, groupName: item.groupName, workItemIds: [] };\n  }\n  perAssignee[key].workItemIds.push(item.id);\n}\n\nconst batches = Object.values(perAssignee);\nconst dryRun = $('extractInfo').first().json.dryRun;\nif (!batches.length) {\n  return [{ json: { skipped: true, reason: 'No capacity anywhere',\n                    overflowCount: overflow.length, overflow, dryRun,\n                    workItemIds: [], assigneeId: null } }];\n}\nreturn batches.map(b => ({ json: { ...b,\n  itemCount: b.workItemIds.length,\n  overflowCount: overflow.length,\n  dryRun } }));"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    200,
+    -100
+   ],
+   "id": "distribute",
+   "name": "Distribute"
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "version": 2
+     },
+     "conditions": [
+      {
+       "leftValue": "={{ $json.dryRun }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "false",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    400,
+    -100
+   ],
+   "id": "commit-gate",
+   "name": "Commit?"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Webhook').item.json.body.gatewayBaseUrl ?? 'https://api.uae.iohealth.com/cortex-component-gateway/api/tool' }}/{{ $('Webhook').item.json.body.components[0].components.find(c => c.componentCode.includes('T-0005'))?.componentCode ?? null }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "X-API-Key",
+       "value": "={{ $('Webhook').item.json.headers['x-organization-api-key'] }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={ \"input\": { \"assigneeId\": \"{{ $json.assigneeId }}\",\n   \"workItemIds\": {{ JSON.stringify($json.workItemIds) }},\n   \"workItemType\": \"{{ $json.workItemType }}\" } }",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    600,
+    -220
+   ],
+   "id": "step-4---assign",
+   "name": "Step 4 - Assign"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Roll the run into one allocation summary.\nlet batches = [];\ntry { batches = $('Distribute').all().map(i => i.json).filter(b => !b.skipped); } catch (e) {}\nlet results = [];\ntry { results = $('Step 4 - Assign').all().map(i => i.json); } catch (e) {}\n\nconst matched = $('Match Groups').first().json;\nconst dryRun = $('extractInfo').first().json.dryRun;\n\nconst byGroup = {};\nfor (const a of (matched.assignments || [])) {\n  if (!byGroup[a.groupName]) byGroup[a.groupName] = { group: a.groupName, team: a.teamName, matched: 0 };\n  byGroup[a.groupName].matched += 1;\n}\nconst assigned = batches.reduce((n, b) => n + (b.workItemIds?.length ?? 0), 0);\n\nreturn [{ json: {\n  correlationId: $('extractInfo').first().json.correlationId,\n  model: 'v2-groups',\n  dryRun,\n  totals: {\n    ranked: $('Rank Items').first().json.items.length,\n    matched: (matched.assignments || []).length,\n    assigned,\n    unmatched: (matched.unmatched || []).length,\n    overflow: batches[0]?.overflowCount ?? 0\n  },\n  byGroup: Object.values(byGroup),\n  byAssignee: batches.map(b => ({ assigneeId: b.assigneeId, group: b.groupName,\n                                  workItemType: b.workItemType, count: b.workItemIds.length })),\n  unmatchedSample: (matched.unmatched || []).slice(0, 20),\n  apiResults: results.map(r => r.data?.assignWorkItems ?? r.assignWorkItems ?? r)\n} }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    800,
+    -100
+   ],
+   "id": "summarise",
+   "name": "Summarise"
+  },
+  {
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ JSON.stringify($json) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.1,
+   "position": [
+    1000,
+    -100
+   ],
+   "id": "respond",
+   "name": "Respond"
+  },
+  {
+   "parameters": {
+    "jsCode": "return [{ json: {\n  correlationId: $('extractInfo').first().json.correlationId,\n  model: 'v2-groups',\n  totals: { ranked: 0, matched: 0, assigned: 0, unmatched: 0, overflow: 0 },\n  message: 'No unassigned work in the requested window'\n} }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -600,
+    140
+   ],
+   "id": "nothing-to-do",
+   "name": "Nothing To Do"
+  },
+  {
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ JSON.stringify($json) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.1,
+   "position": [
+    -400,
+    140
+   ],
+   "id": "respond-empty",
+   "name": "Respond Empty"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Return the supplied fixture in place of the tool response.\nconst fx = $('extractInfo').first().json.fixtures;\nreturn [{ json: { data: { assignmentUnassignedEntities: fx['assignmentUnassignedEntities'] } } }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -1200,
+    180
+   ],
+   "id": "fx-assignmentunassignedentities",
+   "name": "FX Step 0 - Unassigned Items"
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "version": 2
+     },
+     "conditions": [
+      {
+       "leftValue": "={{ $('extractInfo').first().json.fixtures !== null }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    -1290,
+    0
+   ],
+   "id": "gate-assignmentunassignedentities",
+   "name": "Fixtures? Unassigned Items"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Return the supplied fixture in place of the tool response.\nconst fx = $('extractInfo').first().json.fixtures;\nreturn [{ json: { data: { optimaTeams: fx['optimaTeams'] } } }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -600,
+    80
+   ],
+   "id": "fx-optimateams",
+   "name": "FX Step 1 - Get Teams"
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "version": 2
+     },
+     "conditions": [
+      {
+       "leftValue": "={{ $('extractInfo').first().json.fixtures !== null }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    -690,
+    -100
+   ],
+   "id": "gate-optimateams",
+   "name": "Fixtures? Get Teams"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Return the supplied fixture in place of the tool response.\nconst fx = $('extractInfo').first().json.fixtures;\nreturn [{ json: { data: { usersWorkTypeAssignedCounts: fx['usersWorkTypeAssignedCounts'] } } }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -200,
+    80
+   ],
+   "id": "fx-usersworktypeassignedcounts",
+   "name": "FX Step 2 - Assigned Counts"
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "version": 2
+     },
+     "conditions": [
+      {
+       "leftValue": "={{ $('extractInfo').first().json.fixtures !== null }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    -290,
+    -100
+   ],
+   "id": "gate-usersworktypeassignedcounts",
+   "name": "Fixtures? Assigned Counts"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Return the supplied fixture in place of the tool response.\nconst fx = $('extractInfo').first().json.fixtures;\nreturn [{ json: { data: { effectiveAssignmentSettings: fx['effectiveAssignmentSettings'] } } }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    0,
+    80
+   ],
+   "id": "fx-effectiveassignmentsettings",
+   "name": "FX Step 3 - Capacities"
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "version": 2
+     },
+     "conditions": [
+      {
+       "leftValue": "={{ $('extractInfo').first().json.fixtures !== null }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    -90,
+    -100
+   ],
+   "id": "gate-effectiveassignmentsettings",
+   "name": "Fixtures? Capacities"
+  }
+ ],
+ "connections": {
+  "Webhook": {
+   "main": [
+    [
+     {
+      "node": "extractInfo",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "extractInfo": {
+   "main": [
+    [
+     {
+      "node": "Fixtures? Unassigned Items",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Step 0 - Unassigned Items": {
+   "main": [
+    [
+     {
+      "node": "Rank Items",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Rank Items": {
+   "main": [
+    [
+     {
+      "node": "Any items?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Any items?": {
+   "main": [
+    [
+     {
+      "node": "Fixtures? Get Teams",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Nothing To Do",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Step 1 - Get Teams": {
+   "main": [
+    [
+     {
+      "node": "Match Groups",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Match Groups": {
+   "main": [
+    [
+     {
+      "node": "Fixtures? Assigned Counts",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Step 2 - Assigned Counts": {
+   "main": [
+    [
+     {
+      "node": "Fixtures? Capacities",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Step 3 - Capacities": {
+   "main": [
+    [
+     {
+      "node": "Distribute",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Distribute": {
+   "main": [
+    [
+     {
+      "node": "Commit?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Commit?": {
+   "main": [
+    [
+     {
+      "node": "Step 4 - Assign",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Summarise",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Step 4 - Assign": {
+   "main": [
+    [
+     {
+      "node": "Summarise",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Summarise": {
+   "main": [
+    [
+     {
+      "node": "Respond",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Nothing To Do": {
+   "main": [
+    [
+     {
+      "node": "Respond Empty",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Fixtures? Unassigned Items": {
+   "main": [
+    [
+     {
+      "node": "FX Step 0 - Unassigned Items",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Step 0 - Unassigned Items",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "FX Step 0 - Unassigned Items": {
+   "main": [
+    [
+     {
+      "node": "Rank Items",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Fixtures? Get Teams": {
+   "main": [
+    [
+     {
+      "node": "FX Step 1 - Get Teams",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Step 1 - Get Teams",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "FX Step 1 - Get Teams": {
+   "main": [
+    [
+     {
+      "node": "Match Groups",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Fixtures? Assigned Counts": {
+   "main": [
+    [
+     {
+      "node": "FX Step 2 - Assigned Counts",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Step 2 - Assigned Counts",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "FX Step 2 - Assigned Counts": {
+   "main": [
+    [
+     {
+      "node": "Fixtures? Capacities",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Fixtures? Capacities": {
+   "main": [
+    [
+     {
+      "node": "FX Step 3 - Capacities",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Step 3 - Capacities",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "FX Step 3 - Capacities": {
+   "main": [
+    [
+     {
+      "node": "Distribute",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1"
+ },
+ "active": false,
+ "meta": {
+  "description": "v2 allocation: teams are containers; groups carry criteria and members. Matching is narrowest-group-wins. Ranking unchanged from v1. POST body.dryRun=true previews without assigning. Set body.gatewayBaseUrl to redirect every tool call — e.g. http://localhost:4000/api/tool for the local stand-in. Set body.fixtures to run entirely inside n8n with no reachable gateway — useful when n8n is remote and cannot see a local server."
+ }
+}

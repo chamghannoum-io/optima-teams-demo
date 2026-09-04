@@ -1,0 +1,13 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet author="codex" id="20260306-rcm-team-tag">
+        <addColumn tableName="rcm_team">
+            <column name="tag" type="${varchar}(255)"/>
+        </addColumn>
+        <addUniqueConstraint tableName="rcm_team" columnNames="tag" constraintName="uc_rcm_team_tag"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,1 @@
+{"operationName":"GetDepartments","variables":{"first":500},"query":"query GetDepartments($first: Int, $filter: VendorDepartmentFilterInput) {\n  vendorDepartments(first: $first, filter: $filter) {\n    pageInfo { hasNextPage endCursor }\n    edges { node { id name code description branch { id name } } }\n  }\n}"}
