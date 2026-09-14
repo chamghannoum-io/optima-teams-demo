@@ -34,6 +34,12 @@ const typeDefs = /* GraphQL */ `
     lastName: String
     email: String
     isActive: Boolean
+    """Sits in every group of the team and receives work from all of them."""
+    isSupervisor: Boolean
+    """Eligible to receive items over the team's high-cost threshold."""
+    handlesHighCost: Boolean
+    """Per-member cap, used when the team is not on uniform capacity."""
+    capacityOverride: Int
   }
 
   type RcmTeamCapacity {
@@ -123,6 +129,14 @@ const typeDefs = /* GraphQL */ `
     members: [User!]!
     capacity: RcmTeamCapacity!
     coverage: RcmTeamCoverageReport!
+    """AUTH teams keep allocating past the cap; CLAIM teams defer instead."""
+    allowExceedCapacity: Boolean!
+    """One cap for everyone, or per-member overrides."""
+    uniformCapacity: Boolean!
+    maxAuth: Int!
+    maxClaim: Int!
+    """Net value above which an item needs a high-cost handler (AED)."""
+    highCostThreshold: Float
   }
 
   input RcmTeamGroupInput {
@@ -162,6 +176,8 @@ const typeDefs = /* GraphQL */ `
   """One work item as the engine sees it, after ranking and matching."""
   type PreviewItem {
     id: ID!
+    net: Float
+    highCost: Boolean!
     workItemType: String!
     department: String
     payer: String
@@ -198,6 +214,13 @@ const typeDefs = /* GraphQL */ `
   type AllocationPreview {
     teamId: ID!
     teamName: String!
+    """What this preview covers: facility x division x encounter."""
+    facilityId: String!
+    division: String!
+    encounterScope: String!
+    highCostThreshold: Float
+    highCostCount: Int!
+    highCostUnassigned: Int!
     totalItems: Int!
     assignedCount: Int!
     unassignedCount: Int!
@@ -280,6 +303,11 @@ const typeDefs = /* GraphQL */ `
     memberIds: [ID!]
   }
   input TeamV2Input {
+    allowExceedCapacity: Boolean
+    uniformCapacity: Boolean
+    highCostThreshold: Float
+    supervisorIds: [ID!]
+    highCostMemberIds: [ID!]
     name: String!
     description: String
     facilityId: String
@@ -319,7 +347,41 @@ const typeDefs = /* GraphQL */ `
     balancedSpread: [Float!]!
   }
 
+  """One thing that would stop work being allocated."""
+  type ReadinessIssue {
+    severity: String!
+    teamId: ID
+    teamName: String
+    facilityId: String
+    """What is wrong, in a sentence a supervisor can act on."""
+    message: String!
+    kind: String!
+  }
+
+  """Whether the whole estate can actually allocate the work that arrives."""
+  type AllocationReadiness {
+    teamsTotal: Int!
+    teamsReady: Int!
+    issues: [ReadinessIssue!]!
+    """Facility + work item type combinations no active team handles."""
+    unhandled: [String!]!
+  }
+
+  """Filter the team list the way a supervisor thinks about it."""
+  input TeamQueryFilter {
+    branchId: ID
+    encounterScope: String
+    departments: [String!]
+    payers: [ID!]
+    workItemType: String
+  }
+
   type Query {
+    """Estate-wide readiness: what would fall through today."""
+    optimaAllocationReadiness: AllocationReadiness!
+    """Teams matching a supervisor-style filter."""
+    optimaTeamsFiltered(filter: TeamQueryFilter): [RcmTeamV2!]!
+
     """Why the recommended split is what it is."""
     optimaDistributionRationale(teamId: ID!, groupCount: Int!): DistributionRationale
 
@@ -428,6 +490,52 @@ const NAMED_PAYER_THRESHOLD = 10;
 /** Stands in for effectiveAssignmentSettings; ~150/day matches observed coder throughput. */
 const USER_CAPACITY = 150;
 
+// Round-2 defaults: AUTH overflows past a cap, CLAIM defers; uniform capacity on.
+for (const t of teams as any[]) {
+  t.allowExceedCapacity ??= t.division === "AUTH";
+  t.uniformCapacity ??= true;
+  t.maxAuth ??= USER_CAPACITY;
+  t.maxClaim ??= USER_CAPACITY;
+  // AED 3,000 on resubmission work, per the agreed policy.
+  t.highCostThreshold ??= 3000;
+}
+
+/**
+ * Puts a member in every active group of their team. A supervisor oversees the
+ * whole team, so they are allocated from all of it, not one slice.
+ */
+function syncSupervisor(t: any, m: any): void {
+  for (const g of t.groups) {
+    if (!g.active || g.members.some((x: any) => x.id === m.id)) continue;
+    g.members.push(m);
+  }
+}
+
+// Demo seed for the round-2 member flags. The longest-serving member of each
+// team supervises it; roughly a third of the roster is cleared for high-cost
+// work, so resubmission teams always have somewhere to route it.
+for (const t of teams as any[]) {
+  const roster: any[] = [];
+  const seen = new Set<string>();
+  for (const g of t.groups) {
+    for (const m of g.members) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      roster.push(m);
+    }
+  }
+  if (!roster.length) continue;
+
+  const supervisor = roster[0];
+  supervisor.isSupervisor = true;
+  syncSupervisor(t, supervisor);
+
+  // Every third member, and always the supervisor, handles high-cost items.
+  roster.forEach((m, i) => {
+    if (i % 3 === 0 || m.isSupervisor) m.handlesHighCost = true;
+  });
+}
+
 const findTeam = (id: string) => teams.find((t) => String(t.id) === String(id));
 const findGroup = (id: string) =>
   teams.flatMap((t) => t.groups).find((g) => String(g.id) === String(id));
@@ -446,20 +554,35 @@ function specificity(g: Group): number {
   );
 }
 
+/** A member's daily cap: the team figure, unless they carry an override. */
+function capOf(t: Team | undefined, m: any): number {
+  const team: any = t;
+  const base = team ? (team.division === "AUTH" ? team.maxAuth : team.maxClaim) : USER_CAPACITY;
+  if (team && team.uniformCapacity === false && typeof m.capacityOverride === "number") {
+    return m.capacityOverride;
+  }
+  return base ?? USER_CAPACITY;
+}
+
 function groupCapacity(g: Group) {
-  const memberCount = new Set(g.members.map((m) => m.id)).size;
-  const totalCapacity = memberCount * USER_CAPACITY;
+  const t = teams.find((x) => x.groups.some((y) => y.id === g.id));
+  const seen = new Map<string, any>();
+  for (const m of g.members) seen.set(m.id, m);
+  const memberCount = seen.size;
+  const totalCapacity = [...seen.values()].reduce((n, m) => n + capOf(t, m), 0);
   return { memberCount, totalCapacity, assigned: 0, remaining: totalCapacity, duplicateMemberships: 0 };
 }
 
 function teamCapacity(t: Team) {
-  const all = t.groups.flatMap((g) => g.members.map((m) => m.id));
-  const distinct = new Set(all);
+  const all = t.groups.flatMap((g) => g.members);
+  const distinct = new Map<string, any>();
+  for (const m of all) distinct.set(m.id, m);
+  const total = [...distinct.values()].reduce((n, m) => n + capOf(t, m), 0);
   return {
     memberCount: distinct.size,
-    totalCapacity: distinct.size * USER_CAPACITY,
+    totalCapacity: total,
     assigned: 0,
-    remaining: distinct.size * USER_CAPACITY,
+    remaining: total,
     duplicateMemberships: all.length - distinct.size,
   };
 }
@@ -661,6 +784,9 @@ function buildItems(t: Team, count: number) {
     const workItemType = types.length ? types[Math.floor(rand() * types.length)] : "CLAIM_VALIDATION";
     const claimStatus = statusFor(workItemType, rand());
     const rank = Math.round((PRIORITY_SCORE[priority] + ageDays * 0.7) * 100) / 100;
+    // Resubmission work carries a value; that is what the high-cost rule acts on.
+    const isResub = workItemType.includes("RESUBMISSION");
+    const net = isResub ? Math.round(rand() * 8000) : null;
     items.push({
       id: `${t.id}-${i + 1}`,
       workItemType,
@@ -671,6 +797,8 @@ function buildItems(t: Team, count: number) {
       priority,
       ageDays,
       rank,
+      net,
+      highCost: net != null && net > ((t as any).highCostThreshold ?? Infinity),
     });
   }
   // Highest rank first — age dominates quickly, which is the anti-starvation rule.
@@ -710,7 +838,7 @@ function allocationPreview(t: Team, count: number) {
         name: [m.firstName, m.lastName].filter(Boolean).join(" ") || "—",
         groupName: g.name,
         assigned: 0,
-        capacity: USER_CAPACITY,
+        capacity: capOf(t, m),
       });
     }
   }
@@ -728,16 +856,26 @@ function allocationPreview(t: Team, count: number) {
     }
     matched.set(g.id, (matched.get(g.id) ?? 0) + 1);
     // Least-loaded member of that group with capacity left.
-    const pool = g.members
+    const team: any = t;
+    // High-cost items go only to members tagged for them.
+    const eligible = item.highCost
+      ? g.members.filter((m: any) => m.handlesHighCost)
+      : g.members;
+    const pool = eligible
       .map((m) => cap.get(`${g.id}:${m.id}`)!)
-      .filter((c) => c && c.assigned < c.capacity)
+      // AUTH teams keep allocating past the cap; CLAIM teams stop at it.
+      .filter((c) => c && (team.allowExceedCapacity || c.assigned < c.capacity))
       .sort((a, b) => a.assigned - b.assigned);
     if (!pool.length) {
       unmatched.push({
         ...item,
         groupId: g.id,
         groupName: g.name,
-        reason: g.members.length ? "Group at capacity" : "Group has no members",
+        reason: !g.members.length
+          ? "Group has no members"
+          : item.highCost
+            ? "No member tagged for high-cost work"
+            : "Group at capacity",
       });
       continue;
     }
@@ -754,9 +892,17 @@ function allocationPreview(t: Team, count: number) {
     });
   }
 
+  const highCostAll = items.filter((i: any) => i.highCost).length;
+  const highCostLost = unmatched.filter((i: any) => i.highCost).length;
   return {
     teamId: t.id,
     teamName: t.name,
+    facilityId: t.facilityId,
+    division: (t as any).division,
+    encounterScope: (t as any).encounterScope,
+    highCostThreshold: (t as any).highCostThreshold ?? null,
+    highCostCount: highCostAll,
+    highCostUnassigned: highCostLost,
     totalItems: items.length,
     assignedCount: out.length,
     unassignedCount: unmatched.length,
@@ -783,6 +929,177 @@ const settingsFor = (teamId: string) =>
 
 const resolvers = {
   Query: {
+    /**
+     * Estate-wide readiness. Answers one question: would anything arriving today
+     * fail to be allocated? It warns; it never blocks.
+     */
+    optimaAllocationReadiness: () => {
+      const issues: any[] = [];
+      const AUTH_TYPES = ["AUTHORIZATION_SUBMISSION", "AUTHORIZATION_RESUBMISSION"];
+      const CLAIM_TYPES = [
+        "CLAIM_VALIDATION",
+        "CLAIM_SUBMISSION",
+        "CLAIM_RESUBMISSION",
+        "RECONCILIATION",
+      ];
+      const label = (w: string) =>
+        w.replace("AUTHORIZATION_", "auth ").replace("CLAIM_", "claim ").toLowerCase();
+
+      // A facility that runs a division but leaves one of its work item types
+      // unhandled will silently drop those items.
+      const unhandled: string[] = [];
+      const byFacility = new Map<string, any[]>();
+      for (const t of teams as any[]) {
+        if (!t.active) continue;
+        byFacility.set(t.facilityId, [...(byFacility.get(t.facilityId) ?? []), t]);
+      }
+      for (const [facilityId, ts] of byFacility) {
+        for (const division of ["AUTH", "CLAIM"]) {
+          const divTeams = ts.filter((x: any) => x.division === division);
+          if (!divTeams.length) continue;
+          const handled = new Set<string>(
+            divTeams.flatMap((x: any) =>
+              x.groups.filter((g: any) => g.active).flatMap((g: any) => g.workItemTypes)),
+          );
+          for (const wt of division === "AUTH" ? AUTH_TYPES : CLAIM_TYPES) {
+            if (handled.has(wt)) continue;
+            unhandled.push(`${facilityId} · ${wt}`);
+            issues.push({
+              severity: "WARNING",
+              kind: "UNHANDLED_TYPE",
+              teamId: null,
+              teamName: null,
+              facilityId,
+              message: `${facilityId} runs ${division} work, but no active group handles ${label(wt)}.`,
+            });
+          }
+        }
+      }
+
+      const ready = new Set((teams as any[]).filter((t) => t.active).map((t) => t.id));
+      for (const t of teams as any[]) {
+        if (!t.active) continue;
+        const active = t.groups.filter((g: any) => g.active);
+
+        if (!active.length) {
+          ready.delete(t.id);
+          issues.push({
+            severity: "BLOCKER",
+            kind: "NO_GROUPS",
+            teamId: t.id,
+            teamName: t.name,
+            facilityId: t.facilityId,
+            message: `${t.name} has no active groups — it cannot receive any work.`,
+          });
+          continue;
+        }
+
+        for (const g of active.filter((g: any) => !g.members.length)) {
+          ready.delete(t.id);
+          issues.push({
+            severity: "BLOCKER",
+            kind: "EMPTY_GROUP",
+            teamId: t.id,
+            teamName: t.name,
+            facilityId: t.facilityId,
+            message: `${t.name} — group "${g.name}" has no members, so work matched there has nowhere to go.`,
+          });
+        }
+
+        // Coverage is per work item type: a team handling two types needs the
+        // full department set for each one independently.
+        if (t.logicAxis === "DEPARTMENT") {
+          const all = Object.keys(deptVolumes(t.siteKey));
+          const types = [...new Set(active.flatMap((g: any) => g.workItemTypes))] as string[];
+          for (const wt of types) {
+            const covered = new Set<string>(
+              active
+                .filter((g: any) => g.workItemTypes.includes(wt))
+                .flatMap((g: any) => g.departments),
+            );
+            const missing = all.filter((d) => !covered.has(d));
+            if (!missing.length) continue;
+            ready.delete(t.id);
+            issues.push({
+              severity: "WARNING",
+              kind: "UNCOVERED_DEPARTMENTS",
+              teamId: t.id,
+              teamName: t.name,
+              facilityId: t.facilityId,
+              message: `${t.name} — ${missing.length} of ${all.length} departments have no group for ${label(wt)}.`,
+            });
+          }
+        } else if (!active.some((g: any) => g.payerCatchAll)) {
+          ready.delete(t.id);
+          issues.push({
+            severity: "WARNING",
+            kind: "NO_PAYER_CATCH_ALL",
+            teamId: t.id,
+            teamName: t.name,
+            facilityId: t.facilityId,
+            message: `${t.name} names payers but has no catch-all group — smaller payers will not be allocated.`,
+          });
+        }
+
+        // Resubmission carries the high-value work; someone has to be cleared for it.
+        const doesResub = active.some((g: any) =>
+          g.workItemTypes.some((w: string) => w.includes("RESUBMISSION")));
+        const anyHighCost = active.some((g: any) =>
+          g.members.some((m: any) => m.handlesHighCost));
+        if (doesResub && !anyHighCost) {
+          issues.push({
+            severity: "WARNING",
+            kind: "NO_HIGH_COST_HANDLER",
+            teamId: t.id,
+            teamName: t.name,
+            facilityId: t.facilityId,
+            message: `${t.name} handles resubmission but nobody is tagged for high-cost items (over AED ${(t.highCostThreshold ?? 3000).toLocaleString()}).`,
+          });
+        }
+      }
+
+      const rank: Record<string, number> = { BLOCKER: 0, WARNING: 1, INFO: 2 };
+      issues.sort((a, b) => rank[a.severity] - rank[b.severity]);
+      return {
+        teamsTotal: (teams as any[]).filter((t) => t.active).length,
+        teamsReady: ready.size,
+        issues,
+        unhandled: [...new Set(unhandled)],
+      };
+    },
+
+    /** The team list, narrowed the way a supervisor thinks about it. */
+    optimaTeamsFiltered: (_: unknown, { filter }: any) => {
+      let out = teams as any[];
+      if (!filter) return out;
+      if (filter.branchId) {
+        out = out.filter((t) => String(t.facilityId) === String(filter.branchId));
+      }
+      if (filter.encounterScope) {
+        // A BOTH team serves either encounter, so it matches every scope.
+        out = out.filter(
+          (t) => t.encounterScope === filter.encounterScope || t.encounterScope === "BOTH",
+        );
+      }
+      if (filter.departments?.length) {
+        const want = new Set(filter.departments.map((d: string) => d.toLowerCase()));
+        out = out.filter((t) =>
+          t.groups.some((g: any) =>
+            g.active && g.departments.some((d: string) => want.has(d.toLowerCase()))));
+      }
+      if (filter.payers?.length) {
+        const want = new Set(filter.payers.map(String));
+        out = out.filter((t) =>
+          t.groups.some((g: any) =>
+            g.active && (g.payerCatchAll || g.payers.some((p: any) => want.has(String(p))))));
+      }
+      if (filter.workItemType) {
+        out = out.filter((t) =>
+          t.groups.some((g: any) => g.active && g.workItemTypes.includes(filter.workItemType)));
+      }
+      return out;
+    },
+
     /**
      * Explains a suggested split: the observed volume behind it, and what a naive
      * equal-count split would have produced instead.
