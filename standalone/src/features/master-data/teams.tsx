@@ -32,10 +32,34 @@ import { toast } from "@optima/ui";
 import { isApolloGraphqlErrorAlreadyToastedGlobally, logApiError } from "@optima/shared";
 import { useTranslation } from "react-i18next";
 import { TeamWizard } from "./team-wizard.js";
+import { gql, useQuery } from "@apollo/client";
 import { AllocationReadinessPanel } from "./components/allocation-readiness.js";
 import { DeleteTeamDialog } from "./components/delete-team-dialog.js";
 
 type OptimaTeam = NonNullable<GetOptimaTeamsQuery["optimaTeams"]>[number];
+
+/** Everything the supervisor filters by, in one round trip. */
+const FILTER_OPTIONS = gql`
+  query TeamFilterOptions {
+    facilityOptions
+    departmentOptionsFor
+    payerOptionsFor
+  }
+`;
+
+const WORK_ITEM_TYPES = [
+  "AUTHORIZATION_SUBMISSION",
+  "AUTHORIZATION_RESUBMISSION",
+  "CLAIM_VALIDATION",
+  "CLAIM_SUBMISSION",
+  "CLAIM_RESUBMISSION",
+  "RECONCILIATION",
+];
+
+/** AUTHORIZATION_RESUBMISSION -> Auth resubmission. */
+const prettyWorkItem = (w: string) =>
+  w.replace("AUTHORIZATION_", "Auth ").replace("CLAIM_", "Claim ").replace("_", " ")
+    .toLowerCase().replace(/^./, (c) => c.toUpperCase());
 
 const columnHelper = createColumnHelper<OptimaTeam>();
 
@@ -72,6 +96,8 @@ export default function TeamsPage() {
     },
     skip: !user?.vendorId,
   });
+
+  const { data: filterOpts } = useQuery(FILTER_OPTIONS);
 
   const table = useFilterableTable({
     defaultSort: { field: "createdDate", direction: "DESC" },
@@ -156,8 +182,43 @@ export default function TeamsPage() {
           />
         ),
       },
+      {
+        name: "branchId",
+        label: t("masterData.teams.branch", "Branch"),
+        type: "select",
+        options: (filterOpts?.facilityOptions ?? []).map((f: string) => ({ value: f, label: f })),
+      },
+      {
+        name: "encounterScope",
+        label: t("masterData.teams.encounter", "Encounter"),
+        type: "select",
+        options: [
+          { value: "OP", label: "Outpatient" },
+          { value: "IP", label: "Inpatient" },
+        ],
+      },
+      {
+        name: "workItemType",
+        label: t("masterData.teams.workItemType", "Work item type"),
+        type: "select",
+        options: WORK_ITEM_TYPES.map((w) => ({ value: w, label: prettyWorkItem(w) })),
+      },
+      {
+        name: "departments",
+        label: t("masterData.teams.departments", "Departments"),
+        type: "multiselect",
+        multiple: true,
+        options: (filterOpts?.departmentOptionsFor ?? []).map((d: string) => ({ value: d, label: d })),
+      },
+      {
+        name: "payers",
+        label: t("masterData.teams.payers", "Insurance"),
+        type: "multiselect",
+        multiple: true,
+        options: (filterOpts?.payerOptionsFor ?? []).map((x: string) => ({ value: x, label: x })),
+      },
     ],
-    [t]
+    [t, filterOpts]
   );
 
   const teams = useMemo(() => {
@@ -183,6 +244,48 @@ export default function TeamsPage() {
 
         return haystack.includes(search);
       });
+    }
+
+    // The structural filters, matching optimaTeamsFiltered on the server: a team
+    // qualifies when one of its active groups does.
+    const branchId = table.filterValues.branchId as string | undefined;
+    const encounter = table.filterValues.encounterScope as string | undefined;
+    const workItemType = table.filterValues.workItemType as string | undefined;
+    const departments = (table.filterValues.departments as string[] | undefined) ?? [];
+    const payers = (table.filterValues.payers as string[] | undefined) ?? [];
+
+    if (branchId) base = base.filter((x: any) => x.facilityId === branchId);
+
+    // A BOTH team serves either encounter, so it matches every scope.
+    if (encounter) {
+      base = base.filter((x: any) => x.encounterScope === encounter || x.encounterScope === "BOTH");
+    }
+
+    if (workItemType) {
+      base = base.filter((x: any) =>
+        (x.groups ?? []).some((g: any) => g.active && (g.workItemTypes ?? []).includes(workItemType))
+      );
+    }
+
+    if (departments.length) {
+      const want = new Set(departments.map((d) => d.toLowerCase()));
+      base = base.filter((x: any) =>
+        (x.groups ?? []).some(
+          (g: any) => g.active && (g.departments ?? []).some((d: string) => want.has(d.toLowerCase()))
+        )
+      );
+    }
+
+    // A catch-all group covers any payer, so it matches whatever is asked for.
+    if (payers.length) {
+      const want = new Set(payers.map(String));
+      base = base.filter((x: any) =>
+        (x.groups ?? []).some(
+          (g: any) =>
+            g.active &&
+            (g.payerCatchAll || (g.payers ?? []).some((y: any) => want.has(String(y))))
+        )
+      );
     }
 
     return base;

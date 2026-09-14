@@ -1197,7 +1197,9 @@ const resolvers = {
     departmentOptionsFor: (_: unknown, { teamId }: any) => {
       const t = teamId ? findTeam(teamId) : null;
       const src = t ? deptVolumes(t.siteKey) : V.global.departments;
-      return Object.keys(src).sort();
+      // "(unresolved)" marks a production tag with no canonical department. It is
+      // worth seeing as a coverage gap, but it is not something to pick from a list.
+      return Object.keys(src).filter((d) => d !== "(unresolved)").sort();
     },
     payerOptionsFor: (_: unknown, { teamId }: any) => {
       const t = teamId ? findTeam(teamId) : null;

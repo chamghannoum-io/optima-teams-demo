@@ -61,7 +61,7 @@ export function MemberUnavailabilityList({
               </div>
               {onCancel && windowId && (
                 <Button
-                  variant="ghost"
+                  variant="tertiary"
                   size="sm"
                   disabled={disabled}
                   onClick={() => onCancel(windowId)}

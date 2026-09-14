@@ -686,13 +686,13 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-6 py-3 dark:border-dark-border dark:bg-dark-surface">
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-slate-500">Step {step} of 4</span>
             {step > 1 && (
-              <Button variant="secondary" onClick={() => setStep(step - 1)}>
+              <Button variant="outline" onClick={() => setStep(step - 1)}>
                 Back
               </Button>
             )}

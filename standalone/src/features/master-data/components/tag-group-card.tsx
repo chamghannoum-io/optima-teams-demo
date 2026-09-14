@@ -118,7 +118,7 @@ export function TagGroupCard({
           {t("masterData.teams.tags", "Tags")}
           {group.tags.length > 0 && ` (${group.tags.length})`}
         </span>
-        <Button variant="ghost" size="sm" onClick={() => tagPickerRef.current?.open()}>
+        <Button variant="tertiary" size="sm" onClick={() => tagPickerRef.current?.open()}>
           <Plus size={14} />
           {t("masterData.teams.addTag", "Add Tag")}
         </Button>

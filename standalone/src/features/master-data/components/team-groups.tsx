@@ -324,7 +324,7 @@ export function TeamGroups({
         <div className="flex gap-2">
           {groups.length > 0 && (
             <div className="flex items-center gap-0.5">
-              <Button type="button" variant="secondary" size="sm" onClick={autoDistribute}>
+              <Button type="button" variant="outline" size="sm" onClick={autoDistribute}>
                 <Wand2 size={14} /> Auto-distribute
               </Button>
               {teamId && (
@@ -332,7 +332,7 @@ export function TeamGroups({
               )}
             </div>
           )}
-          <Button type="button" variant="secondary" size="sm" onClick={addGroup}>
+          <Button type="button" variant="outline" size="sm" onClick={addGroup}>
             <Plus size={14} /> {t("masterData.teams.addGroup", "Add Group")}
           </Button>
         </div>
@@ -343,7 +343,7 @@ export function TeamGroups({
           <p className="text-sm text-slate-500 dark:text-slate-400">
             No groups yet — this team cannot receive work.
           </p>
-          <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={addGroup}>
+          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={addGroup}>
             <Plus size={14} /> Add the first group
           </Button>
         </div>
@@ -370,7 +370,7 @@ export function TeamGroups({
                 ))}
               </div>
               <Switch checked={g.active} onCheckedChange={(v: boolean) => update(g.id, { active: v })} />
-              <Button type="button" variant="ghost" size="sm" onClick={() => remove(g.id)}>
+              <Button type="button" variant="redOutline" size="sm" onClick={() => remove(g.id)}>
                 <Trash2 size={15} />
               </Button>
             </div>
@@ -382,7 +382,7 @@ export function TeamGroups({
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     {byDept ? "Departments" : "Payers"} ({criteria.length})
                   </span>
-                  <Button type="button" variant="ghost" size="sm"
+                  <Button type="button" variant="tertiary" size="sm"
                     onClick={() => { setPicker({ groupId: g.id, kind: "criteria" }); setFilter(""); }}>
                     <Plus size={13} /> Add
                   </Button>
@@ -446,7 +446,7 @@ export function TeamGroups({
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <Users size={11} className="mr-1 inline" /> Members ({g.members.length})
                   </span>
-                  <Button type="button" variant="ghost" size="sm"
+                  <Button type="button" variant="tertiary" size="sm"
                     onClick={() => { setPicker({ groupId: g.id, kind: "members" }); setFilter(""); }}>
                     <Plus size={13} /> Add
                   </Button>

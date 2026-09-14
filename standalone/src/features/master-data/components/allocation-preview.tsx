@@ -9,6 +9,12 @@ const PREVIEW = gql`
   query AllocationPreview($teamId: ID!, $itemCount: Int) {
     optimaAllocationPreview(teamId: $teamId, itemCount: $itemCount) {
       teamName
+      facilityId
+      division
+      encounterScope
+      highCostThreshold
+      highCostCount
+      highCostUnassigned
       totalItems
       assignedCount
       unassignedCount
@@ -39,6 +45,8 @@ const PREVIEW = gql`
         rank
         groupName
         assigneeName
+        net
+        highCost
       }
       unmatched {
         id
@@ -86,7 +94,7 @@ export function AllocationPreview({ teamId, className }: { teamId: string; class
               who ends up with it. Nothing is assigned.
             </p>
           </div>
-          <Button type="button" variant="secondary" size="sm" onClick={() => setRun(true)}>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRun(true)}>
             <Play size={14} /> {t("masterData.teams.runPreview", "Run preview")}
           </Button>
         </div>
@@ -108,16 +116,27 @@ export function AllocationPreview({ teamId, className }: { teamId: string; class
     <div className={cn("space-y-3", className)}>
       <div className="flex items-center justify-between gap-2">
         <Label>{t("masterData.teams.allocationPreview", "Allocation preview")}</Label>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setRun(false)}>
+        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+          {p.facilityId} · {p.division} · {p.encounterScope} · high cost over AED{" "}
+          {(p.highCostThreshold ?? 0).toLocaleString()}
+        </span>
+        <Button type="button" variant="link" size="sm" onClick={() => setRun(false)}>
           Reset
         </Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
           ["Arrivals", p.totalItems, "default"],
           ["Allocated", `${p.assignedCount} (${pct}%)`, p.assignedCount ? "success" : "error"],
           ["Unallocated", p.unassignedCount, p.unassignedCount ? "warning" : "success"],
+          [
+            "High cost",
+            p.highCostUnassigned
+              ? `${p.highCostCount} (${p.highCostUnassigned} unplaced)`
+              : p.highCostCount,
+            p.highCostUnassigned ? "warning" : "default",
+          ],
         ].map(([label, value, variant]) => (
           <div
             key={label as string}
