@@ -30,6 +30,7 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  Checkbox,
   Alert,
   AlertDescription,
   cn,
@@ -95,6 +96,13 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
   const [groups, setGroups] = useState<TeamGroup[]>([]);
   const [maxAuth, setMaxAuth] = useState(150);
   const [maxClaim, setMaxClaim] = useState(150);
+  // Round-2: how capacity is applied, and who may take the expensive work.
+  const [uniformCapacity, setUniformCapacity] = useState(true);
+  const [allowExceedCapacity, setAllowExceedCapacity] = useState(true);
+  const [highCostThreshold, setHighCostThreshold] = useState(3000);
+  const [supervisorIds, setSupervisorIds] = useState<string[]>([]);
+  const [highCostIds, setHighCostIds] = useState<string[]>([]);
+  const [capOverrides, setCapOverrides] = useState<Record<string, number | undefined>>({});
   const [saving, setSaving] = useState(false);
 
   const { data: opts } = useQuery(OPTIONS, {
@@ -115,6 +123,23 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
       setEncounterScope(team.encounterScope ?? "OP");
       setLogicAxis(team.logicAxis ?? "DEPARTMENT");
       setActive(team.active ?? true);
+      setUniformCapacity(team.uniformCapacity ?? true);
+      setAllowExceedCapacity(team.allowExceedCapacity ?? (team.division ?? "AUTH") === "AUTH");
+      setHighCostThreshold(team.highCostThreshold ?? 3000);
+      setMaxAuth(team.maxAuth ?? 150);
+      setMaxClaim(team.maxClaim ?? 150);
+      {
+        const seen = new Map<string, any>();
+        for (const g of team.groups ?? []) for (const m of g.members ?? []) seen.set(m.id, m);
+        const people = [...seen.values()];
+        setSupervisorIds(people.filter((m) => m.isSupervisor).map((m) => m.id));
+        setHighCostIds(people.filter((m) => m.handlesHighCost).map((m) => m.id));
+        setCapOverrides(
+          Object.fromEntries(
+            people.filter((m) => m.capacityOverride != null).map((m) => [m.id, m.capacityOverride])
+          )
+        );
+      }
       setGroups(
         (team.groups ?? []).map((g: any) => ({
           ...g,
@@ -134,12 +159,19 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
       setLogicAxis("DEPARTMENT");
       setActive(true);
       setGroups([]);
+      setUniformCapacity(true);
+      setAllowExceedCapacity(true);
+      setHighCostThreshold(3000);
+      setSupervisorIds([]);
+      setHighCostIds([]);
+      setCapOverrides({});
     }
   }, [open, team, opts]);
 
   // The division decides the axis default: claims split by payer, auth by department.
   useEffect(() => {
     if (creating) setLogicAxis(division === "CLAIM" ? "PAYER" : "DEPARTMENT");
+    if (creating) setAllowExceedCapacity(division === "AUTH");
   }, [division, creating]);
 
   /** Team roster = de-duplicated union of every group's members. */
@@ -151,6 +183,20 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
 
   const memberships = groups.reduce((n, g) => n + (g.members?.length ?? 0), 0);
   const emptyGroups = groups.filter((g) => !(g.members ?? []).length);
+
+  /** Resubmission carries the high-value work, so it is what makes the tag matter. */
+  const doesResubmission = groups.some(
+    (g) => g.active !== false && (g.workItemTypes ?? []).some((w) => w.includes("RESUBMISSION"))
+  );
+
+  /** Capacity is the sum of each member's own cap, not a team-level figure. */
+  const derivedCapacity = useMemo(() => {
+    const base = division === "AUTH" ? maxAuth : maxClaim;
+    return roster.reduce(
+      (sum, m) => sum + (uniformCapacity ? base : (capOverrides[m.id] ?? base)),
+      0
+    );
+  }, [roster, division, maxAuth, maxClaim, uniformCapacity, capOverrides]);
 
   const nameError = !name.trim();
   const canNext =
@@ -172,6 +218,11 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
             active,
             maxAuth,
             maxClaim,
+            uniformCapacity,
+            allowExceedCapacity,
+            highCostThreshold,
+            supervisorIds,
+            highCostMemberIds: highCostIds,
             groups: groups.map((g) => ({
               id: String(g.id).length > 8 ? null : g.id, // new groups have uuid ids
               name: g.name,
@@ -407,14 +458,12 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
           {step === 3 && (
             <>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Daily limit per person. Allocation stops adding work to someone once they
-                reach it.
+                Daily limit per person, and who is allowed to take the expensive work.
               </p>
+
               <div className="max-w-xs space-y-1.5">
                 <Label htmlFor="tw-cap">
-                  {division === "AUTH"
-                    ? "Max authorizations / day"
-                    : "Max claims / day"}
+                  {division === "AUTH" ? "Max authorizations / day" : "Max claims / day"}
                 </Label>
                 <Input
                   id="tw-cap"
@@ -427,17 +476,142 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
                   }
                 />
                 <p className="text-[11px] text-slate-500">
-                  This is an {division} team, so only the {division === "AUTH" ? "authorization" : "claim"} limit applies.
+                  This is an {division} team, so only the{" "}
+                  {division === "AUTH" ? "authorization" : "claim"} limit applies.
                 </p>
               </div>
+
+              <label className="flex cursor-pointer items-start gap-2.5">
+                <Checkbox
+                  checked={!uniformCapacity}
+                  onCheckedChange={(v: any) => setUniformCapacity(!v)}
+                />
+                <span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-dark-text">
+                    Set capacity per member
+                  </span>
+                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                    Off, everyone on this team gets the figure above. On, you can override it for
+                    individuals below, and anyone left blank keeps the team figure.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-2.5">
+                <Checkbox
+                  checked={allowExceedCapacity}
+                  onCheckedChange={(v: any) => setAllowExceedCapacity(!!v)}
+                />
+                <span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-dark-text">
+                    Keep allocating past the limit
+                  </span>
+                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                    {allowExceedCapacity
+                      ? "Work above the limit is still assigned, to the least-loaded person. Nothing waits."
+                      : "Work above the limit is held back and deferred to the next run rather than assigned."}{" "}
+                    Authorizations are time-critical, so AUTH teams normally allow this; claims
+                    normally defer.
+                  </span>
+                </span>
+              </label>
+
+              <div className="max-w-xs space-y-1.5">
+                <Label htmlFor="tw-highcost">High-cost threshold (AED)</Label>
+                <Input
+                  id="tw-highcost"
+                  type="number"
+                  value={highCostThreshold}
+                  onChange={(e: any) => setHighCostThreshold(Number(e.target.value))}
+                />
+                <p className="text-[11px] text-slate-500">
+                  Items worth more than this are flagged high-cost, and go only to the members
+                  tagged for them below.
+                </p>
+              </div>
+
+              {roster.length > 0 && (
+                <div className="rounded-lg border border-slate-200 dark:border-dark-border">
+                  <div className="grid grid-cols-[1fr_5rem_5rem_6rem] items-center gap-3 border-b border-slate-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:border-dark-border dark:text-slate-400">
+                    <span>Member</span>
+                    <span className="text-center">Supervisor</span>
+                    <span className="text-center">High cost</span>
+                    <span className="text-end">Cap / day</span>
+                  </div>
+                  {roster.map((m) => {
+                    const label =
+                      [m.firstName, m.lastName].filter(Boolean).join(" ") || m.email || m.id;
+                    return (
+                      <div
+                        key={m.id}
+                        className="grid grid-cols-[1fr_5rem_5rem_6rem] items-center gap-3 border-b border-slate-100 px-4 py-2 last:border-0 dark:border-dark-border/50"
+                      >
+                        <span className="truncate text-sm text-slate-700 dark:text-slate-300">
+                          {label}
+                        </span>
+                        <span className="flex justify-center">
+                          <Checkbox
+                            checked={supervisorIds.includes(m.id)}
+                            onCheckedChange={(v: any) =>
+                              setSupervisorIds((prev) =>
+                                v ? [...prev, m.id] : prev.filter((x) => x !== m.id)
+                              )
+                            }
+                          />
+                        </span>
+                        <span className="flex justify-center">
+                          <Checkbox
+                            checked={highCostIds.includes(m.id)}
+                            onCheckedChange={(v: any) =>
+                              setHighCostIds((prev) =>
+                                v ? [...prev, m.id] : prev.filter((x) => x !== m.id)
+                              )
+                            }
+                          />
+                        </span>
+                        <Input
+                          type="number"
+                          disabled={uniformCapacity}
+                          placeholder={String(division === "AUTH" ? maxAuth : maxClaim)}
+                          value={capOverrides[m.id] ?? ""}
+                          onChange={(e: any) =>
+                            setCapOverrides((prev) => ({
+                              ...prev,
+                              [m.id]: e.target.value === "" ? undefined : Number(e.target.value),
+                            }))
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {supervisorIds.length > 0 && (
+                <Alert variant="info">
+                  <AlertDescription>
+                    {supervisorIds.length === 1 ? "A supervisor is" : "Supervisors are"} added to
+                    every active group on save, and allocated work like anyone else.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {highCostIds.length === 0 && doesResubmission && (
+                <Alert variant="warning">
+                  <AlertDescription>
+                    This team handles resubmission but nobody is tagged for high-cost work, so
+                    items over AED {highCostThreshold.toLocaleString()} will not be assigned.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="rounded-lg border border-slate-200 p-4 dark:border-dark-border">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Team capacity is derived, never set directly:
                 </p>
                 <p className="mt-1 text-sm font-medium text-slate-900 dark:text-dark-text">
-                  {roster.length} members × {division === "AUTH" ? maxAuth : maxClaim} ={" "}
-                  {(roster.length * (division === "AUTH" ? maxAuth : maxClaim)).toLocaleString()}{" "}
-                  items/day
+                  {derivedCapacity.toLocaleString()} items/day across {roster.length}{" "}
+                  {roster.length === 1 ? "member" : "members"}
                 </p>
                 {memberships > roster.length && (
                   <p className="mt-1 text-[11px] text-slate-500">

@@ -55,6 +55,11 @@ const TEAM_FIELDS = gql`
     encounterScope
     logicAxis
     facilityId
+    allowExceedCapacity
+    uniformCapacity
+    maxAuth
+    maxClaim
+    highCostThreshold
     rotationEnabled
     rotationFrequency
     nextRotationDate
@@ -71,6 +76,9 @@ const TEAM_FIELDS = gql`
       email
       appRole
       isActive
+      isSupervisor
+      handlesHighCost
+      capacityOverride
     }
     groups {
       id
@@ -88,6 +96,9 @@ const TEAM_FIELDS = gql`
         firstName
         lastName
         email
+        isSupervisor
+        handlesHighCost
+        capacityOverride
       }
       capacity {
         memberCount

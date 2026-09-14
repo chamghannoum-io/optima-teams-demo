@@ -33,6 +33,7 @@ const typeDefs = /* GraphQL */ `
     firstName: String
     lastName: String
     email: String
+    appRole: String
     isActive: Boolean
     """Sits in every group of the team and receives work from all of them."""
     isSupervisor: Boolean

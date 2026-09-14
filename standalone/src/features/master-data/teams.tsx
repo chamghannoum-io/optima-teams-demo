@@ -16,7 +16,7 @@ import {
   TooltipProvider,
 } from "@/components/enhanced";
 import type { FilterFieldConfig } from "@/components/enhanced";
-import { Pencil, Users } from "lucide-react";
+import { Pencil, Users, Trash2 } from "lucide-react";
 import { Permission, usePermission, useAuth, isRcmSupervisor } from "@optima/auth";
 import {
   useBranchesAutocompleteQuery,
@@ -32,6 +32,8 @@ import { toast } from "@optima/ui";
 import { isApolloGraphqlErrorAlreadyToastedGlobally, logApiError } from "@optima/shared";
 import { useTranslation } from "react-i18next";
 import { TeamWizard } from "./team-wizard.js";
+import { AllocationReadinessPanel } from "./components/allocation-readiness.js";
+import { DeleteTeamDialog } from "./components/delete-team-dialog.js";
 
 type OptimaTeam = NonNullable<GetOptimaTeamsQuery["optimaTeams"]>[number];
 
@@ -54,6 +56,7 @@ export default function TeamsPage() {
   const canManageTeams = hasManageTeamsPermission || isRcmSupervisorUser;
   const [editTeam, setEditTeam] = useState<OptimaTeam | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [deleteTeam, setDeleteTeam] = useState<{ id: string; name: string } | null>(null);
   // 1 = Team Info (edit pencil); 2 = Members (manage-members shortcut)
   const [editInitialStep, setEditInitialStep] = useState(1);
   const [updateTeam] = useUpdateOptimaTeamMutation();
@@ -421,6 +424,18 @@ export default function TeamsPage() {
                         </TooltipTrigger>
                         <TooltipContent>{t("masterData.teams.manageMembers")}</TooltipContent>
                       </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTeam({ id: team.id, name: team.name ?? "" })}
+                            className="rounded-md p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("common.delete", "Delete")}</TooltipContent>
+                      </Tooltip>
                     </div>
                   </TooltipProvider>
                 );
@@ -463,6 +478,16 @@ export default function TeamsPage() {
       <PageContent>
         <TableFilterChips {...table.getChipProps(filterFields)} />
 
+        <AllocationReadinessPanel
+          onOpenTeam={(id) => {
+            const found = (data?.optimaTeams ?? []).find((x: any) => String(x.id) === String(id));
+            if (found) {
+              setEditTeam(found);
+              setWizardOpen(true);
+            }
+          }}
+        />
+
         <DataTable
           columns={columns}
           data={paginatedTeams}
@@ -486,6 +511,12 @@ export default function TeamsPage() {
               onLastPage={() => setPage(totalPages)}
             />
           }
+        />
+
+        <DeleteTeamDialog
+          team={deleteTeam}
+          onOpenChange={(o) => { if (!o) setDeleteTeam(null); }}
+          onDeleted={() => void refetchTeams()}
         />
 
         <TeamWizard
