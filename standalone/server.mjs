@@ -4,7 +4,7 @@
  * Serves the same executable schema the UI uses, over HTTP, plus a thin
  * `/api/tool/:code` wrapper that mimics the cortex gateway's tool convention.
  * That means the v2 workflow can point at this instead of the live gateway and
- * run end to end against the local v2 teams — same operations, same request
+ * run end to end against the local v2 teams, same operations, same request
  * shapes, no production access required.
  *
  *   node server.mjs            → http://localhost:4000
@@ -142,14 +142,14 @@ const server = createServer(async (req, res) => {
 });
 
 // Listen on :: (all interfaces, IPv4 *and* IPv6). Node dual-stacks this by default,
-// which matters because clients resolving "localhost" often try ::1 first — binding
+// which matters because clients resolving "localhost" often try ::1 first, binding
 // 0.0.0.0 alone gives them ECONNREFUSED on ::1.
 // A stale server from a previous run holds the port and n8n then gets ECONNREFUSED
 // against a half-dead process. Fail with an actionable message instead of a stack trace.
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
     console.error(`
-Port ${PORT} is already in use — another copy of this server is running.`);
+Port ${PORT} is already in use, another copy of this server is running.`);
     console.error(`Stop it, then start again:`);
     console.error(`  Windows : npx kill-port ${PORT}`);
     console.error(`  or      : netstat -ano | findstr :${PORT}   then  taskkill /PID <pid> /F`);

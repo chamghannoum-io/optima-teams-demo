@@ -3,7 +3,7 @@
  *
  * That module is codegen output and is not committed upstream, so the real Teams page
  * cannot import it here. These are the same hook signatures the page calls, backed by
- * the local v2 schema — which means the genuine teams.tsx / edit-team-drawer.tsx /
+ * the local v2 schema, which means the genuine teams.tsx / edit-team-drawer.tsx /
  * create-team-drawer.tsx run unmodified against v2 data.
  *
  * The v1 operation names are kept (optimaTeams, not optimaTeamsV2) because that is what

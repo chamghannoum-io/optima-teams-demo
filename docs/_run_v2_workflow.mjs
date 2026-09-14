@@ -1,7 +1,6 @@
 /**
  * Executes the v2 workflow's Code nodes end to end against real v2 team data,
- * standing in for the five gateway tools. This is the same JS n8n would run —
- * lifted straight out of the workflow JSON, not a reimplementation — so a green
+ * standing in for the five gateway tools. This is the same JS n8n would run, * lifted straight out of the workflow JSON, not a reimplementation, so a green
  * run here means the node logic is sound before it ever reaches n8n.
  */
 import fs from "node:fs";
@@ -59,7 +58,7 @@ function toolUnassigned(perTeam = 40) {
   });
 }
 
-/** T-0002 optimaTeams — v2 shape, groups included */
+/** T-0002 optimaTeams, v2 shape, groups included */
 function toolTeams() {
   return teams.map((t) => ({
     id: t.id, name: t.name, active: t.active,
@@ -135,7 +134,7 @@ store["Webhook"] = [{
   },
 }];
 
-console.log(`=== RCM Auto-Assignment v2 — ${DRY_RUN ? "DRY RUN" : "COMMIT"} ===\n`);
+console.log(`=== RCM Auto-Assignment v2, ${DRY_RUN ? "DRY RUN" : "COMMIT"} ===\n`);
 
 run("extractInfo", store["Webhook"]);
 console.log("extractInfo        window", store["extractInfo"][0].json.payload.fromDate,

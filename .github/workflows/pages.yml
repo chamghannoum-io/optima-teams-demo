@@ -1,7 +1,7 @@
 # Publishes the Teams v2 demo to GitHub Pages.
 #
 # Always builds with PUBLIC=1, which swaps the real staff identities for stable
-# pseudonyms. Never publish a plain `vite build` — that bundle contains real names
+# pseudonyms. Never publish a plain `vite build`: that bundle contains real names
 # and employer-domain email addresses.
 name: Deploy demo to Pages
 
@@ -38,7 +38,7 @@ jobs:
       - name: Fail if the bundle contains real identities
         run: |
           if grep -rIl -e saudigerman -e '@sgh' dist/ ; then
-            echo "::error::Real identities found in the build — refusing to publish."
+            echo "::error::Real identities found in the build. Refusing to publish."
             exit 1
           fi
           echo "bundle clean"

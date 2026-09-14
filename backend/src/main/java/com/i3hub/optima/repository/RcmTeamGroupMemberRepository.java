@@ -27,13 +27,13 @@ public interface RcmTeamGroupMemberRepository extends JpaRepository<RcmTeamGroup
 	void deleteByRcmTeamId(Long rcmTeamId);
 
 	/**
-	 * Distinct users on a team — the de-duplicated roster that derived capacity is
+	 * Distinct users on a team, the de-duplicated roster that derived capacity is
 	 * computed from. A user in three groups appears once.
 	 */
 	@Query("SELECT DISTINCT m.userId FROM RcmTeamGroupMember m WHERE m.rcmTeamId = :teamId")
 	List<Long> findDistinctUserIdsByTeamId(@Param("teamId") Long teamId);
 
-	/** Raw membership count, including duplicates — for the dedup explanation. */
+	/** Raw membership count, including duplicates, for the dedup explanation. */
 	long countByRcmTeamId(Long rcmTeamId);
 
 	/**

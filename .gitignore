@@ -1,11 +1,11 @@
-# Secrets — never commit
+# Secrets: never commit
 .env
 .env.*
 !.env.example
 *.pem
 *.key
 
-# Data pulled from production — contains real staff names and emails
+# Data pulled from production. Contains real staff names and emails
 docs/teams-raw.json
 docs/departments-raw.json
 docs/teams-*.raw.json
@@ -26,7 +26,7 @@ Thumbs.db
 standalone/src/mocks/*.public.json
 standalone/dist/
 
-# Production captures — real staff names, emails and a live organization API key.
+# Production captures: real staff names, emails and a live organization API key.
 # These are working inputs, not deliverables; keep them local.
 docs/Walkthough.md
 docs/prod-run-fixtures.json
@@ -48,7 +48,7 @@ docs/RCM Auto Assign - Midnight Trigger.json
 q.json
 standalone/.schema-bundle.mjs
 
-# Real staff identities — never commit. The committed *.json are pseudonymized;
+# Real staff identities: never commit. The committed *.json are pseudonymized;
 # these hold the originals for local work.
 standalone/src/mocks/*.local.json
 

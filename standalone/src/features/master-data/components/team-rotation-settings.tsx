@@ -88,7 +88,7 @@ export function TeamRotationSettings({
           <TriangleAlert className="mt-0.5 shrink-0" size={14} />
           {t("masterData.teams.rotationMinMembersMessage", {
             defaultValue:
-              "Rotation cannot be performed — at least {{min}} users are required in the team scope.",
+              "Rotation cannot be performed: at least {{min}} users are required in the team scope.",
             min: MIN_ROTATION_MEMBERS,
           })}
         </p>

@@ -78,7 +78,7 @@ public class RcmTeamRotationService {
 		for (RcmTeamGroupMember member : members) {
 			Integer current = indexById.get(member.getRcmTeamGroupId());
 			if (current == null) {
-				// Member sits in an inactive group — leave them where they are.
+				// Member sits in an inactive group, leave them where they are.
 				continue;
 			}
 			int next = (current + 1) % groups.size();

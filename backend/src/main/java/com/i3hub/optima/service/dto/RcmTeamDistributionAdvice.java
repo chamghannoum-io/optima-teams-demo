@@ -9,8 +9,8 @@ import lombok.NoArgsConstructor;
  * Projected load per group, plus warnings about a configuration that will not hold.
  *
  * Advisory by default: a WARNING is worth showing but does not stop a save. BLOCKERs
- * describe configurations that guarantee unallocated work — a group with volume and no
- * members, or a PAYER team with no catch-all — and the UI should require an explicit
+ * describe configurations that guarantee unallocated work, a group with volume and no
+ * members, or a PAYER team with no catch-all, and the UI should require an explicit
  * override before continuing.
  */
 @Data

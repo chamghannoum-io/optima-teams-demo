@@ -13,7 +13,7 @@ public enum RcmTeamEncounterScope {
 	BOTH;
 
 	/**
-	 * True when this scope fully contains {@code other} — i.e. a team with this
+	 * True when this scope fully contains {@code other}, i.e. a team with this
 	 * scope may hold a group scoped {@code other}. BOTH contains everything;
 	 * OP and IP contain only themselves.
 	 */

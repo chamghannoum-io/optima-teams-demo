@@ -258,7 +258,7 @@ public class RcmTeamServiceImpl implements RcmTeamService {
 	}
 
 	private void validateBranchesBelongToVendor(String authorization, List<Long> branchIds, Long vendorId) {
-		// Temporarily disabled — re-enable once federated branch lookup is wired up.
+		// Temporarily disabled, re-enable once federated branch lookup is wired up.
 		// if (vendorId == null || branchIds == null || branchIds.isEmpty()) {
 		// 	return;
 		// }
@@ -277,7 +277,7 @@ public class RcmTeamServiceImpl implements RcmTeamService {
 		}
 		if (input.getTags() != null) {
 			// Mutate the managed collection in place (clear + addAll) rather than replacing the
-			// reference with a new list — orphanRemoval only deletes children that Hibernate sees
+			// reference with a new list, orphanRemoval only deletes children that Hibernate sees
 			// removed from the SAME tracked collection instance; team.setTags(newList) silently
 			// leaves the old rcm_team_tag rows behind instead of deleting them.
 			team.getTags().clear();

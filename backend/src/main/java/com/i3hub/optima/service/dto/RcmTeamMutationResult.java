@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 /**
  * Result of a team or group mutation.
  *
- * {@link #warnings} is advisory only — the mutation has already committed. It carries
+ * {@link #warnings} is advisory only, the mutation has already committed. It carries
  * the "already allocated 150 in Team 2" detail so the UI can confirm after the fact,
  * per the agreed permissive-backend approach.
  */

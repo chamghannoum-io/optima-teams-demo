@@ -16,7 +16,7 @@ body,
 
 /* RTL tables: keep column header labels and cell content left-aligned within
    each cell. Column ORDER is still RTL (from direction:rtl), but the text
-   inside each cell stays at the physical left edge — matching LTR table UX. */
+   inside each cell stays at the physical left edge, matching LTR table UX. */
 [dir="rtl"] th,
 [dir="rtl"] td {
   text-align: left;
@@ -38,7 +38,7 @@ body {
   color-scheme: dark;
 }
 
-/* ── Cortex Design System — CSS Custom Properties ────────────────── */
+/* ── Cortex Design System, CSS Custom Properties ────────────────── */
 :root {
   --cx-primary: #2d3670;
   --cx-primary-hover: #242b5a;
@@ -231,7 +231,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 /* ── Wizard form alignment: keep every grid row top-aligned so validation
    errors in one cell don't vertically push sibling inputs in the same row.
-   Applies inside FormSectionCard bodies only — no unrelated grids affected. */
+   Applies inside FormSectionCard bodies only, no unrelated grids affected. */
 .form-section-card-body [class*="grid-cols-"] {
   align-items: start;
 }

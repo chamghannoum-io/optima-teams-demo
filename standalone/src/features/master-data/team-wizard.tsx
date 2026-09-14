@@ -1,15 +1,15 @@
 /**
- * Team wizard for the v2 allocation model — used for both create and edit.
+ * Team wizard for the v2 allocation model, used for both create and edit.
  *
  * The v1 wizard had a team-level Members step, which contradicts v2: members belong
  * to *groups*, and the team roster is the de-duplicated union of them. So members are
  * picked inside each group, and the team header just reports the resulting roster.
  *
- *   1 Team Info  — identity, and the three choices that define the container:
+ *   1 Team Info , identity, and the three choices that define the container:
  *                  facility, division (AUTH|CLAIM), encounter scope, logic axis
- *   2 Groups     — the criteria and the people, per group
- *   3 Capacity   — per-person daily limits
- *   4 Review     — summary plus a dry run of the allocation engine
+ *   2 Groups    , the criteria and the people, per group
+ *   3 Capacity  , per-person daily limits
+ *   4 Review    , summary plus a dry run of the allocation engine
  */
 import { useEffect, useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
@@ -252,7 +252,7 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
       <SheetContent className="flex w-full flex-col overflow-hidden p-0 sm:max-w-5xl">
         <SheetHeader className="border-b border-slate-200 px-6 py-4 dark:border-dark-border">
           <SheetTitle>
-            {creating ? t("masterData.teams.addTeam", "Add Team") : `Edit Team — ${team?.name}`}
+            {creating ? t("masterData.teams.addTeam", "Add Team") : `Edit Team, ${team?.name}`}
           </SheetTitle>
         </SheetHeader>
 
@@ -409,7 +409,7 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
             <>
               <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-dark-border dark:bg-dark-surface">
                 <span className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-                  <Building2 size={13} /> {facilityId || "—"}
+                  <Building2 size={13} /> {facilityId || ", "}
                 </span>
                 <Badge variant="default">{division}</Badge>
                 <Badge variant="default">{encounterScope}</Badge>
@@ -437,7 +437,7 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
                   <AlertTriangle size={15} />
                   <AlertDescription>
                     {emptyGroups.length} group{emptyGroups.length > 1 ? "s have" : " has"} no
-                    members — work matched there cannot be assigned.
+                    members, work matched there cannot be assigned.
                   </AlertDescription>
                 </Alert>
               )}
@@ -632,7 +632,7 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
                 </h3>
                 <dl className="grid grid-cols-2 gap-y-2 text-xs">
                   {[
-                    ["Facility", facilityId || "—"],
+                    ["Facility", facilityId || ", "],
                     ["Division", division],
                     ["Encounter", encounterScope],
                     ["Split by", logicAxis],

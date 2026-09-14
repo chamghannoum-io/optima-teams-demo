@@ -15,8 +15,7 @@ import lombok.NoArgsConstructor;
  * reports department coverage and leaves the payer lists empty, and vice versa.
  * Departments are simply not a factor on a PAYER team.
  *
- * For an <em>active</em> DEPARTMENT team, uncovered departments are a hard block —
- * see RcmTeamCoverageService#requireCompleteCoverage. This report is what the UI
+ * For an <em>active</em> DEPARTMENT team, uncovered departments are a hard block, * see RcmTeamCoverageService#requireCompleteCoverage. This report is what the UI
  * shows while the team is still being built.
  */
 @Data
@@ -26,7 +25,7 @@ public class RcmTeamCoverageReport {
 	/** Departments at the facility that no active group covers. DEPARTMENT teams only. */
 	private List<RcmDepartment> uncoveredDepartments = new ArrayList<>();
 
-	/** Departments covered by more than one group — allowed, but usually a mistake. */
+	/** Departments covered by more than one group, allowed, but usually a mistake. */
 	private List<RcmDepartment> overlappingDepartments = new ArrayList<>();
 
 	/** Payers that no active group covers. PAYER teams only. */
@@ -41,10 +40,10 @@ public class RcmTeamCoverageReport {
 	 */
 	private List<WorkItemType> uncoveredWorkItemTypes = new ArrayList<>();
 
-	/** Groups with no members — they can never receive work. */
+	/** Groups with no members, they can never receive work. */
 	private List<Long> emptyGroupIds = new ArrayList<>();
 
-	/** True when nothing is uncovered — i.e. the team may be activated. */
+	/** True when nothing is uncovered, i.e. the team may be activated. */
 	public boolean isComplete() {
 		return uncoveredDepartments.isEmpty()
 				&& uncoveredPayers.isEmpty()

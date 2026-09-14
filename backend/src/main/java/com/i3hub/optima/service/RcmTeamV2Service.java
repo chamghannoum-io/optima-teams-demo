@@ -56,7 +56,7 @@ public interface RcmTeamV2Service {
 
 	RcmTeamCoverageReport coverageOf(Long teamId);
 
-	/** Departments observed on this facility's work items — the coverage baseline. */
+	/** Departments observed on this facility's work items, the coverage baseline. */
 	List<RcmDepartment> facilityDepartments(String facilityId);
 
 	List<RcmTeamDepartmentSuggestion> suggestDepartments(Long teamId);

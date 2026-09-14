@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-[ -f .env ] || { echo "ERROR: no .env — copy .env.example to .env and fill in the secret." >&2; exit 1; }
+[ -f .env ] || { echo "ERROR: no .env, copy .env.example to .env and fill in the secret." >&2; exit 1; }
 
 set -a; . ./.env; set +a
 

@@ -1,7 +1,7 @@
 /**
  * Stands in for @optima/auth.
  *
- * The demo is an admin view, so every permission check passes — the real page uses
+ * The demo is an admin view, so every permission check passes, the real page uses
  * these to gate editing, and we want editing fully enabled.
  */
 export const Permission = {

@@ -40,14 +40,14 @@ const CLAIM_STATUSES = ["OPEN", "CHECKED", "VALIDATED"];
 const shortType = (t: string) =>
   t.replace("AUTHORIZATION_", "Auth ").replace("CLAIM_", "Claim ").replace("_", " ").toLowerCase();
 const personName = (u: { firstName?: string | null; lastName?: string | null }) =>
-  [u.firstName, u.lastName].filter(Boolean).join(" ") || "—";
+  [u.firstName, u.lastName].filter(Boolean).join(" ") || "-";
 const initials = (n: string) =>
   n.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
 /**
  * Allocation groups for a team.
  *
- * Everything a group matches on is visible without opening it — the departments or
+ * Everything a group matches on is visible without opening it: the departments or
  * payers are shown as chips on the card, not hidden behind a count. Coverage problems
  * (uncovered, or claimed by two groups) are flagged live as you edit, because those
  * are the two ways a configuration silently drops or double-books work.
@@ -75,7 +75,7 @@ export function TeamGroups({
   /*
    * Coverage is per WORK ITEM TYPE, not per team.
    *
-   * A group covering ENT for auth submission does nothing for auth resubmission —
+   * A group covering ENT for auth submission does nothing for auth resubmission;
    * each type needs its own full sweep of the facility's departments. So the check
    * runs once per type the team is expected to handle, and a department is only
    * "covered" for a type if some group handles that type AND names it.
@@ -104,7 +104,7 @@ export function TeamGroups({
         for (const c of criteriaOf(g)) seen.set(c, [...(seen.get(c) ?? []), g.name]);
       }
       for (const [c, gs] of seen) {
-        // Distinct groups only — one group handling several types is not a clash.
+        // Distinct groups only, one group handling several types is not a clash.
         const distinct = [...new Set(gs)];
         if (distinct.length > 1) counts.set(`${c}|${wt}`, distinct);
       }
@@ -114,7 +114,7 @@ export function TeamGroups({
     for (const [key, gs] of counts) claimedBy.set(key.split("|")[0], gs);
 
     // Where every criterion currently sits, clash or not. The picker uses this so a
-    // user adding a second "Submission — AJM" group can see what the first already
+    // user adding a second "Submission - AJM" group can see what the first already
     // covers and pick only the remainder.
     const placedIn = new Map<string, { group: string; types: string[] }[]>();
     for (const g of groups) {
@@ -193,7 +193,7 @@ export function TeamGroups({
         if (handlers.some((g) => has(g, o))) continue;
 
         // A multi-type group would also start serving this criterion for its other
-        // types — where another group may already cover it. Prefer a handler that
+        // types, where another group may already cover it. Prefer a handler that
         // does not create such a clash; fall back to the lightest if none is clean.
         const clean = handlers.filter((g) =>
           g.workItemTypes.every(
@@ -230,7 +230,7 @@ export function TeamGroups({
         <div className="rounded-lg border border-slate-200 dark:border-dark-border">
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2 dark:border-dark-border/50">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Department coverage — checked per work item type
+              Department coverage, checked per work item type
             </span>
             {totalGaps > 0 && groups.length > 0 && (
               <button type="button" onClick={autoDistribute}
@@ -275,7 +275,7 @@ export function TeamGroups({
                   <p key={p.workItemType} className="text-[11px] text-amber-700 dark:text-amber-400">
                     <strong>{shortType(p.workItemType)}</strong> has no group for{" "}
                     {p.missing.slice(0, 5).join(", ")}
-                    {p.missing.length > 5 && ` +${p.missing.length - 5} more`} — that work
+                    {p.missing.length > 5 && ` +${p.missing.length - 5} more`}. That work
                     will not be allocated.
                   </p>
                 ))}
@@ -341,7 +341,7 @@ export function TeamGroups({
       {groups.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center dark:border-dark-border">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            No groups yet — this team cannot receive work.
+            No groups yet. This team cannot receive work.
           </p>
           <Button type="button" variant="outline" size="sm" className="mt-2" onClick={addGroup}>
             <Plus size={14} /> Add the first group
@@ -376,7 +376,7 @@ export function TeamGroups({
             </div>
 
             <div className="grid grid-cols-[1fr_260px] divide-x divide-slate-100 dark:divide-dark-border/50">
-              {/* criteria — always visible */}
+              {/* criteria, always visible */}
               <div className="space-y-2 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -389,7 +389,7 @@ export function TeamGroups({
                 </div>
                 {criteria.length === 0 ? (
                   <p className="py-2 text-xs text-slate-400">
-                    None yet — this group matches nothing.
+                    None yet. This group matches nothing.
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
@@ -435,12 +435,12 @@ export function TeamGroups({
                   <label className="flex items-center gap-2 pt-1 text-xs text-slate-600 dark:text-slate-300">
                     <Switch checked={g.payerCatchAll}
                       onCheckedChange={(v: boolean) => update(g.id, { payerCatchAll: v })} />
-                    Catch-all — also take any payer no group names
+                    Catch-all: also take any payer no group names
                   </label>
                 )}
               </div>
 
-              {/* members — always visible */}
+              {/* members, always visible */}
               <div className="space-y-2 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -453,7 +453,7 @@ export function TeamGroups({
                 </div>
                 {noMembers ? (
                   <p className="py-2 text-xs text-red-600 dark:text-red-400">
-                    No members — work matched here cannot be assigned.
+                    No members. Work matched here cannot be assigned.
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-1">
@@ -526,7 +526,7 @@ export function TeamGroups({
                               clash ? "text-amber-700 dark:text-amber-400"
                                     : "text-slate-500 dark:text-slate-400")}>
                               in {elsewhere.map((x) => x.group).join(", ")}
-                              {clash && " — same work type"}
+                              {clash && " (same work type)"}
                             </span>
                           )}
                           {on && <Badge variant="info">added</Badge>}

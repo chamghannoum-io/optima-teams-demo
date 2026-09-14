@@ -1,7 +1,7 @@
 # Publishing the demo
 
 The app is entirely client-side, so GitHub Pages hosts it for free. **Always publish
-with `build:public`** — a plain `vite build` embeds real staff names and
+with `build:public`**, a plain `vite build` embeds real staff names and
 `@saudigerman.com` addresses, and Pages is world-readable.
 
 ## What the public build changes
@@ -38,7 +38,7 @@ npx serve dist
 
 The Teams list, the four-step wizard (Team Info → Groups → Capacity → Review), live
 coverage checking per work item type, Auto-distribute with its rationale panel, and the
-allocation preview. All of it runs in the browser against the local schema — no backend,
+allocation preview. All of it runs in the browser against the local schema, no backend,
 no API keys, nothing to configure.
 
 **Not included:** the n8n workflow and the `/api/tool` server. Those need a running

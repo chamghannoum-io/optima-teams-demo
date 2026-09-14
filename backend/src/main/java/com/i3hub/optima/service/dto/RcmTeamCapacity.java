@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 /**
  * Derived capacity for a team or one of its groups.
  *
- * Never stored — computed on read from the de-duplicated member set, so it cannot
+ * Never stored, computed on read from the de-duplicated member set, so it cannot
  * drift from membership. A user sitting in three groups of the same team
  * contributes to {@link #totalCapacity} once.
  */

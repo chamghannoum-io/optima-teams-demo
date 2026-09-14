@@ -60,7 +60,7 @@ public interface RcmTeamV2Repository
 	}
 
 	/**
-	 * Teams whose scope can serve the given encounter — an OP item is servable by
+	 * Teams whose scope can serve the given encounter, an OP item is servable by
 	 * an OP team or a BOTH team.
 	 */
 	static Specification<RcmTeamV2> encounterScopeCovers(RcmTeamEncounterScope scope) {

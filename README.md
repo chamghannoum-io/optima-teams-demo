@@ -1,11 +1,11 @@
-# OPTIMA — Teams Module (Master Data)
+# OPTIMA, Teams Module (Master Data)
 
 The **Teams** module (Master Data → Teams) extracted from the OPTIMA application, in
 two parts:
 
-- **`standalone/`** — a runnable Teams page. `npm install && npm run dev`, no backend
+- **`standalone/`**, a runnable Teams page. `npm install && npm run dev`, no backend
   or database needed, seeded with **real data pulled from production**.
-- **`backend/` + `frontend/`** — the verbatim upstream source, paths preserved, for
+- **`backend/` + `frontend/`**, the verbatim upstream source, paths preserved, for
   reading and diffing against the real repos.
 
 ## Source
@@ -19,7 +19,7 @@ the extraction was taken from the latest release refs rather than the working tr
 | Frontend | `~/Desktop/OptimaUI` | `origin/optima/release.3.3.0` | React + TanStack Router + Apollo |
 
 `3.3.0` was the newest release line on both remotes as of 2026-09-02. Note the refs
-differ in punctuation between the repos — backend uses `optima.release.3.3.0`, frontend
+differ in punctuation between the repos, backend uses `optima.release.3.3.0`, frontend
 uses `optima/release.3.3.0`.
 
 File paths below are preserved exactly as they appear in the source repos, so anything
@@ -29,13 +29,13 @@ here can be diffed or traced straight back upstream.
 
 An RCM (Revenue Cycle Management) team groups users for work allocation. A team carries:
 
-- **Identity** — name, Arabic name, description, active flag, owning vendor
-- **Tags** — flat tags plus nested tag *groups* combined with AND/OR (`OptimaTagOperation`),
+- **Identity**, name, Arabic name, description, active flag, owning vendor
+- **Tags**, flat tags plus nested tag *groups* combined with AND/OR (`OptimaTagOperation`),
   used to match work items to the team
-- **Branch allocation** — the branches a team covers, with a sort order
-- **Rotation** — optional DAILY/WEEKLY/MONTHLY rotation with a pointer marking whose turn
+- **Branch allocation**, the branches a team covers, with a sort order
+- **Rotation**, optional DAILY/WEEKLY/MONTHLY rotation with a pointer marking whose turn
   is next; the allocation workflow calls `optimaTeamRotationComplete` after each run
-- **Members and availability** — members can be marked unavailable for a date range, with
+- **Members and availability**, members can be marked unavailable for a date range, with
   action `UNASSIGN` (push their active work back to the unassigned bucket) or
   `REDISTRIBUTE` (record the window only, supervisor reassigns manually)
 
@@ -43,17 +43,17 @@ An RCM (Revenue Cycle Management) team groups users for work allocation. A team 
 
 ```
 standalone/                 Runnable Teams page (Vite + React + Apollo, local schema)
-backend/                    Java — entities, GraphQL resolver, service, migrations
-frontend/                   React — page, drawers, dialogs, components, hooks, tests
+backend/                    Java, entities, GraphQL resolver, service, migrations
+frontend/                   React, page, drawers, dialogs, components, hooks, tests
 scripts/pull-teams.sh       Refresh the real data from the gateway
 docs/                       Query + raw API response (gitignored); n8n workflows
 ```
 
-### Backend — `backend/src/main/java/com/i3hub/optima/`
+### Backend, `backend/src/main/java/com/i3hub/optima/`
 
 | Path | Role |
 |---|---|
-| `web/graphql/RcmTeamResource.java` | DGS resolver — 2 queries, 7 mutations |
+| `web/graphql/RcmTeamResource.java` | DGS resolver, 2 queries, 7 mutations |
 | `service/RcmTeamService.java` + `service/impl/RcmTeamServiceImpl.java` | Business logic (~357 lines) |
 | `domain/RcmTeam.java` | JPA entity |
 | `domain/RcmTeamTag.java` | Tag / tag-group entity (self-nesting) |
@@ -69,11 +69,11 @@ Liquibase migrations in `backend/src/main/resources/config/liquibase/changelog/`
 `20260304` → `20260804`) trace the schema's evolution: base table → tags → branches →
 vendor scoping → rotation → unavailability → branch sort order.
 
-### Frontend — `frontend/provider-app/apps/provider/src/features/master-data/`
+### Frontend, `frontend/provider-app/apps/provider/src/features/master-data/`
 
 | Path | Role |
 |---|---|
-| `teams.tsx` | The Teams page — filterable, paginated data table |
+| `teams.tsx` | The Teams page, filterable, paginated data table |
 | `create-team-drawer.tsx` / `edit-team-drawer.tsx` | Multi-step create / edit drawers |
 | `team-form-dialog.tsx` | Team detail form |
 | `team-members-dialog.tsx` | Member management |
@@ -95,11 +95,11 @@ Two files were **assembled** rather than copied verbatim, because upstream the T
 definitions are interleaved with every other feature in shared files. Both carry a header
 noting their origin.
 
-- **`backend/src/main/resources/schema/teams.graphqls`** — Teams slices lifted from the
+- **`backend/src/main/resources/schema/teams.graphqls`**, Teams slices lifted from the
   shared `types`, `input`, `enum`, `queries`, and `mutations` `.graphqls` files. Queries and
   mutations are wrapped in `extend type` blocks, which is a change from upstream where they
   are fields on the single root `Query` / `Mutation`.
-- **`frontend/.../graphql/teams.graphql`** — the 11 Teams operations extracted from
+- **`frontend/.../graphql/teams.graphql`**, the 11 Teams operations extracted from
   `master-data.graphql` (which holds 39 operations total), plus the two code-system queries
   the tag autocomplete depends on.
 
@@ -144,7 +144,7 @@ rotation settings; the members dialog with real staff, availability, `availableO
 filtering, unavailability windows (UNASSIGN / REDISTRIBUTE) and cancellation; create,
 edit and active-toggle. Mutations write to the in-memory store and persist until reload.
 
-**Seed data:** `standalone/src/mocks/teams-real.json` — 16 real teams, 69 distinct users,
+**Seed data:** `standalone/src/mocks/teams-real.json`, 16 real teams, 69 distinct users,
 16 branches, pulled from production on 2026-09-02. **It contains real staff names and
 email addresses** and is gitignored, as is `docs/teams-raw.json`.
 
@@ -162,7 +162,7 @@ is not a factor. Writes `docs/teams-raw.json`; copy the `data.optimaTeams` array
 
 ### Pointing at the real API instead
 
-Swap `SchemaLink` for an `HttpLink` in `standalone/src/apollo.ts` — the operation
+Swap `SchemaLink` for an `HttpLink` in `standalone/src/apollo.ts`, the operation
 documents in `standalone/src/graphql.ts` are the real ones and need no changes.
 Note that a token with only `view_rcm_team` will get 403s on the mutations;
 `manage_rcm_team` is required for those.
@@ -172,19 +172,19 @@ Note that a token with only `view_rcm_team` will get 403s on the mutations;
 The standalone app is a **faithful reimplementation, not the upstream files running
 as-is.** The upstream page cannot execute outside the monorepo: it imports `@optima/ui`,
 `@optima/auth`, `@optima/shared`, `@/components/enhanced` (118 files), and
-`@/__generated__/graphql` — codegen output that is not committed. Vendoring all of that
+`@/__generated__/graphql`, codegen output that is not committed. Vendoring all of that
 would mean copying a large slice of the frontend monorepo.
 
 So `standalone/` keeps the contract identical and rebuilds the presentation:
 
 | Upstream | Standalone |
 |---|---|
-| `@/__generated__/graphql` hooks | `src/graphql.ts` — same operations, hand-written hooks |
+| `@/__generated__/graphql` hooks | `src/graphql.ts`, same operations, hand-written hooks |
 | `@optima/ui`, `@/components/enhanced` | `src/features/*` + `src/styles.css` |
-| `@optima/auth` permission guards | omitted — no auth layer locally |
+| `@optima/auth` permission guards | omitted, no auth layer locally |
 | DGS backend | `src/mocks/schema.ts` executable schema |
 
-### Styling — Cortex Design System
+### Styling, Cortex Design System
 
 The page uses the **real** design tokens, ported verbatim from
 `provider-app/packages/ui/src/styles.css` into `standalone/src/styles.css`:
@@ -208,14 +208,14 @@ Dark mode tokens exist upstream and are not ported.
 
 The GraphQL **operations, schema, filter semantics and mutation behaviour match upstream**;
 the React components are equivalents, not copies. For the real component code, read
-`frontend/` — that is byte-identical to the repo.
+`frontend/`, that is byte-identical to the repo.
 
 ## The upstream copy (`backend/` + `frontend/`)
 
-These are the untouched extracted files and do **not** build on their own — they still
+These are the untouched extracted files and do **not** build on their own, they still
 import from the applications they came from.
 
-**Backend** expects the surrounding Spring Boot app — `Permission`, `User`, `Vendor`,
+**Backend** expects the surrounding Spring Boot app, `Permission`, `User`, `Vendor`,
 `Branch`, the `@Authenticated` / `@HasPermission` annotations, base entity classes, the DGS
 runtime, and the rest of the Liquibase master changelog.
 
@@ -235,5 +235,5 @@ git show origin/optima/release.3.3.0:provider-app/apps/provider/src/features/mas
 
 Since paths are preserved, any file here maps to `<ref>:<same path minus the
 backend/ or frontend/ prefix>` upstream. The three assembled files
-(`teams.graphqls`, `teams.graphql`, `teams.route.tsx`) are the exception — they have no
+(`teams.graphqls`, `teams.graphql`, `teams.route.tsx`) are the exception, they have no
 single upstream counterpart.

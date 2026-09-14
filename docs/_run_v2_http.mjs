@@ -2,7 +2,7 @@
  * Runs the v2 workflow against the LOCAL server over HTTP.
  *
  * Unlike `_run_v2_workflow.mjs`, which fed the Code nodes from in-process
- * stand-ins, this calls `POST /api/tool/{code}` exactly as n8n would — same URL
+ * stand-ins, this calls `POST /api/tool/{code}` exactly as n8n would, same URL
  * shape, same request bodies, real network round-trips. The Code node JS is still
  * lifted verbatim from the workflow JSON.
  *
@@ -27,7 +27,7 @@ async function tool(code, body) {
   return json;
 }
 
-/* n8n runtime shim — same as the in-process runner */
+/* n8n runtime shim, same as the in-process runner */
 const store = {};
 function run(nodeName, inputItems) {
   const $input = { all: () => inputItems };
@@ -44,7 +44,7 @@ function run(nodeName, inputItems) {
   return arr;
 }
 
-console.log(`=== v2 workflow over HTTP (${BASE}) — ${DRY_RUN ? "DRY RUN" : "COMMIT"} ===\n`);
+console.log(`=== v2 workflow over HTTP (${BASE}), ${DRY_RUN ? "DRY RUN" : "COMMIT"} ===\n`);
 
 store["Webhook"] = [{
   json: {

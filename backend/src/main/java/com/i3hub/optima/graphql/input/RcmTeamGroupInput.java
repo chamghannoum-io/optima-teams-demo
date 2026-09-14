@@ -10,7 +10,7 @@ import lombok.Data;
  * Input for a group within a v2 team.
  *
  * Exactly one of {@link #departments} / {@link #payers} may be supplied, matching the
- * owning team's logic axis — the other is rejected by RcmTeamV2Validator.
+ * owning team's logic axis, the other is rejected by RcmTeamV2Validator.
  */
 @Data
 public class RcmTeamGroupInput {

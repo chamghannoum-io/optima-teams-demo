@@ -45,8 +45,7 @@ public class RcmTeamDistributionAdvisor {
 		Map<Long, Double> payerVolumes(String facilityId);
 
 		/**
-		 * Peak-to-median ratio for the facility (P90/P50). Claims batch heavily —
-		 * observed between 1.16 and 4.66 — so a group sized to the median will
+		 * Peak-to-median ratio for the facility (P90/P50). Claims batch heavily, * observed between 1.16 and 4.66, so a group sized to the median will
 		 * overflow on a busy day. Used to project peak load.
 		 */
 		double burstFactor(String facilityId);
@@ -160,9 +159,9 @@ public class RcmTeamDistributionAdvisor {
 	 *
 	 * Checks, in order of how much they cost when missed:
 	 * <ul>
-	 *   <li>a group with volume but no members — that work can never be assigned;</li>
-	 *   <li>projected peak above capacity — overflow on busy days;</li>
-	 *   <li>mean above capacity — permanent backlog, not just spikes;</li>
+	 *   <li>a group with volume but no members, that work can never be assigned;</li>
+	 *   <li>projected peak above capacity, overflow on busy days;</li>
+	 *   <li>mean above capacity, permanent backlog, not just spikes;</li>
 	 *   <li>badly uneven load between groups.</li>
 	 * </ul>
 	 */
@@ -210,13 +209,13 @@ public class RcmTeamDistributionAdvisor {
 
 			if (mean > 0 && members == 0) {
 				advice.add(Severity.BLOCKER, group.getId(), String.format(
-						"Group '%s' is projected %.0f items/day but has no members — that work "
+						"Group '%s' is projected %.0f items/day but has no members, that work "
 								+ "cannot be assigned to anyone.",
 						group.getName(), mean));
 			} else if (capacity > 0 && mean > capacity) {
 				advice.add(Severity.BLOCKER, group.getId(), String.format(
 						"Group '%s' is projected %.0f items/day against capacity %d. This "
-								+ "overflows every day, not just at peak — move some %s to "
+								+ "overflows every day, not just at peak, move some %s to "
 								+ "another group or add members.",
 						group.getName(), mean, capacity,
 						team.getLogicAxis() == com.i3hub.optima.enumeration.RcmTeamLogicAxis.DEPARTMENT
@@ -224,7 +223,7 @@ public class RcmTeamDistributionAdvisor {
 			} else if (capacity > 0 && peak > capacity) {
 				advice.add(Severity.WARNING, group.getId(), String.format(
 						"Group '%s' fits on an average day (%.0f/day against capacity %d) but is "
-								+ "projected %.0f at peak — busy days will overflow.",
+								+ "projected %.0f at peak, busy days will overflow.",
 						group.getName(), mean, capacity, peak));
 			}
 		}
@@ -254,7 +253,7 @@ public class RcmTeamDistributionAdvisor {
 			if (unnamed > 0) {
 				advice.add(Severity.BLOCKER, null, String.format(
 						"%d payers seen at this facility are not named by any group, and no group "
-								+ "is a catch-all — their work will not be allocated. Mark at least "
+								+ "is a catch-all, their work will not be allocated. Mark at least "
 								+ "one group as a catch-all.",
 						unnamed));
 			}

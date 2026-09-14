@@ -30,7 +30,7 @@ const RATIONALE = gql`
  * Explains why Auto-distribute splits the way it does.
  *
  * The recommendation packs by observed daily volume rather than by an equal count of
- * departments, because arrival volume is heavily concentrated — one department can be
+ * departments, because arrival volume is heavily concentrated: one department can be
  * a quarter of a facility's work while a dozen others are under an item a day. This
  * shows the numbers behind that, and what an even-count split would have produced
  * instead, so the suggestion is auditable rather than a black box.
@@ -153,7 +153,7 @@ export function DistributionRationale({
                     </div>
                     <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                       The busiest carries <strong>{r.top[0]?.sharePct.toFixed(0)}%</strong> of
-                      all work — <strong>{r.concentrationRatio.toFixed(1)}×</strong> the median
+                      all work, <strong>{r.concentrationRatio.toFixed(1)}×</strong> the median
                       department
                       {r.tailCount > 0 && (
                         <>
@@ -203,7 +203,7 @@ export function DistributionRationale({
 
                   <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
                     Auto-distribute deals each unassigned{" "}
-                    {r.axis === "DEPARTMENT" ? "department" : "payer"} — heaviest first — to
+                    {r.axis === "DEPARTMENT" ? "department" : "payer"}, heaviest first, to
                     whichever group is currently lightest. Anything you have already assigned
                     stays where it is. The peak factor ({r.burstFactor.toFixed(2)}×) is the
                     facility's P90/P50 ratio, used to project busy-day load.

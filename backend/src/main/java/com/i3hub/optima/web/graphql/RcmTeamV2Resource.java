@@ -32,7 +32,7 @@ import graphql.schema.DataFetchingEnvironment;
 /**
  * GraphQL surface for v2 teams.
  *
- * Runs alongside {@link RcmTeamResource} (v1) during the migration — both models are
+ * Runs alongside {@link RcmTeamResource} (v1) during the migration, both models are
  * live, on separate tables and separate operations.
  */
 @DgsComponent
@@ -198,7 +198,7 @@ public class RcmTeamV2Resource {
 		return team == null ? List.of() : service.findGroups(team.getId());
 	}
 
-	/** The de-duplicated roster — one row per user, however many groups they are in. */
+	/** The de-duplicated roster, one row per user, however many groups they are in. */
 	@DgsData(parentType = "RcmTeamV2", field = "members")
 	public List<RcmTeamGroupMember> teamMembers(DataFetchingEnvironment env) {
 		RcmTeamV2 team = env.getSource();

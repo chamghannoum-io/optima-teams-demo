@@ -55,7 +55,7 @@ public class RcmTeamV2ServiceImpl implements RcmTeamV2Service {
 	 * Departments a facility actually handles.
 	 *
 	 * Derived from departments observed on that facility's work items rather than the
-	 * {@code vendorDepartments} entity — that is a per-branch admin list and 19 of the
+	 * {@code vendorDepartments} entity, that is a per-branch admin list and 19 of the
 	 * 24 department tags used by production teams have no row in it.
 	 */
 	public interface FacilityDepartmentSource {

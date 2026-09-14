@@ -1,8 +1,8 @@
 /**
  * Swaps real staff identities for stable fakes, for the public build only.
  *
- * Everything that makes the demo meaningful — team names, departments, payers,
- * observed volumes, group structure, allocation results — is untouched. Only the
+ * Everything that makes the demo meaningful, team names, departments, payers,
+ * observed volumes, group structure, allocation results, is untouched. Only the
  * 69 people's names and emails change, and the mapping is deterministic so the
  * same person keeps the same alias across every screen.
  *
@@ -38,7 +38,7 @@ function fakeFor(id, i) {
   const v = {
     firstName: first,
     lastName: last,
-    // .invalid is reserved by RFC 2606 — can never route anywhere real.
+    // .invalid is reserved by RFC 2606, can never route anywhere real.
     email: `${first.toLowerCase()}.${last.toLowerCase()}@example.invalid`,
   };
   alias.set(id, v);

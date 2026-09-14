@@ -26,10 +26,9 @@ import lombok.ToString;
 /**
  * A group within an RCM team.
  *
- * Groups — not teams — carry the matching criteria and the members. A team is a
+ * Groups, not teams, carry the matching criteria and the members. A team is a
  * container (facility × division × encounter); each of its groups narrows that
- * down to a specific slice of work, e.g. "Dubai × AUTH_RESUBMISSION × OP —
- * ENT, ICU, GYN".
+ * down to a specific slice of work, e.g. "Dubai × AUTH_RESUBMISSION × OP, * ENT, ICU, GYN".
  *
  * Matching uses typed columns rather than the v1 comma-separated tag string, so
  * validation and coverage checks are exact rather than string matching.
@@ -68,7 +67,7 @@ public class RcmTeamGroup extends AbstractAuditingEntity<Long> implements TypeRc
 
 	/**
 	 * Work item types this group handles. Every value must belong to the owning
-	 * team's division — a group under an AUTH team cannot list CLAIM_VALIDATION.
+	 * team's division, a group under an AUTH team cannot list CLAIM_VALIDATION.
 	 */
 	@ElementCollection(fetch = FetchType.EAGER)
 	@CollectionTable(name = "rcm_team_group_work_item_type",
@@ -87,7 +86,7 @@ public class RcmTeamGroup extends AbstractAuditingEntity<Long> implements TypeRc
 
 	/**
 	 * Departments this group covers, when the team's logicAxis is DEPARTMENT.
-	 * There is no "all departments" wildcard — every department is named
+	 * There is no "all departments" wildcard, every department is named
 	 * explicitly so coverage gaps are detectable.
 	 *
 	 * Typed against {@link RcmDepartment} rather than free text, so a misspelled
@@ -103,13 +102,13 @@ public class RcmTeamGroup extends AbstractAuditingEntity<Long> implements TypeRc
 	/**
 	 * Catch-all flag, for PAYER teams only.
 	 *
-	 * Payer distributions have a long tail — 56-69 payers per site, of which 10-15
+	 * Payer distributions have a long tail, 56-69 payers per site, of which 10-15
 	 * carry ~85-90% of volume and 20-30 sit below one item a day. Naming every payer
 	 * is impractical and leaves new payers matching nothing, so groups may instead
 	 * declare themselves catch-alls: they take any payer no other group names.
 	 *
 	 * Several groups can be catch-alls; the tail is split between them so no single
-	 * group becomes the dumping ground. Departments never use this — there are only
+	 * group becomes the dumping ground. Departments never use this, there are only
 	 * 28 and they must all be named explicitly.
 	 */
 	@Column(name = "is_payer_catch_all", columnDefinition = "boolean default false")
@@ -146,12 +145,12 @@ public class RcmTeamGroup extends AbstractAuditingEntity<Long> implements TypeRc
 	private Integer rotationOrder;
 
 	/**
-	 * Match specificity — how <em>narrow</em> this group is. Higher is narrower.
+	 * Match specificity, how <em>narrow</em> this group is. Higher is narrower.
 	 *
 	 * Used when several groups match one work item: the narrowest wins, with
 	 * remaining capacity as the tiebreak. A group naming ENT alone must beat one
 	 * naming six departments, so each dimension scores inversely to how many
-	 * values it admits — counting values would make broad groups win.
+	 * values it admits, counting values would make broad groups win.
 	 *
 	 * A dimension left empty is a wildcard and scores 0, so it never out-ranks a
 	 * group that constrains that dimension.
@@ -170,7 +169,7 @@ public class RcmTeamGroup extends AbstractAuditingEntity<Long> implements TypeRc
 						? SCALE : 0);
 	}
 
-	/** Scale factor — large enough that one constrained dimension outweighs list-length noise. */
+	/** Scale factor, large enough that one constrained dimension outweighs list-length noise. */
 	private static final int SCALE = 100;
 
 	/**

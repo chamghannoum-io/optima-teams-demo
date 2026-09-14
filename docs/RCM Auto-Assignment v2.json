@@ -790,6 +790,6 @@
  },
  "active": false,
  "meta": {
-  "description": "v2 allocation: teams are containers; groups carry criteria and members. Matching is narrowest-group-wins. Ranking unchanged from v1. POST body.dryRun=true previews without assigning. Set body.gatewayBaseUrl to redirect every tool call — e.g. http://localhost:4000/api/tool for the local stand-in. Set body.fixtures to run entirely inside n8n with no reachable gateway — useful when n8n is remote and cannot see a local server."
+  "description": "v2 allocation: teams are containers; groups carry criteria and members. Matching is narrowest-group-wins. Ranking unchanged from v1. POST body.dryRun=true previews without assigning. Set body.gatewayBaseUrl to redirect every tool call, e.g. http://localhost:4000/api/tool for the local stand-in. Set body.fixtures to run entirely inside n8n with no reachable gateway, useful when n8n is remote and cannot see a local server."
  }
 }

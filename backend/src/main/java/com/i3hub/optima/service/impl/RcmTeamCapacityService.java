@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
  * cannot be inflated by adding someone to more groups.
  *
  * The per-user maximum comes from {@code effectiveAssignmentSettings}, which returns
- * {@code maxAuth} and {@code maxClaim} separately — so the figure used depends on the
+ * {@code maxAuth} and {@code maxClaim} separately, so the figure used depends on the
  * team's division.
  */
 @Service
@@ -89,7 +89,7 @@ public class RcmTeamCapacityService {
 	 * Capacity for one group.
 	 *
 	 * Note this does <em>not</em> sum to the team's capacity when a user belongs to
-	 * several groups — the team de-duplicates, the groups do not. Group capacity is
+	 * several groups, the team de-duplicates, the groups do not. Group capacity is
 	 * for distributing work within a team; team capacity is the real ceiling.
 	 */
 	public RcmTeamCapacity forGroup(RcmTeamV2 team, RcmTeamGroup group) {
@@ -102,7 +102,7 @@ public class RcmTeamCapacityService {
 		return capacityOf(userIds, team.getId(), team.getDivision());
 	}
 
-	/** Capacity per group, keyed by group id — used as the matcher's tiebreak. */
+	/** Capacity per group, keyed by group id, used as the matcher's tiebreak. */
 	public Map<Long, Integer> remainingByGroup(RcmTeamV2 team, List<RcmTeamGroup> groups) {
 		return groups.stream().collect(Collectors.toMap(
 				RcmTeamGroup::getId,

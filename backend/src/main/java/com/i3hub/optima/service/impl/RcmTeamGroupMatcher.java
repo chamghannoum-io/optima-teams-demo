@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * Selection order, as agreed:
  * <ol>
  *   <li>the group must match the item at all (type, encounter, axis, status);</li>
- *   <li>most specific group wins — one naming ENT beats one naming six
+ *   <li>most specific group wins, one naming ENT beats one naming six
  *       departments, because there is no catch-all group in this model;</li>
  *   <li>ties broken by remaining capacity, so load still spreads.</li>
  * </ol>
@@ -42,8 +42,7 @@ public class RcmTeamGroupMatcher {
 		/**
 		 * Builds criteria from a raw work item, resolving the source system's
 		 * department spelling through {@link RcmDepartment#fromDisplayName}.
-		 * An unmapped department resolves to null, which no group will match —
-		 * the item is then reported as uncovered rather than mis-assigned.
+		 * An unmapped department resolves to null, which no group will match, * the item is then reported as uncovered rather than mis-assigned.
 		 */
 		public static WorkItemCriteria of(WorkItemType workItemType,
 				RcmTeamEncounterScope encounter, String departmentDisplayName,
@@ -135,7 +134,7 @@ public class RcmTeamGroupMatcher {
 	/**
 	 * Payers no active group would accept.
 	 *
-	 * Empty whenever any active group is a catch-all — that is the point of the
+	 * Empty whenever any active group is a catch-all, that is the point of the
 	 * catch-all, and why PAYER teams are exempt from the hard coverage block.
 	 */
 	public List<Long> uncoveredPayers(List<RcmTeamGroup> groups, List<Long> facilityPayers) {

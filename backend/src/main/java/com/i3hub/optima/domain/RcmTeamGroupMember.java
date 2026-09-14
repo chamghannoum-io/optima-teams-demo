@@ -20,7 +20,7 @@ import lombok.ToString;
  *
  * Membership lives on groups; a team's roster is the de-duplicated union of these
  * rows across its groups. A user may hold several memberships in one team (one per
- * group) — that is exactly the case the de-duplicated team capacity accounts for.
+ * group), that is exactly the case the de-duplicated team capacity accounts for.
  *
  * {@link #homeGroupId} records where the member started. Rotation moves members
  * between groups by rewriting {@link #rcmTeamGroupId}, leaving the home fixed, so
@@ -57,8 +57,7 @@ public class RcmTeamGroupMember extends AbstractAuditingEntity<Long> implements 
 	private Long userId;
 
 	/**
-	 * The group this member was originally placed in. Immutable across rotations —
-	 * set once when the membership is created.
+	 * The group this member was originally placed in. Immutable across rotations, * set once when the membership is created.
 	 */
 	@Column(name = "home_group_id", nullable = false)
 	private Long homeGroupId;

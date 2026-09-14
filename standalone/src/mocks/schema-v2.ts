@@ -1,7 +1,7 @@
 /**
  * Local executable schema for the v2 team model, over the real production estate.
  *
- * Seed is `teams-v2-real.json` — the 16 live v1 teams run through the v1→v2 migration,
+ * Seed is `teams-v2-real.json`, the 16 live v1 teams run through the v1→v2 migration,
  * giving 10 teams / 16 groups / 75 memberships / 69 distinct people, with real names.
  * Volumes are the observed figures from workitem_profile.xlsx, so projections and
  * advice match what production would show.
@@ -335,7 +335,7 @@ const typeDefs = /* GraphQL */ `
     totalPerDay: Float!
     criteriaCount: Int!
     burstFactor: Float!
-    "Heaviest first — the reason an even count would not be an even workload."
+    "Heaviest first, the reason an even count would not be an even workload."
     top: [CriterionVolume!]!
     "How lopsided the busiest is against the lightest."
     concentrationRatio: Float!
@@ -640,7 +640,7 @@ function advice(t: Team) {
       findings.push({
         severity: "BLOCKER",
         groupId: p.groupId,
-        message: `Group '${p.groupName}' is projected ${p.meanPerDay.toFixed(0)} items/day but has no members — that work cannot be assigned to anyone.`,
+        message: `Group '${p.groupName}' is projected ${p.meanPerDay.toFixed(0)} items/day but has no members, that work cannot be assigned to anyone.`,
       });
     else if (p.capacity > 0 && p.meanPerDay > p.capacity)
       findings.push({
@@ -652,7 +652,7 @@ function advice(t: Team) {
       findings.push({
         severity: "WARNING",
         groupId: p.groupId,
-        message: `Group '${p.groupName}' fits on an average day (${p.meanPerDay.toFixed(0)} against capacity ${p.capacity}) but is projected ${p.peakPerDay.toFixed(0)} at peak — busy days will overflow.`,
+        message: `Group '${p.groupName}' fits on an average day (${p.meanPerDay.toFixed(0)} against capacity ${p.capacity}) but is projected ${p.peakPerDay.toFixed(0)} at peak, busy days will overflow.`,
       });
   }
   const loads = projections.filter((p) => p.meanPerDay > 0).map((p) => p.meanPerDay);
@@ -673,7 +673,7 @@ function advice(t: Team) {
       findings.push({
         severity: "BLOCKER",
         groupId: null,
-        message: `${unnamed} payers seen at this facility are not named by any group, and no group is a catch-all — their work will not be allocated.`,
+        message: `${unnamed} payers seen at this facility are not named by any group, and no group is a catch-all, their work will not be allocated.`,
       });
   }
   return {
@@ -817,7 +817,7 @@ function buildItems(t: Team, count: number) {
       highCost: net != null && net > ((t as any).highCostThreshold ?? Infinity),
     });
   }
-  // Highest rank first — age dominates quickly, which is the anti-starvation rule.
+  // Highest rank first, age dominates quickly, which is the anti-starvation rule.
   return items.sort((a, b) => b.rank - a.rank);
 }
 
@@ -851,7 +851,7 @@ function allocationPreview(t: Team, count: number) {
       const k = `${g.id}:${m.id}`;
       cap.set(k, {
         userId: m.id,
-        name: [m.firstName, m.lastName].filter(Boolean).join(" ") || "—",
+        name: [m.firstName, m.lastName].filter(Boolean).join(" ") || "-",
         groupName: g.name,
         assigned: 0,
         capacity: capOf(t, m),
@@ -1004,7 +1004,7 @@ function readinessOf(input: any[]): any {
           teamId: t.id,
           teamName: t.name,
           facilityId: t.facilityId,
-          message: `${t.name} has no active groups — it cannot receive any work.`,
+          message: `${t.name} has no active groups, it cannot receive any work.`,
         });
         continue;
       }
@@ -1017,7 +1017,7 @@ function readinessOf(input: any[]): any {
           teamId: t.id,
           teamName: t.name,
           facilityId: t.facilityId,
-          message: `${t.name} — group "${g.name}" has no members, so work matched there has nowhere to go.`,
+          message: `${t.name}, group "${g.name}" has no members, so work matched there has nowhere to go.`,
         });
       }
 
@@ -1041,7 +1041,7 @@ function readinessOf(input: any[]): any {
             teamId: t.id,
             teamName: t.name,
             facilityId: t.facilityId,
-            message: `${t.name} — ${missing.length} of ${all.length} departments have no group for ${label(wt)}.`,
+            message: `${t.name}, ${missing.length} of ${all.length} departments have no group for ${label(wt)}.`,
           });
         }
       } else if (!active.some((g: any) => g.payerCatchAll)) {
@@ -1052,7 +1052,7 @@ function readinessOf(input: any[]): any {
           teamId: t.id,
           teamName: t.name,
           facilityId: t.facilityId,
-          message: `${t.name} names payers but has no catch-all group — smaller payers will not be allocated.`,
+          message: `${t.name} names payers but has no catch-all group, smaller payers will not be allocated.`,
         });
       }
 

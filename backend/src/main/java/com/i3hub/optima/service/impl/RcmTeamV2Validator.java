@@ -116,7 +116,7 @@ public class RcmTeamV2Validator {
 		}
 		if (!team.getEncounterScope().covers(group.getEncounterScope())) {
 			throw new IllegalArgumentException(String.format(
-					"Group '%s' is scoped %s but the team is scoped %s — a group cannot widen "
+					"Group '%s' is scoped %s but the team is scoped %s, a group cannot widen "
 							+ "its team's encounter scope.",
 					group.getName(), group.getEncounterScope(), team.getEncounterScope()));
 		}
@@ -128,7 +128,7 @@ public class RcmTeamV2Validator {
 		if (hasDepartments && hasPayers) {
 			throw new IllegalArgumentException(String.format(
 					"Group '%s' declares both departments and payers. A team splits on one axis "
-							+ "only — this team splits by %s.",
+							+ "only, this team splits by %s.",
 					group.getName(), team.getLogicAxis()));
 		}
 		if (team.getLogicAxis() == RcmTeamLogicAxis.DEPARTMENT && hasPayers) {

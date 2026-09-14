@@ -327,7 +327,7 @@ export default function TeamsPage() {
             division?: string; encounterScope?: string; logicAxis?: string; facilityId?: string;
           };
           if (!team.division) {
-            return <span className="text-sm text-slate-400">—</span>;
+            return <span className="text-sm text-slate-400">, </span>;
           }
           return (
             <div className="flex flex-wrap items-center gap-1">
@@ -372,7 +372,7 @@ export default function TeamsPage() {
         header: t("common.createdAt"),
         cell: (info) => {
           const date = info.row.original.createdDate;
-          if (!date) return <span className="text-sm text-slate-400">—</span>;
+          if (!date) return <span className="text-sm text-slate-400">, </span>;
           return (
             <span className="text-sm text-slate-700 dark:text-slate-300">
               {new Date(date).toLocaleDateString()}

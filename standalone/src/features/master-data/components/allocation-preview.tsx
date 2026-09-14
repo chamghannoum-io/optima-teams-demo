@@ -65,8 +65,8 @@ const shortType = (t: string) =>
 /**
  * Dry-run of the allocation engine for one team.
  *
- * Runs the same pipeline the nightly job would — rank, match to the narrowest
- * accepting group, then distribute to the least-loaded member with capacity — over a
+ * Runs the same pipeline the nightly job would: rank, match to the narrowest
+ * accepting group, then distribute to the least-loaded member with capacity, over a
  * day's arrivals drawn from the facility's observed volume mix. Nothing is assigned;
  * this is the summary a supervisor checks before trusting a configuration.
  *
@@ -90,7 +90,7 @@ export function AllocationPreview({ teamId, className }: { teamId: string; class
           <div className="space-y-0.5">
             <Label>{t("masterData.teams.allocationPreview", "Allocation preview")}</Label>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Dry-run the engine over a day's arrivals — see which group takes what, and
+              Dry-run the engine over a day's arrivals and see which group takes what, and
               who ends up with it. Nothing is assigned.
             </p>
           </div>

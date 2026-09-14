@@ -56,7 +56,7 @@ export function TeamBranchAllocation({
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {t(
             "masterData.teams.allocationOrderHint",
-            "Add branches, then drag rows to set the allocation priority — work is allocated in the order listed."
+            "Add branches, then drag rows to set the allocation priority. Work is allocated in the order listed."
           )}
         </p>
       </div>

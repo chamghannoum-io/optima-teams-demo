@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 /**
  * Returned when a user is added to a group while already allocated elsewhere.
  *
- * The mutation still succeeds — this is advisory, so the UI can ask
+ * The mutation still succeeds, this is advisory, so the UI can ask
  * "already allocated 150 of 200 in Dubai × AUTH × IP, proceed?" before committing.
  */
 @Data

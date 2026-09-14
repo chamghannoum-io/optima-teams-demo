@@ -10,7 +10,7 @@ export type TagOperator = "AND" | "OR";
  * One tag group in a team's auto-allocation formula: the tags selected for it (all combined
  * by this group's own {@link TagGroup.operator}, meaningless with 0-1 tags), plus the operator
  * joining the whole group to whatever group precedes it (ignored for the first group). A group
- * is a single multi-select condition — adding another tag never creates a new row.
+ * is a single multi-select condition, adding another tag never creates a new row.
  */
 export interface TagGroup {
   /** Stable client-side id used for React keys; not persisted. */

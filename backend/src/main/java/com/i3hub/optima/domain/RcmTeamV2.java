@@ -36,22 +36,21 @@ import lombok.ToString;
  *
  * <pre>
  *   Dubai × AUTH × OP
- *     ├── AUTH_RESUBMISSION — ENT, ICU, GYN
- *     ├── AUTH_RESUBMISSION — Cardiology, Emergency, Dental
+ *     ├── AUTH_RESUBMISSION, ENT, ICU, GYN
+ *     ├── AUTH_RESUBMISSION, Cardiology, Emergency, Dental
  *     ├── AUTH_SUBMISSION
  *     └── AUTH_SUBMISSION + AUTH_RESUBMISSION
  * </pre>
  *
  * Invariants enforced in RcmTeamV2ServiceImpl:
  * <ul>
- *   <li>every group's work item types belong to this team's {@link #division} —
- *       AUTH and CLAIM are never mixed;</li>
+ *   <li>every group's work item types belong to this team's {@link #division}, *       AUTH and CLAIM are never mixed;</li>
  *   <li>every group's encounter scope is covered by {@link #encounterScope};</li>
  *   <li>groups populate departments or payers according to {@link #logicAxis},
  *       never both.</li>
  * </ul>
  *
- * Capacity is <strong>derived</strong>, never stored — see
+ * Capacity is <strong>derived</strong>, never stored, see
  * RcmTeamV2Service#capacityOf. It is the summed capacity of the team's
  * de-duplicated members, so a user in three groups is counted once.
  */
@@ -101,7 +100,7 @@ public class RcmTeamV2 extends AbstractAuditingEntity<Long> implements TypeRcmTe
 
 	/**
 	 * OP, IP, or BOTH. A facility may run one BOTH team, or two teams split by
-	 * encounter — both layouts are supported.
+	 * encounter, both layouts are supported.
 	 */
 	@Enumerated(EnumType.STRING)
 	@Column(name = "encounter_scope", length = 10, nullable = false)
@@ -131,7 +130,7 @@ public class RcmTeamV2 extends AbstractAuditingEntity<Long> implements TypeRcmTe
 
 	/*
 	 * Groups are loaded via RcmTeamGroupRepository.findByRcmTeamIdOrderByRotationOrder
-	 * rather than mapped here, to keep team loads cheap — a team's groups pull in
+	 * rather than mapped here, to keep team loads cheap, a team's groups pull in
 	 * their own element collections.
 	 */
 

@@ -36,7 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <strong>several v1 teams collapse into one v2 team</strong>: v1 teams sharing a
  * facility, division and encounter scope become groups of a single v2 team.
  *
- * <p>Against production data this turns 16 v1 teams into 10 v2 teams — six identically
+ * <p>Against production data this turns 16 v1 teams into 10 v2 teams, six identically
  * named "Authorization Team OP (Dubai)" teams become one team with six groups, and
  * their ten memberships de-duplicate to five distinct members.
  *
@@ -100,7 +100,7 @@ public class RcmTeamV1ToV2Migrator {
 	/**
 	 * Runs the migration.
 	 *
-	 * @param dryRun when true, nothing is written — the report describes what would
+	 * @param dryRun when true, nothing is written, the report describes what would
 	 *        happen. Always worth running first against production data.
 	 */
 	@Transactional
@@ -121,7 +121,7 @@ public class RcmTeamV1ToV2Migrator {
 			}
 			if (parsed.division == null) {
 				report.getSkipped().add(String.format(
-						"Team %d '%s': mixes AUTH and CLAIM work types (%s) — v2 forbids this, "
+						"Team %d '%s': mixes AUTH and CLAIM work types (%s), v2 forbids this, "
 								+ "split it into two teams before migrating",
 						v1.getId(), v1.getName(), parsed.workItemTypes));
 				continue;
@@ -254,7 +254,7 @@ public class RcmTeamV1ToV2Migrator {
 								() -> parsed.unmappedTags.add(tag));
 			} else if (!tag.startsWith("priority-")) {
 				// priority-* tags controlled v1 team ranking, which v2 replaces with
-				// group specificity — dropping them is intended, not a loss.
+				// group specificity, dropping them is intended, not a loss.
 				parsed.unmappedTags.add(tag);
 			}
 		}
@@ -287,7 +287,7 @@ public class RcmTeamV1ToV2Migrator {
 
 	/**
 	 * v1 matched facilities by {@code branches.healthLicense}, which is not on the
-	 * entity — the first branch id stands in until the licence is resolvable.
+	 * entity, the first branch id stands in until the licence is resolvable.
 	 */
 	private String facilityOf(RcmTeam v1) {
 		return v1.getBranchIds() == null || v1.getBranchIds().isEmpty()

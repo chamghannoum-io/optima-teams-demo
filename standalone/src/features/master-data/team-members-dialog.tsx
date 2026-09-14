@@ -96,14 +96,14 @@ export function TeamMembersDialog({
   };
 
   const formatUserName = (user: { firstName?: string | null; lastName?: string | null }) => {
-    return [user.firstName, user.lastName].filter(Boolean).join(" ") || "—";
+    return [user.firstName, user.lastName].filter(Boolean).join(" ") || "-";
   };
 
   return (
     <Modal
       isOpen={open}
       onClose={() => onOpenChange(false)}
-      title={`${t("masterData.teams.manageMembers")} — ${team?.name}`}
+      title={`${t("masterData.teams.manageMembers")}: ${team?.name}`}
       icon={<Users size={18} className="text-primary" />}
       size="lg"
     >

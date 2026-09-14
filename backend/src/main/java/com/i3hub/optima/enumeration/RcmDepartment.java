@@ -12,7 +12,7 @@ import java.util.Optional;
  * The department vocabulary used for allocation.
  *
  * Derived from the {@code deptTagMap} in the production RCM Auto-Assignment
- * workflow, which is the actual matching vocabulary in use — 28 departments with
+ * workflow, which is the actual matching vocabulary in use, 28 departments with
  * 42 display-name aliases.
  *
  * <p>Deliberately NOT sourced from the {@code vendorDepartments} entity: that is a
@@ -101,7 +101,7 @@ public enum RcmDepartment {
 	/**
 	 * Resolves a department by tag, enum name, or any known display-name alias.
 	 *
-	 * @return empty when the name is unmapped — the caller should treat that as an
+	 * @return empty when the name is unmapped, the caller should treat that as an
 	 *         uncovered department rather than guessing
 	 */
 	public static Optional<RcmDepartment> fromDisplayName(String name) {

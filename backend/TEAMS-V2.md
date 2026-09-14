@@ -1,4 +1,4 @@
-# Teams v2 — backend design
+# Teams v2, backend design
 
 New allocation model: **a team is a container, groups carry the tags and the members.**
 This document covers the backend, which is the first of three deliverables
@@ -13,8 +13,8 @@ Team: Dubai × AUTH × OP          ← container: facility × division × encoun
   logicAxis: DEPARTMENT           ← declared once, inherited by every group
   capacity: DERIVED (not stored)
   │
-  ├── Group: AUTH_RESUBMISSION — ENT, ICU, GYN          members: [u1,u2,u3]
-  ├── Group: AUTH_RESUBMISSION — Cardio, Emergency, Dental  members: [u3,u4]
+  ├── Group: AUTH_RESUBMISSION, ENT, ICU, GYN          members: [u1,u2,u3]
+  ├── Group: AUTH_RESUBMISSION, Cardio, Emergency, Dental  members: [u3,u4]
   ├── Group: AUTH_SUBMISSION                            members: [u1,u5]
   └── Group: AUTH_SUBMISSION + AUTH_RESUBMISSION        members: [u2,u5]
 
@@ -26,7 +26,7 @@ Team: Dubai × AUTH × OP          ← container: facility × division × encoun
 | Decision | Choice |
 |---|---|
 | Membership | On **groups**. Team roster is the de-duplicated union. |
-| Capacity | **Derived**, never stored — summed capacity of the de-duplicated roster. |
+| Capacity | **Derived**, never stored, summed capacity of the de-duplicated roster. |
 | Rotation | Moves **members between groups**; assigned work stays with the member. |
 | Group match | **Narrowest group wins**, remaining capacity breaks ties. |
 | Catch-all groups | **None.** Every department is named explicitly. |
@@ -36,7 +36,7 @@ Team: Dubai × AUTH × OP          ← container: facility × division × encoun
 | Payer + department in one group | **Hard rejected.** |
 | Multi-team membership | Allowed; mutation returns advisory warnings. |
 
-## Specificity — why narrowness, not count
+## Specificity, why narrowness, not count
 
 When several groups match an item the narrowest must win, so a group naming ENT beats
 one naming six departments. Scoring by *how many values a dimension admits* rather than
@@ -52,12 +52,12 @@ Against the Team 1 example:
 
 | Group | Score |
 |---|---|
-| `AUTH_RESUBMISSION — ENT, ICU, GYN` | **233** |
-| `AUTH_RESUBMISSION — Cardio, Emergency, Dental` | **233** |
+| `AUTH_RESUBMISSION, ENT, ICU, GYN` | **233** |
+| `AUTH_RESUBMISSION, Cardio, Emergency, Dental` | **233** |
 | `AUTH_SUBMISSION` (6 depts) | 216 |
 | `AUTH_SUBMISSION + AUTH_RESUBMISSION` (6 depts) | 166 |
 
-Summing counts instead would invert this and let the broadest group win — a bug caught
+Summing counts instead would invert this and let the broadest group win, a bug caught
 by the matcher tests before it reached the resolver.
 
 ## Files
@@ -90,16 +90,16 @@ by the matcher tests before it reached the resolver.
 ## Rotation semantics
 
 Each cycle every member shifts one position along their team's group order, wrapping.
-Work already assigned **stays with the member** — only new allocation follows the new
+Work already assigned **stays with the member**, only new allocation follows the new
 group. Two fields make this reproducible:
 
-- `RcmTeamGroupMember.homeGroupId` — immutable, where the member started
-- `RcmTeamV2.rotationOffset` — how many positions the team has shifted
+- `RcmTeamGroupMember.homeGroupId`, immutable, where the member started
+- `RcmTeamV2.rotationOffset`, how many positions the team has shifted
 
 `optimaTeamV2RotationReset` returns everyone home and zeroes the offset.
 
 Because capacity is derived from the de-duplicated roster, **rotation does not change a
-team's total capacity** — the same people are present, in different groups. Only
+team's total capacity**, the same people are present, in different groups. Only
 per-group capacity moves.
 
 ## Migration from v1
@@ -121,10 +121,10 @@ SGH- Sharjah | AUTH | BOTH                   1 group (14 depts)
 ```
 
 The six identically named "Authorization Team OP (Dubai)" teams collapse into one team
-with six groups — and their overlapping members de-duplicate from 10 to 5. That is the
+with six groups, and their overlapping members de-duplicate from 10 to 5. That is the
 derived-capacity case appearing naturally in real data.
 
-**All 16 teams migrate cleanly** — none mixes AUTH and CLAIM, so the hard validation
+**All 16 teams migrate cleanly**, none mixes AUTH and CLAIM, so the hard validation
 rejects nothing that exists today. `migrate(dryRun)` reports what it would do without
 writing; `priority-*` tags are dropped deliberately, since v2 replaces v1's team
 ranking with group specificity.
@@ -136,13 +136,13 @@ ranking with group specificity.
 - Wire `FacilityDepartmentSource` to observed claim departments
 - Frontend, then the n8n workflow
 
-## Departments — why an enum, not the `vendorDepartments` entity
+## Departments, why an enum, not the `vendorDepartments` entity
 
 `RcmDepartment` holds **28 canonical departments with 42 aliases**, generated from the
 `deptTagMap` in the production allocation workflow.
 
-The obvious alternative — resolving against the `vendorDepartments` entity that backs
-the Departments tab — was measured and rejected:
+The obvious alternative, resolving against the `vendorDepartments` entity that backs
+the Departments tab, was measured and rejected:
 
 | | Count |
 |---|---|
@@ -175,7 +175,7 @@ instead of silently never matching.
 
 This is the core routing rule, and the two axes deliberately behave differently:
 
-**PAYER team — department is not a factor.**
+**PAYER team, department is not a factor.**
 A claim for ENT from Sukoon routes on the payer alone; the department is never
 consulted. An item with no department at all still routes fine.
 
@@ -185,7 +185,7 @@ Team: Dubai × CLAIM × OP   logicAxis: PAYER
   └── Group: Daman, ADNIC       Oncology+Sukoon lands here too
 ```
 
-**DEPARTMENT team — payers are implicitly all, and coverage is mandatory.**
+**DEPARTMENT team, payers are implicitly all, and coverage is mandatory.**
 Every department the facility handles must be assigned to some group before the team
 can be activated. 18 departments over 3 groups means all 18 must be distributed.
 
@@ -215,7 +215,7 @@ Departments and payers have very different shapes, so they get different rules.
 one item a day. Naming all of them is impractical, and a payer seen for the first time
 would match nothing.
 
-So a group may set `payerCatchAll` — it accepts any payer no group names explicitly.
+So a group may set `payerCatchAll`: it accepts any payer no group names explicitly.
 Several groups normally share catch-all duty, so the tail is split rather than dumped
 on one group. A catch-all scores **zero** on the payer dimension in `specificity()`, so
 a group naming the payer always wins over one merely accepting anything.
@@ -231,12 +231,11 @@ volume-packed:   307.1 / 307.2 / 306.7 / 307.1 per day    max/min 1.00
 naive 7/7/7/7:   493   / 294   / 229   / 212              max/min 2.32
 ```
 
-The naive split gives one group **2.3× the work** of another — Internal Medicine alone
+The naive split gives one group **2.3× the work** of another, Internal Medicine alone
 is 297/day at that site while the tail is under 1/day. Groups end up with 3, 6, 12 and 7
 departments respectively; that asymmetry is the point.
 
-Payers, 59 over 4 groups: 15 named and packed, 44 tail payers (136/day) shared —
-**max/min 1.04**.
+Payers, 59 over 4 groups: 15 named and packed, 44 tail payers (136/day) shared, **max/min 1.04**.
 
 ### Overflow warnings
 
@@ -245,10 +244,10 @@ reports what will not hold, in order of cost:
 
 | Severity | Condition |
 |---|---|
-| **BLOCKER** | group has volume but no members — work cannot be assigned |
-| **BLOCKER** | mean > capacity — overflows every day, not just at peak |
+| **BLOCKER** | group has volume but no members, work cannot be assigned |
+| **BLOCKER** | mean > capacity, overflows every day, not just at peak |
 | **BLOCKER** | PAYER team with unnamed payers and no catch-all |
-| **WARNING** | peak > capacity — busy days overflow (peak = mean × P90/P50) |
+| **WARNING** | peak > capacity, busy days overflow (peak = mean × P90/P50) |
 | **WARNING** | busiest group ≥ 2× the quietest |
 
 The burst factor is real: P90/P50 runs **1.16–4.66** by site, because claims batch and
@@ -256,14 +255,14 @@ auth does not. A group sized to the median will overflow. Example output:
 
 ```
 WARNING  'Coders A' fits on average (297) but peaks at 621 vs capacity 400
-BLOCKER  'Coders B' projected 139/day vs capacity 100 — overflows daily
+BLOCKER  'Coders B' projected 139/day vs capacity 100, overflows daily
 BLOCKER  'Coders C' projected 80/day but has no members
 WARNING  uneven: 297 vs 60 (5.0x)
 ```
 
 Verified 10/10 against real SGH volumes.
 
-## Payers — validated against the master list
+## Payers, validated against the master list
 
 Pulled live: **138 payers, 137 active, no duplicate licence numbers**
 (`docs/payers-reference.json`, gitignored). Sukoon Insurance is `id=2`, `INS012`.
@@ -273,19 +272,19 @@ unknown ids and inactive payers are rejected at save, because a bad payer id oth
 means "matches nothing" and only shows up as unallocated work at 2am.
 
 Note `optimaPayers` (the vendor-scoped lookup) returns **0 rows** for the integration
-client — the master list comes from the `payers` root query instead.
+client, the master list comes from the `payers` root query instead.
 
-## Encounter split — both layouts supported
+## Encounter split, both layouts supported
 
 A facility can be set up either way, enforced by `RcmTeamEncounterScope.covers()`:
 
-**One team covering both** — `encounterScope: BOTH`, with either encounter-specific
+**One team covering both**, `encounterScope: BOTH`, with either encounter-specific
 groups or BOTH groups:
 
 ```
 Team: SHJ × AUTH × BOTH
-  ├── Group OP — ENT, Cardiology     ← OP items land here
-  └── Group IP — ENT, Cardiology     ← IP items land here
+  ├── Group OP, ENT, Cardiology     ← OP items land here
+  └── Group IP, ENT, Cardiology     ← IP items land here
 ```
 
 **Two teams split by encounter:**
@@ -300,17 +299,17 @@ group at validation. 14/14 tests cover both layouts and the rejection cases.
 
 ## Open questions for review
 
-1. ~~Departments as free text~~ — **resolved**: typed `RcmDepartment` enum (above).
-2. ~~v1 coexistence~~ — **resolved**: parallel, confirmed.
+1. ~~Departments as free text~~, **resolved**: typed `RcmDepartment` enum (above).
+2. ~~v1 coexistence~~, **resolved**: parallel, confirmed.
 3. **`facilityId` is a health licence string**, matching v1's
    `branches.healthLicense === facilityId`. Worth making it a real FK?
 4. **Per-user capacity source.** Derived capacity needs `maxAuth` from
-   `effectiveAssignmentSettings`, which lives outside this service — confirm the
+   `effectiveAssignmentSettings`, which lives outside this service, confirm the
    intended interface.
-5. ~~Facility department list~~ — **resolved**: derive from observed claim data.
+5. ~~Facility department list~~, **resolved**: derive from observed claim data.
    See below.
 
-## Facility department list — derived from claims
+## Facility department list, derived from claims
 
 `docs/departments-observed.csv` (real query output, 1,010 claims) is the source for
 "which departments does this facility actually handle", answering what
@@ -324,7 +323,7 @@ production team tags still resolve. Two aliases were added from this data:
 | `Intensive Care Unit` (no suffix) | `ICU` | v1 only aliased `intensive care unit - icu` |
 | `Oncology/ Hematology` | `ONCOLOGY` | v1 aliased `hematology` but not this combined form |
 
-### One unmapped value — needs a decision
+### One unmapped value, needs a decision
 
 `Plastic/Briatric Surgery` (4 claims, 0.4%) has no mapping and is **not** in v1's
 `deptTagMap` either, so it is already falling through in production today. Mapping it
@@ -336,6 +335,6 @@ rather than guessed. Options: add it to `SURGERY`, or give it its own department
 
 The CSV merges `Clinical Psychiatry` → `Psychiatry`, but the enum keeps
 `department-clinical-psychiatry` and `department-psychiatry` as **separate**
-departments — and production teams tag them separately. The enum currently wins, so
+departments, and production teams tag them separately. The enum currently wins, so
 the two stay distinct. If they should be one department, that changes team
 configuration, not just the mapping.

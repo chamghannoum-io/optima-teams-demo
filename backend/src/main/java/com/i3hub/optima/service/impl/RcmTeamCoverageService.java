@@ -22,10 +22,10 @@ import org.springframework.stereotype.Service;
  * The two logic axes are deliberately asymmetric, matching how allocation reads them:
  *
  * <ul>
- *   <li><b>PAYER teams</b> — departments are not a factor at all. A claim for ENT
+ *   <li><b>PAYER teams</b>, departments are not a factor at all. A claim for ENT
  *       from Sukoon is routed purely on the payer, so no department coverage is
  *       required or checked.</li>
- *   <li><b>DEPARTMENT teams</b> — payers are implicitly all, and every department the
+ *   <li><b>DEPARTMENT teams</b>, payers are implicitly all, and every department the
  *       facility handles <b>must</b> be covered by some group. This is a hard block:
  *       a team cannot be activated with 18 departments spread over 3 groups unless
  *       all 18 are assigned.</li>
@@ -116,7 +116,7 @@ public class RcmTeamCoverageService {
 	 * Hard block: rejects an active DEPARTMENT team that does not cover every
 	 * department at its facility.
 	 *
-	 * PAYER teams are exempt — departments are not a factor for them. An inactive
+	 * PAYER teams are exempt, departments are not a factor for them. An inactive
 	 * team is exempt too, so a team can be built up incrementally and only has to be
 	 * complete at the point it goes live.
 	 *

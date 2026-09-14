@@ -15,7 +15,7 @@ export interface TeamTagGroupsProps {
 
 /**
  * Auto-allocation tag builder: one or more groups, each a single multi-select of tags combined
- * by AND/OR, and each group itself joined to the previous by another AND/OR — e.g.
+ * by AND/OR, and each group itself joined to the previous by another AND/OR, e.g.
  * "(dep_dental OR dep_ontology) AND enc_ip". Adding a tag to a group adds a chip, never a new
  * row. Replaces the old flat tag chip list.
  * @example <TeamTagGroups groups={groups} onChange={setGroups} />

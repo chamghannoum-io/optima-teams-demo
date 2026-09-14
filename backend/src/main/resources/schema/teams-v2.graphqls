@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════════════
-# Teams v2 — team as container, groups carry tags and members
+# Teams v2, team as container, groups carry tags and members
 #
 # A team is identified by facility × division × encounter scope and holds no
 # matching criteria of its own. Its groups carry the work item types,
@@ -97,7 +97,7 @@ enum RcmWorkItemType {
 
 # ============================ TYPES ============================
 
-"""Derived capacity. Never stored — computed from the de-duplicated member set."""
+"""Derived capacity. Never stored, computed from the de-duplicated member set."""
 type RcmTeamCapacity {
     "Distinct users after de-duplication across the team's groups."
     memberCount: Int!
@@ -128,7 +128,7 @@ type RcmTeamGroupMember {
 }
 
 """
-A group within a team — the unit that actually carries matching criteria.
+A group within a team, the unit that actually carries matching criteria.
 
 Exactly one of departments / payers is populated, per the team's logicAxis.
 There is no 'all departments' wildcard: every department is named explicitly so
@@ -158,7 +158,7 @@ type RcmTeamGroup {
     claimStatuses: [String!]
     "Position in the team's rotation order."
     rotationOrder: Int
-    "How many concrete criteria this group declares — higher wins when several match."
+    "How many concrete criteria this group declares, higher wins when several match."
     specificity: Int!
     members: [RcmTeamGroupMember!]
     capacity: RcmTeamCapacity
@@ -168,13 +168,13 @@ type RcmTeamGroup {
 type RcmTeamCoverageReport {
     "DEPARTMENT teams only. For an ACTIVE team these block activation."
     uncoveredDepartments: [RcmDepartment!]!
-    "Departments covered by more than one group — allowed, usually a mistake."
+    "Departments covered by more than one group, allowed, usually a mistake."
     overlappingDepartments: [RcmDepartment!]!
     "PAYER teams only."
     uncoveredPayers: [ID!]!
     overlappingPayers: [ID!]!
     uncoveredWorkItemTypes: [RcmWorkItemType!]!
-    "Groups with no members — they can never receive work."
+    "Groups with no members, they can never receive work."
     emptyGroupIds: [ID!]!
     complete: Boolean!
 }
@@ -193,7 +193,7 @@ type RcmTeamGroupProjection {
     groupName: String
     "Observed mean daily volume for this group's criteria."
     meanPerDay: Float!
-    "Mean scaled by the facility's P90/P50 burst factor — claims batch heavily."
+    "Mean scaled by the facility's P90/P50 burst factor, claims batch heavily."
     peakPerDay: Float!
     capacity: Int!
     memberCount: Int!
@@ -274,7 +274,7 @@ type RcmTeamV2 {
     branchIds: [ID!]
     branches: [Branch!]
     groups: [RcmTeamGroup!]
-    "De-duplicated roster — the union of all group members."
+    "De-duplicated roster, the union of all group members."
     members: [RcmTeamGroupMember!]
     "Derived, never stored."
     capacity: RcmTeamCapacity
@@ -419,7 +419,7 @@ extend type Mutation {
     optimaTeamV2GroupDelete(groupId: ID!): Boolean
 
     """[Optima-Vendor] Add users to a group. Succeeds even when a user already belongs
-    to another team — their existing allocation is returned in warnings so the caller
+    to another team, their existing allocation is returned in warnings so the caller
     can confirm.
     Auth: Permissions(any): manage_rcm_team"""
     optimaTeamV2GroupUserAdd(groupId: ID!, userIds: [ID!]!): RcmTeamMutationResult

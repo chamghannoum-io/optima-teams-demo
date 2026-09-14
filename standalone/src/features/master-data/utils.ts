@@ -163,7 +163,7 @@ function unfoldChain(node: TeamTagNode): { node: TeamTagNode; joinOperator: TagO
   const children = node.tags ?? [];
   const right = children[1];
   if (children.length !== 2 || !right || !isSimpleGroupNode(right)) {
-    // Not our fold shape — flatten every leaf into one best-effort group.
+    // Not our fold shape, flatten every leaf into one best-effort group.
     return [{ node: flattenToSimpleGroup(node), joinOperator: "AND" }];
   }
   const left = children[0]!;

@@ -1,7 +1,7 @@
 /**
  * Apollo client over the local v2 executable schema.
  *
- * To point at the real gateway, swap SchemaLink for an HttpLink — the operation
+ * To point at the real gateway, swap SchemaLink for an HttpLink, the operation
  * documents in the feature files need no changes.
  */
 import { ApolloClient, InMemoryCache } from "@apollo/client";

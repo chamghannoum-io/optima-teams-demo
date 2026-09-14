@@ -39,7 +39,7 @@ const OPERATORS: TagOperator[] = ["AND", "OR"];
 /**
  * One group card in the tag auto-allocation builder: a join-operator selector (for non-first
  * groups), an operator selector (once the group holds 2+ tags), a "Remove Group" action, and a
- * single multi-select tag picker — adding a tag adds a chip, never a new row/condition. The
+ * single multi-select tag picker, adding a tag adds a chip, never a new row/condition. The
  * "Add Tag" button just opens/focuses the picker; it doesn't add a row itself.
  * @example
  * <TagGroupCard group={group} groupNumber={1} showJoinOperator={false} removable
