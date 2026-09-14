@@ -367,6 +367,16 @@ const typeDefs = /* GraphQL */ `
     unhandled: [String!]!
   }
 
+  """What deleting a team would leave behind."""
+  type TeamDeletionResult {
+    deletedId: ID!
+    deletedName: String!
+    """Readiness recomputed after the removal, so the caller can show the cost."""
+    readiness: AllocationReadiness!
+    """Teams at the same facility that now carry the work alone."""
+    affectedTeams: [RcmTeamV2!]!
+  }
+
   """Filter the team list the way a supervisor thinks about it."""
   input TeamQueryFilter {
     branchId: ID
@@ -381,6 +391,8 @@ const typeDefs = /* GraphQL */ `
     optimaAllocationReadiness: AllocationReadiness!
     """Teams matching a supervisor-style filter."""
     optimaTeamsFiltered(filter: TeamQueryFilter): [RcmTeamV2!]!
+    """Dry run of a deletion: what it would break, without deleting."""
+    optimaTeamDeletionImpact(id: ID!): TeamDeletionResult!
 
     """Why the recommended split is what it is."""
     optimaDistributionRationale(teamId: ID!, groupCount: Int!): DistributionRationale
@@ -418,6 +430,9 @@ const typeDefs = /* GraphQL */ `
   type Mutation {
     """Create or update a v2 team with its groups in one call."""
     optimaTeamV2Save(id: ID, input: TeamV2Input!): RcmTeamV2
+
+    """Deactivate or remove a team. Reports what the removal leaves uncovered."""
+    optimaTeamV2Delete(id: ID!): TeamDeletionResult!
 
     assignmentSettingTeamSave(teamId: ID!, input: AssignmentSettingInput!): AssignmentSetting
     assignmentUnassignedEntities(input: UnassignedEntitiesInput!): [UnassignedEntity!]!
@@ -927,148 +942,177 @@ const teamSettings = new Map<string, { maxAuth: number; maxClaim: number }>();
 const settingsFor = (teamId: string) =>
   teamSettings.get(String(teamId)) ?? { maxAuth: USER_CAPACITY, maxClaim: USER_CAPACITY };
 
+/**
+ * Readiness over an arbitrary set of teams. Taking the list as an argument lets
+ * the deletion preview ask what readiness would be once a team is gone.
+ */
+function readinessOf(input: any[]): any {
+  const list = input.filter((t) => t.active);
+    const issues: any[] = [];
+    const AUTH_TYPES = ["AUTHORIZATION_SUBMISSION", "AUTHORIZATION_RESUBMISSION"];
+    const CLAIM_TYPES = [
+      "CLAIM_VALIDATION",
+      "CLAIM_SUBMISSION",
+      "CLAIM_RESUBMISSION",
+      "RECONCILIATION",
+    ];
+    const label = (w: string) =>
+      w.replace("AUTHORIZATION_", "auth ").replace("CLAIM_", "claim ").toLowerCase();
+
+    // A facility that runs a division but leaves one of its work item types
+    // unhandled will silently drop those items.
+    const unhandled: string[] = [];
+    const byFacility = new Map<string, any[]>();
+    for (const t of list) {
+      if (!t.active) continue;
+      byFacility.set(t.facilityId, [...(byFacility.get(t.facilityId) ?? []), t]);
+    }
+    for (const [facilityId, ts] of byFacility) {
+      for (const division of ["AUTH", "CLAIM"]) {
+        const divTeams = ts.filter((x: any) => x.division === division);
+        if (!divTeams.length) continue;
+        const handled = new Set<string>(
+          divTeams.flatMap((x: any) =>
+            x.groups.filter((g: any) => g.active).flatMap((g: any) => g.workItemTypes)),
+        );
+        for (const wt of division === "AUTH" ? AUTH_TYPES : CLAIM_TYPES) {
+          if (handled.has(wt)) continue;
+          unhandled.push(`${facilityId} · ${wt}`);
+          issues.push({
+            severity: "WARNING",
+            kind: "UNHANDLED_TYPE",
+            teamId: null,
+            teamName: null,
+            facilityId,
+            message: `${facilityId} runs ${division} work, but no active group handles ${label(wt)}.`,
+          });
+        }
+      }
+    }
+
+    const ready = new Set(list.filter((t) => t.active).map((t) => t.id));
+    for (const t of list) {
+      if (!t.active) continue;
+      const active = t.groups.filter((g: any) => g.active);
+
+      if (!active.length) {
+        ready.delete(t.id);
+        issues.push({
+          severity: "BLOCKER",
+          kind: "NO_GROUPS",
+          teamId: t.id,
+          teamName: t.name,
+          facilityId: t.facilityId,
+          message: `${t.name} has no active groups — it cannot receive any work.`,
+        });
+        continue;
+      }
+
+      for (const g of active.filter((g: any) => !g.members.length)) {
+        ready.delete(t.id);
+        issues.push({
+          severity: "BLOCKER",
+          kind: "EMPTY_GROUP",
+          teamId: t.id,
+          teamName: t.name,
+          facilityId: t.facilityId,
+          message: `${t.name} — group "${g.name}" has no members, so work matched there has nowhere to go.`,
+        });
+      }
+
+      // Coverage is per work item type: a team handling two types needs the
+      // full department set for each one independently.
+      if (t.logicAxis === "DEPARTMENT") {
+        const all = Object.keys(deptVolumes(t.siteKey));
+        const types = [...new Set(active.flatMap((g: any) => g.workItemTypes))] as string[];
+        for (const wt of types) {
+          const covered = new Set<string>(
+            active
+              .filter((g: any) => g.workItemTypes.includes(wt))
+              .flatMap((g: any) => g.departments),
+          );
+          const missing = all.filter((d) => !covered.has(d));
+          if (!missing.length) continue;
+          ready.delete(t.id);
+          issues.push({
+            severity: "WARNING",
+            kind: "UNCOVERED_DEPARTMENTS",
+            teamId: t.id,
+            teamName: t.name,
+            facilityId: t.facilityId,
+            message: `${t.name} — ${missing.length} of ${all.length} departments have no group for ${label(wt)}.`,
+          });
+        }
+      } else if (!active.some((g: any) => g.payerCatchAll)) {
+        ready.delete(t.id);
+        issues.push({
+          severity: "WARNING",
+          kind: "NO_PAYER_CATCH_ALL",
+          teamId: t.id,
+          teamName: t.name,
+          facilityId: t.facilityId,
+          message: `${t.name} names payers but has no catch-all group — smaller payers will not be allocated.`,
+        });
+      }
+
+      // Resubmission carries the high-value work; someone has to be cleared for it.
+      const doesResub = active.some((g: any) =>
+        g.workItemTypes.some((w: string) => w.includes("RESUBMISSION")));
+      const anyHighCost = active.some((g: any) =>
+        g.members.some((m: any) => m.handlesHighCost));
+      if (doesResub && !anyHighCost) {
+        issues.push({
+          severity: "WARNING",
+          kind: "NO_HIGH_COST_HANDLER",
+          teamId: t.id,
+          teamName: t.name,
+          facilityId: t.facilityId,
+          message: `${t.name} handles resubmission but nobody is tagged for high-cost items (over AED ${(t.highCostThreshold ?? 3000).toLocaleString()}).`,
+        });
+      }
+    }
+
+    const rank: Record<string, number> = { BLOCKER: 0, WARNING: 1, INFO: 2 };
+    issues.sort((a, b) => rank[a.severity] - rank[b.severity]);
+    return {
+      teamsTotal: list.filter((t) => t.active).length,
+      teamsReady: ready.size,
+      issues,
+      unhandled: [...new Set(unhandled)],
+    };
+}
+
+/**
+ * What removing a team would cost: readiness recomputed without it, plus the
+ * teams left holding that facility's work. Shared by the dry run and the
+ * deletion itself, so the warning and the outcome cannot drift apart.
+ */
+function deletionResult(t: any, without: any[]): any {
+  return {
+    deletedId: t.id,
+    deletedName: t.name,
+    readiness: readinessOf(without),
+    affectedTeams: without.filter(
+      (x) => x.active && x.facilityId === t.facilityId && x.division === t.division,
+    ),
+  };
+}
+
 const resolvers = {
   Query: {
     /**
      * Estate-wide readiness. Answers one question: would anything arriving today
      * fail to be allocated? It warns; it never blocks.
      */
-    optimaAllocationReadiness: () => {
-      const issues: any[] = [];
-      const AUTH_TYPES = ["AUTHORIZATION_SUBMISSION", "AUTHORIZATION_RESUBMISSION"];
-      const CLAIM_TYPES = [
-        "CLAIM_VALIDATION",
-        "CLAIM_SUBMISSION",
-        "CLAIM_RESUBMISSION",
-        "RECONCILIATION",
-      ];
-      const label = (w: string) =>
-        w.replace("AUTHORIZATION_", "auth ").replace("CLAIM_", "claim ").toLowerCase();
-
-      // A facility that runs a division but leaves one of its work item types
-      // unhandled will silently drop those items.
-      const unhandled: string[] = [];
-      const byFacility = new Map<string, any[]>();
-      for (const t of teams as any[]) {
-        if (!t.active) continue;
-        byFacility.set(t.facilityId, [...(byFacility.get(t.facilityId) ?? []), t]);
-      }
-      for (const [facilityId, ts] of byFacility) {
-        for (const division of ["AUTH", "CLAIM"]) {
-          const divTeams = ts.filter((x: any) => x.division === division);
-          if (!divTeams.length) continue;
-          const handled = new Set<string>(
-            divTeams.flatMap((x: any) =>
-              x.groups.filter((g: any) => g.active).flatMap((g: any) => g.workItemTypes)),
-          );
-          for (const wt of division === "AUTH" ? AUTH_TYPES : CLAIM_TYPES) {
-            if (handled.has(wt)) continue;
-            unhandled.push(`${facilityId} · ${wt}`);
-            issues.push({
-              severity: "WARNING",
-              kind: "UNHANDLED_TYPE",
-              teamId: null,
-              teamName: null,
-              facilityId,
-              message: `${facilityId} runs ${division} work, but no active group handles ${label(wt)}.`,
-            });
-          }
-        }
-      }
-
-      const ready = new Set((teams as any[]).filter((t) => t.active).map((t) => t.id));
-      for (const t of teams as any[]) {
-        if (!t.active) continue;
-        const active = t.groups.filter((g: any) => g.active);
-
-        if (!active.length) {
-          ready.delete(t.id);
-          issues.push({
-            severity: "BLOCKER",
-            kind: "NO_GROUPS",
-            teamId: t.id,
-            teamName: t.name,
-            facilityId: t.facilityId,
-            message: `${t.name} has no active groups — it cannot receive any work.`,
-          });
-          continue;
-        }
-
-        for (const g of active.filter((g: any) => !g.members.length)) {
-          ready.delete(t.id);
-          issues.push({
-            severity: "BLOCKER",
-            kind: "EMPTY_GROUP",
-            teamId: t.id,
-            teamName: t.name,
-            facilityId: t.facilityId,
-            message: `${t.name} — group "${g.name}" has no members, so work matched there has nowhere to go.`,
-          });
-        }
-
-        // Coverage is per work item type: a team handling two types needs the
-        // full department set for each one independently.
-        if (t.logicAxis === "DEPARTMENT") {
-          const all = Object.keys(deptVolumes(t.siteKey));
-          const types = [...new Set(active.flatMap((g: any) => g.workItemTypes))] as string[];
-          for (const wt of types) {
-            const covered = new Set<string>(
-              active
-                .filter((g: any) => g.workItemTypes.includes(wt))
-                .flatMap((g: any) => g.departments),
-            );
-            const missing = all.filter((d) => !covered.has(d));
-            if (!missing.length) continue;
-            ready.delete(t.id);
-            issues.push({
-              severity: "WARNING",
-              kind: "UNCOVERED_DEPARTMENTS",
-              teamId: t.id,
-              teamName: t.name,
-              facilityId: t.facilityId,
-              message: `${t.name} — ${missing.length} of ${all.length} departments have no group for ${label(wt)}.`,
-            });
-          }
-        } else if (!active.some((g: any) => g.payerCatchAll)) {
-          ready.delete(t.id);
-          issues.push({
-            severity: "WARNING",
-            kind: "NO_PAYER_CATCH_ALL",
-            teamId: t.id,
-            teamName: t.name,
-            facilityId: t.facilityId,
-            message: `${t.name} names payers but has no catch-all group — smaller payers will not be allocated.`,
-          });
-        }
-
-        // Resubmission carries the high-value work; someone has to be cleared for it.
-        const doesResub = active.some((g: any) =>
-          g.workItemTypes.some((w: string) => w.includes("RESUBMISSION")));
-        const anyHighCost = active.some((g: any) =>
-          g.members.some((m: any) => m.handlesHighCost));
-        if (doesResub && !anyHighCost) {
-          issues.push({
-            severity: "WARNING",
-            kind: "NO_HIGH_COST_HANDLER",
-            teamId: t.id,
-            teamName: t.name,
-            facilityId: t.facilityId,
-            message: `${t.name} handles resubmission but nobody is tagged for high-cost items (over AED ${(t.highCostThreshold ?? 3000).toLocaleString()}).`,
-          });
-        }
-      }
-
-      const rank: Record<string, number> = { BLOCKER: 0, WARNING: 1, INFO: 2 };
-      issues.sort((a, b) => rank[a.severity] - rank[b.severity]);
-      return {
-        teamsTotal: (teams as any[]).filter((t) => t.active).length,
-        teamsReady: ready.size,
-        issues,
-        unhandled: [...new Set(unhandled)],
-      };
-    },
+    optimaAllocationReadiness: () => readinessOf(teams),
 
     /** The team list, narrowed the way a supervisor thinks about it. */
+    optimaTeamDeletionImpact: (_: unknown, { id }: any) => {
+      const t = findTeam(id);
+      if (!t) throw new Error(`No team ${id}`);
+      return deletionResult(t, teams.filter((x) => String(x.id) !== String(id)));
+    },
+
     optimaTeamsFiltered: (_: unknown, { filter }: any) => {
       let out = teams as any[];
       if (!filter) return out;
@@ -1249,6 +1293,15 @@ const resolvers = {
   RcmTeamGroup: { specificity, capacity: groupCapacity },
 
   Mutation: {
+    optimaTeamV2Delete: (_: unknown, { id }: any) => {
+      const t = findTeam(id);
+      if (!t) throw new Error(`No team ${id}`);
+      const i = teams.findIndex((x) => String(x.id) === String(id));
+      teams.splice(i, 1);
+      // Readiness is already computed against the post-removal list.
+      return deletionResult(t, teams);
+    },
+
     optimaTeamV2Save: (_: unknown, { id, input }: any) => {
       const existing = id ? findTeam(id) : null;
       const target: any = existing ?? {
@@ -1268,6 +1321,16 @@ const resolvers = {
         encounterScope: input.encounterScope ?? target.encounterScope,
         logicAxis: input.logicAxis ?? target.logicAxis,
         active: input.active ?? true,
+        // Round-2 knobs. Overflow defaults by division: AUTH keeps allocating,
+        // CLAIM defers, unless the team says otherwise.
+        allowExceedCapacity:
+          input.allowExceedCapacity ??
+          target.allowExceedCapacity ??
+          (input.division ?? target.division) === "AUTH",
+        uniformCapacity: input.uniformCapacity ?? target.uniformCapacity ?? true,
+        maxAuth: input.maxAuth ?? target.maxAuth ?? USER_CAPACITY,
+        maxClaim: input.maxClaim ?? target.maxClaim ?? USER_CAPACITY,
+        highCostThreshold: input.highCostThreshold ?? target.highCostThreshold ?? 3000,
       });
       // Keep the volume key aligned with the chosen facility.
       const match = teams.find((x) => x.facilityId === target.facilityId && x.siteKey);
@@ -1300,6 +1363,19 @@ const resolvers = {
             .filter(Boolean),
         }));
       }
+      // Supervisors sit in every active group; high-cost handlers are tagged in place.
+      if (input.supervisorIds || input.highCostMemberIds) {
+        const sup = new Set((input.supervisorIds ?? []).map(String));
+        const high = new Set((input.highCostMemberIds ?? []).map(String));
+        const roster = new Map<string, any>();
+        for (const gr of target.groups) for (const m of gr.members) roster.set(m.id, m);
+        for (const m of roster.values()) {
+          if (input.supervisorIds) m.isSupervisor = sup.has(String(m.id));
+          if (input.highCostMemberIds) m.handlesHighCost = high.has(String(m.id));
+        }
+        for (const m of roster.values()) if (m.isSupervisor) syncSupervisor(target, m);
+      }
+
       if (!existing) teams.unshift(target);
       return target;
     },
