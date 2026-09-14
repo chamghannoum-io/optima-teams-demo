@@ -9,7 +9,7 @@
 import { useMemo, useState } from "react";
 import { gql, useQuery } from "@apollo/client";
 import { AlertTriangle, CheckCircle2, ChevronDown, Info, ShieldAlert } from "lucide-react";
-import { Badge, Button, CortexKPICard, cn } from "@optima/ui";
+import { Badge, CortexKPICard, ListItem, SectionHeader, cn } from "@optima/ui";
 
 export const READINESS = gql`
   query AllocationReadiness {
@@ -132,39 +132,48 @@ export function AllocationReadinessPanel({
           </button>
 
           {expanded && (
-            <div className="space-y-4 border-t border-slate-100 px-5 py-4 dark:border-dark-border">
+            <div className="border-t border-slate-200 dark:border-dark-border">
               {grouped.map(([kind, list]) => {
                 const cfg = SEVERITY[list[0].severity] ?? SEVERITY.INFO;
                 const Icon = cfg.icon;
                 return (
                   <div key={kind}>
-                    <div className="mb-2 flex items-center gap-2">
-                      <Icon size={14} className={cfg.tone} />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        {KIND_LABEL[kind] ?? kind}
-                      </span>
-                      <Badge variant={cfg.badge}>{list.length}</Badge>
+                    <div className="border-b border-slate-200 bg-slate-50 px-5 py-2 dark:border-dark-border dark:bg-dark-card">
+                      <SectionHeader
+                        micro
+                        title={KIND_LABEL[kind] ?? kind}
+                        action={<Badge variant={cfg.badge}>{list.length}</Badge>}
+                      />
                     </div>
-                    <ul className="space-y-1 ps-6">
-                      {list.map((i, n) => (
-                        <li
+                    {list.map((i, n) => {
+                      // The message already leads with the team or facility it is
+                      // about, so the row splits it rather than repeating it.
+                      const subject = i.teamName ?? i.facilityId ?? "Estate";
+                      const detail = i.message.startsWith(subject)
+                        ? i.message.slice(subject.length).replace(/^[\s,.:]+/, "")
+                        : i.message;
+                      const clickable = !!(i.teamId && onOpenTeam);
+                      return (
+                        <ListItem
                           key={`${kind}-${n}`}
-                          className="flex items-start justify-between gap-3 text-sm text-slate-600 dark:text-slate-300"
-                        >
-                          <span>{i.message}</span>
-                          {i.teamId && onOpenTeam && (
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="shrink-0"
-                              onClick={() => onOpenTeam(i.teamId!)}
-                            >
-                              Fix
-                            </Button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                          title={subject}
+                          subtitle={detail}
+                          onClick={clickable ? () => onOpenTeam!(i.teamId!) : undefined}
+                          // Not every issue names a team to open. Those rows still
+                          // matter, so they stay full strength; they just do not
+                          // offer a hover or a cursor.
+                          className={cn("py-3", !clickable && "cursor-default hover:bg-transparent")}
+                          trailing={<Icon size={14} className={cfg.tone} />}
+                          tag={
+                            clickable ? (
+                              <span className="text-xs font-medium text-primary dark:text-primary-300">
+                                Fix
+                              </span>
+                            ) : undefined
+                          }
+                        />
+                      );
+                    })}
                   </div>
                 );
               })}
