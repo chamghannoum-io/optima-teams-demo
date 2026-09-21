@@ -199,7 +199,10 @@ export default function TeamsPage() {
         .map((d: any) => ({
           name: `dim:${d.code}`,
           label: d.label,
-          type: "multiselect" as const,
+          // "select" with multiple, not "multiselect": the latter is in the
+          // FilterFieldType union but has no case in the renderer, upstream
+          // included, so it drew a label and no control.
+          type: "select" as const,
           multiple: true,
           group: "Routing",
           // Labels arrive formatted per the dimension's valueStyle.
@@ -541,7 +544,10 @@ export default function TeamsPage() {
           ]
         : []),
     ],
-    [t, canManageTeams, updateTeam, togglingIds, refetchTeams]
+    // expandedRules belongs here: without it the cell closes over the first
+    // empty Set and the routing-rule chevron toggles state that nothing reads,
+    // so it looks like a dead control.
+    [t, canManageTeams, updateTeam, togglingIds, refetchTeams, expandedRules]
   );
 
   if (combinedError) {
