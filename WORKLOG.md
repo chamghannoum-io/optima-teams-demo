@@ -231,6 +231,85 @@ baseline of 433/227. The +32 is the alias restoration.
 
 ---
 
+## 2026-09-21c, member unavailability restored
+
+`953d901`. v1 had unavailability windows and v2 dropped the concept. It
+surfaced as three invalid documents in `validate-queries`, but the query shape
+was the smaller half: **an unavailable member stayed in the allocation pool and
+kept being handed work while they were away**, in the app and in the workflow
+both.
+
+### What was restored
+
+- `OptimaTeamUserUnavailability`, the input, and the UNASSIGN / REDISTRIBUTE
+  enum, following v1's shape exactly.
+- Validation follows v1 because the rules are not arbitrary: an inverted range
+  is a typo, a non-member is the wrong team picked, and overlapping windows make
+  "is this person away" ambiguous for the allocator.
+- Cancelled, never deleted, so a window stays auditable.
+
+**Availability is a property of the person, not of a group membership.** The
+team id is recorded for provenance and permissions only. That matches v1, whose
+own comment is explicit about why: UNASSIGN acts across every team, because an
+assignment carries no team dimension.
+
+### The correctness half
+
+| Where | Change |
+|---|---|
+| `allocationPreview` | Capacity map is built from available members only, so someone away cannot be drawn and their capacity is not counted as available today |
+| `Match Groups` | Filters before forming `groupMembers`, which also keeps them out of `userIds` so T-0003 and T-004 are not asked for the capacity of people who are not there |
+| Overflow reason | A group whose members are all away now says so, instead of reporting the same "Group at capacity" as a genuinely full one |
+
+An absent `unavailableToday` means available, so an older T-0002 that does not
+select the field cannot silently empty every pool.
+
+### Serving the v1 documents without breaking v2
+
+v2 flattened `members` to `[User!]!` where v1 wrapped each member in an object,
+so the v1 documents could not validate. Changing the return type would break
+every v2 caller, so instead a member answers the wrapper's field names: `userId`
+is its id and `user` is itself. `availableOnly` is accepted on both team and
+group members.
+
+### UNASSIGN is recorded, not executed
+
+Upstream it calls `assignmentService.unassignAllActiveForCoder`. Standalone
+simulates allocation per run rather than persisting assignments, so there is
+nothing here to unassign, and pretending otherwise would have the demo claim an
+effect it does not have. Either way the person leaves tonight's pool, which is
+the part that changes what gets allocated.
+
+### Verified
+
+`validate-queries` goes from **3 invalid to 0**. `availability.test.mjs` adds 19
+rows, and the one that matters was mutation-tested: reverting just the pool
+filter fails `an unavailable member is given no work` and nothing else, so the
+test is load-bearing rather than decorative.
+
+`npm test` now also runs the schema smoke and query validation:
+
+```
+47 matcher · 18 distribute · 35 parity · 25 registry · 19 availability
+smoke: all checks passed · 25 documents, 0 invalid · workflow in sync
+```
+
+Build clean, no console errors at 1440px or 900px.
+
+### Next
+
+1. **Department on `AUTHORIZATION_RESUBMISSION` and `CLAIM_SUBMISSION`**,
+   32.5% of the queue, still the largest coverage blocker. Backend.
+2. **T-0002 gateway component** updated to what `server.mjs` now serves
+   (criteria, the registry, and `unavailableToday`), which is what phase 2
+   waits on.
+3. Unavailability UI: the dialog, list and indicator components exist in
+   `standalone/src/features/master-data/components/` and are not yet wired to
+   the restored mutations.
+4. Dark theme pass over the new dashboard panels.
+
+---
+
 ## 2026-09-21b, Track B and C: run history and the dashboard
 
 ### Committed
