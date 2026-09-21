@@ -107,7 +107,12 @@ const codeOf = (n) => wf.nodes.find((x) => x.name === n).parameters.jsCode;
 const store = {};
 function run(name, input) {
   const $input = { all: () => input };
-  const $ = (n) => ({ first: () => store[n]?.[0], all: () => store[n] ?? [], item: store[n]?.[0] });
+  // n8n throws when you reference a node that did not execute on this branch.
+  // Returning undefined instead is what let the fixture-mode bug through.
+  const $ = (n) => {
+    if (!(n in store)) throw new Error(`No node named "${n}" has executed`);
+    return { first: () => store[n][0], all: () => store[n], item: store[n][0] };
+  };
   const d = new Date();
   const pad = (x) => String(x).padStart(2, '0');
   const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -117,17 +122,24 @@ function run(name, input) {
   return store[name];
 }
 
+/*
+ * Only the FX nodes run, and nothing is copied into the HTTP nodes' slots.
+ *
+ * An earlier version of this did alias them, which made fixture mode look
+ * fine here and fail on the first Code node in real n8n: a Code node that
+ * names $('Step 1 - Get Teams') gets null when the fixture branch ran
+ * instead. Aliasing is the one thing this harness must not do, because it is
+ * the one thing n8n will not do for us.
+ */
 store.Webhook = [{ json: { headers: {}, body: payload } }];
 run('extractInfo', store.Webhook);
 run('FX Step 0 - Unassigned Items', store.extractInfo);
-store['Step 0 - Unassigned Items'] = store['FX Step 0 - Unassigned Items'];
-run('Rank Items', store['Step 0 - Unassigned Items']);
+run('Rank Items', store['FX Step 0 - Unassigned Items']);
 run('FX Step 1 - Get Teams', store.extractInfo);
-store['Step 1 - Get Teams'] = store['FX Step 1 - Get Teams'];
 
 // Proves the registry travelled with the fixture instead of the node quietly
 // falling back to its own defaults.
-const served = store['Step 1 - Get Teams'][0].json.data.allocationDimensions;
+const served = store['FX Step 1 - Get Teams'][0].json.data.allocationDimensions;
 console.log(`  registry in fixture: ${served ? `${served.length} dimensions` : 'MISSING, node will use its defaults'}`);
 
 run('Match Groups', store['Rank Items']);
@@ -135,11 +147,9 @@ const m = store['Match Groups'][0].json;
 console.log(`  Match Groups       ${m.assignments.length} matched · ${m.unmatched.length} unmatched`);
 
 run('FX Step 2 - Assigned Counts', store.extractInfo);
-store['Step 2 - Assigned Counts'] = store['FX Step 2 - Assigned Counts'];
 run('FX Step 3 - Capacities', store.extractInfo);
-store['Step 3 - Capacities'] = store['FX Step 3 - Capacities'];
 
-const batches = run('Distribute', store['Step 3 - Capacities']).filter((b) => !b.json.skipped);
+const batches = run('Distribute', store['FX Step 3 - Capacities']).filter((b) => !b.json.skipped);
 const placed = batches.reduce((n, b) => n + b.json.itemCount, 0);
 const fb = batches[0]?.json.fallbackCount ?? 0;
 console.log(`  Distribute         ${batches.length} batches · ${placed} placed · ${fb} via fallback`);

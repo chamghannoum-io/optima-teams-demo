@@ -49,8 +49,28 @@ const DEFAULT_DIMENSIONS = [
   { code: 'CLAIM_STATUS',   itemField: 'claimStatus',    matchMode: 'EXACT',      sortOrder: 60 },
 ];
 
+/**
+ * Read a tool's response from whichever branch actually ran.
+ *
+ * Every tool step is gated: with `fixtures` in the body the FX node runs and
+ * the HTTP node does not, and referencing a node that did not execute returns
+ * null or throws. Naming only the HTTP node meant fixture mode failed on the
+ * first Code node that needed a tool response.
+ */
+const toolData = (live, fx) => {
+  for (const name of [live, fx]) {
+    try {
+      const v = $(name)?.first?.();
+      if (v && v.json) return v.json;
+    } catch {
+      // n8n throws when the node did not run on this branch; try the other.
+    }
+  }
+  return {};
+};
+
 const ranked = $('Rank Items').first().json.items;
-const raw = $('Step 1 - Get Teams').first().json;
+const raw = toolData('Step 1 - Get Teams', 'FX Step 1 - Get Teams');
 const teams = raw.data?.optimaTeams ?? raw.optimaTeams ?? [];
 const servedDimensions = raw.data?.allocationDimensions ?? raw.allocationDimensions;
 

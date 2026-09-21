@@ -9,9 +9,29 @@
 //      narrowest group that also accepted the item, rather than stranding work
 //      next to idle people. Match Groups supplies those in `groupFallbacks`.
 
+/**
+ * Read a tool's response from whichever branch actually ran.
+ *
+ * Every tool step is gated: with `fixtures` in the body the FX node runs and
+ * the HTTP node does not, and referencing a node that did not execute returns
+ * null or throws. Naming only the HTTP node meant fixture mode failed on the
+ * first Code node that needed a tool response.
+ */
+const toolData = (live, fx) => {
+  for (const name of [live, fx]) {
+    try {
+      const v = $(name)?.first?.();
+      if (v && v.json) return v.json;
+    } catch {
+      // n8n throws when the node did not run on this branch; try the other.
+    }
+  }
+  return {};
+};
+
 const matched = $('Match Groups').first().json;
-const kpiRaw = $('Step 2 - Assigned Counts').first().json;
-const capRaw = $('Step 3 - Capacities').first().json;
+const kpiRaw = toolData('Step 2 - Assigned Counts', 'FX Step 2 - Assigned Counts');
+const capRaw = toolData('Step 3 - Capacities', 'FX Step 3 - Capacities');
 
 const counts = kpiRaw.data?.usersWorkTypeAssignedCounts ?? kpiRaw.usersWorkTypeAssignedCounts ?? [];
 const caps = capRaw.data?.effectiveAssignmentSettings ?? capRaw.effectiveAssignmentSettings ?? [];
