@@ -83,7 +83,7 @@ const TOOLS = {
   },
   "T-004": {
     name: "effectiveAssignmentSettings",
-    query: `query ($teamId: ID, $userIds: [ID!]!) {
+    query: `query ($teamId: ID, $userIds: [Long!]!) {
       effectiveAssignmentSettings(teamId: $teamId, userIds: $userIds) {
         userId teamId maxClaim maxAuth source
       }

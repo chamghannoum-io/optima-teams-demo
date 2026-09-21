@@ -252,6 +252,10 @@ for (const item of ranked) {
     groupId: best.group.id,
     groupName: best.group.name,
     groupMembers: members,
+    // Total roster vs who can actually take work today. Distribute needs both
+    // to tell "nobody is in this group" from "everybody in it is on leave",
+    // which send a supervisor to two different places.
+    groupRoster: (best.group.members ?? []).length,
     // Every group that accepted, narrowest first, so Distribute can fall
     // through to the next one when the winner has no capacity left.
     groupFallbacks: candidates.slice(1).map((c) => {

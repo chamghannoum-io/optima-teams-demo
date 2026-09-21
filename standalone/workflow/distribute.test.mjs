@@ -150,5 +150,35 @@ out = distribute({
 });
 check('an auth item cannot consume claim capacity', out[0].skipped, true);
 
+/* -- why work was not placed ------------------------------------------- */
+console.log('overflow reasons');
+
+out = distribute({ assignments: [item('a', { groupMembers: [], groupRoster: 0 })], caps: [] });
+check('an empty group says so', out[0].overflow[0].reason, 'Group has no members');
+
+out = distribute({ assignments: [item('a', { groupMembers: [], groupRoster: 3 })], caps: [] });
+check('a group whose members are all away says that instead',
+  out[0].overflow[0].reason, 'All 3 member(s) of the group are unavailable today');
+
+out = distribute({
+  assignments: [item('a', { groupMembers: ['u1'], groupRoster: 1 })],
+  counts: [{ userId: 'u1', assigned: 10, workItemType: AUTH }],
+  caps: [cap('u1', 10)],
+});
+check('a genuinely full group is neither of those',
+  out[0].overflow[0].reason, 'No capacity in 1 accepting group(s)');
+
+// The reasons used to be dropped whenever anything at all was assigned, so a
+// run reported a count with nothing behind it.
+out = distribute({
+  assignments: [
+    item('ok', { groupMembers: ['u1'], groupRoster: 1 }),
+    item('bad', { groupMembers: [], groupRoster: 2 }),
+  ],
+  caps: [cap('u1', 10)],
+});
+check('detail survives a run that placed most of its work',
+  [out[0].overflowCount, out[0].overflow.length], [1, 1]);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

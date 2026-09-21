@@ -93,7 +93,9 @@ for (const item of matched.assignments) {
       triedGroups: tiers.length,
       reason: (item.groupMembers ?? []).length
         ? `No capacity in ${tiers.length} accepting group(s)`
-        : 'Group has no members',
+        : item.groupRoster
+          ? `All ${item.groupRoster} member(s) of the group are unavailable today`
+          : 'Group has no members',
     });
     continue;
   }
@@ -133,11 +135,17 @@ if (!batches.length) {
   } }];
 }
 
-return batches.map((b) => ({ json: {
+return batches.map((b, i) => ({ json: {
   ...b,
   itemCount: b.workItemIds.length,
   overflowCount: overflow.length,
   fallbackCount: fallbackUsed.length,
   multiTeamMembers: multiTeam,
+  // The detail rides on the first batch only, so Summarise can report why work
+  // was not placed without every batch repeating the same list. Previously
+  // these were returned only when nothing at all could be assigned, so a run
+  // that placed most of its work reported a count with no reasons behind it.
+  overflow: i === 0 ? overflow : [],
+  fallback: i === 0 ? fallbackUsed : [],
   dryRun,
 } }));
