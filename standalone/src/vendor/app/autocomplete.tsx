@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { useQuery } from "@apollo/client";
+import { gql, useQuery } from "@apollo/client";
 import { Check, ChevronsUpDown, Loader2, Search, X } from "lucide-react";
 
 import { cn } from "../ui/utils.js";
@@ -25,7 +25,11 @@ import {
   type AutocompleteApiConfig,
   type IBaseOption,
 } from "./shared.js";
-import { DimensionOptionsDocument, RcmUsersDocument } from "./generated.js";
+import {
+  BranchesAutocompleteDocument,
+  DimensionOptionsDocument,
+  RcmUsersDocument,
+} from "./generated.js";
 
 const DEFAULT_PAGE_SIZE = 20;
 const DEBOUNCE_MS = 300;
@@ -347,9 +351,37 @@ export function ApiAutocomplete({
  * dimension binds to through the `filter.dimension` variable, which is what lets
  * a dimension added to the registry get a real Optima picker with no new wiring.
  */
+/** Non-paginated: optimaTeams returns a plain list, as it does upstream. */
+const TeamsAutocompleteDocument = gql`
+  query TeamsAutocomplete($filter: OptimaTeamFilterInput) {
+    optimaTeams(filter: $filter) {
+      id
+      name
+    }
+  }
+`;
+
 export const autocompleteQueriesMapper = {
   dimensionOptions: createAutocompleteQueryConfig({
     useQuery: (opts: any) => useQuery(DimensionOptionsDocument, opts),
+    keyBy: "id",
+    labelBy: (item: any) => item?.name ?? item?.id ?? "",
+    searchKey: "name_Icontains",
+  }),
+  /**
+   * team and branch, copied from apps/provider/src/autocompletes/mapper.ts
+   * (lines 213-231). The ported rcm-dashboard's filter bar and auto-assign
+   * dialog read these two by name.
+   */
+  team: createAutocompleteQueryConfig({
+    useQuery: (opts: any) => useQuery(TeamsAutocompleteDocument, opts),
+    keyBy: "id",
+    labelBy: (item: any) => item?.name ?? item?.id ?? "",
+    searchKey: "name",
+    isPaginated: false,
+  }),
+  branch: createAutocompleteQueryConfig({
+    useQuery: (opts: any) => useQuery(BranchesAutocompleteDocument, opts),
     keyBy: "id",
     labelBy: (item: any) => item?.name ?? item?.id ?? "",
     searchKey: "name_Icontains",

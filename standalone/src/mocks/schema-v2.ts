@@ -9,6 +9,7 @@
  * Mirrors RcmTeamV2ServiceImpl, RcmTeamCoverageService and RcmTeamDistributionAdvisor.
  */
 import { makeExecutableSchema } from "@graphql-tools/schema";
+import { queueDashboardTypeDefs, queueDashboardResolvers } from "./queue-dashboard.js";
 import seed from "./teams-v2-real.json";
 import peopleSeed from "./people.json";
 import volumes from "./volumes.json";
@@ -103,8 +104,16 @@ const typeDefs = /* GraphQL */ `
   """
   Relay shape so every dimension is backed by a real paginated, searchable list,
   the same contract ApiAutocomplete drives everywhere else in Optima.
+
+  PageInfo carries the backward fields too, because the ported dashboard's
+  paginated queries select them, as Relay's spec has them.
   """
-  type PageInfo { hasNextPage: Boolean!, endCursor: String }
+  type PageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean
+    endCursor: String
+    startCursor: String
+  }
   type DimensionOptionNode { id: ID!, name: String!, perDay: Float }
   type DimensionOptionEdge { node: DimensionOptionNode!, cursor: String! }
   type DimensionOptionConnection {
@@ -178,6 +187,25 @@ const typeDefs = /* GraphQL */ `
     family: String!
     limit: Int
     allowExceed: Boolean
+  }
+
+  """
+  Scalars the ported RCM dashboard contract uses. Long is an int in JS and
+  Instant is an ISO string over the wire, so both are plain passthroughs; they
+  exist so the upstream queries parse unchanged.
+  """
+  scalar Long
+  scalar Instant
+
+  """Upstream's name for the same set. Aliased so the ported page's queries
+  need no edit, while the v2 model keeps its own spelling."""
+  enum WorkItemType {
+    RECONCILIATION
+    CLAIM_SUBMISSION
+    CLAIM_RESUBMISSION
+    CLAIM_VALIDATION
+    AUTHORIZATION_SUBMISSION
+    AUTHORIZATION_RESUBMISSION
   }
 
   enum RcmWorkItemType {
@@ -771,7 +799,7 @@ const typeDefs = /* GraphQL */ `
     payerOptionsFor(teamId: ID): [ID!]!
 
     assignmentSettingByTeam(teamId: ID!): AssignmentSetting
-    effectiveAssignmentSettings(teamId: ID, userIds: [ID!]!): [EffectiveAssignmentSetting!]!
+    effectiveAssignmentSettings(teamId: ID, userIds: [Long!]!): [EffectiveAssignmentSetting!]!
     usersWorkTypeAssignedCounts(
       userIds: [ID!]!, workItemTypes: [String!], fromDate: String, toDate: String
     ): [UserWorkTypeAssignedCount!]!
@@ -2157,6 +2185,25 @@ const resolvers = {
 
   Query: {
     /** The registry. Served as data so the UI has no per-dimension wiring. */
+    /**
+     * The ported RCM Supervisor Dashboard, backed by the allocation model, so
+     * it shows the teams configured on the Teams page rather than a second
+     * unrelated dataset.
+     */
+    ...queueDashboardResolvers({
+      teams,
+      rosterOf: (t: any) => {
+        const seen = new Set<string>();
+        return t.groups.flatMap((g: any) =>
+          g.members.filter((m: any) => !seen.has(m.id) && seen.add(m.id)),
+        );
+      },
+      capOf: (t: any, m: any) => capOf(t, m),
+      isUnavailable,
+      facilitiesOf,
+      volumeOf: (t: any) => [...meansByGroup(t).values()].reduce((a, b) => a + b, 0),
+    }),
+
     allocationDimensions: () =>
       [...DIMENSIONS]
         .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -2869,4 +2916,7 @@ const resolvers = {
   },
 };
 
-export const schemaV2 = makeExecutableSchema({ typeDefs, resolvers });
+export const schemaV2 = makeExecutableSchema({
+  typeDefs: [typeDefs, queueDashboardTypeDefs],
+  resolvers,
+});

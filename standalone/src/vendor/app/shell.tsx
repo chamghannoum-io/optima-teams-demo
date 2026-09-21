@@ -42,19 +42,36 @@ const NAV = [
   { to: "/users", label: "User Management", icon: <UserPlus size={20} /> },
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
-  const [path, setPath] = useState("/master-data/teams");
+/** Breadcrumb trail per route, matching the live app's header. */
+const CRUMBS: Record<string, { label: string; to?: string }[]> = {
+  "/dashboard": [{ label: "Dashboard", to: "/dashboard" }, { label: "RCM Supervisor Dashboard" }],
+  "/master-data/teams": [
+    { label: "Dashboard", to: "/dashboard" },
+    { label: "Master Data", to: "/master-data" },
+    { label: "Teams" },
+  ],
+};
+
+export function AppShell({
+  children,
+  onNavigate,
+  initialPath = "/master-data/teams",
+}: {
+  children: React.ReactNode;
+  /** Lets main.tsx swap the page, so the rail actually navigates. */
+  onNavigate?: (path: string) => void;
+  initialPath?: string;
+}) {
+  const [path, setPath] = useState(initialPath);
+  const go = (p: string) => {
+    setPath(p);
+    onNavigate?.(p);
+  };
   return (
-    <UiAppShell navItems={NAV} currentPath={path} onNavigate={setPath} appName="Optima">
+    <UiAppShell navItems={NAV} currentPath={path} onNavigate={go} appName="Optima">
       <div className="flex h-full flex-col overflow-hidden">
         <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 py-3 dark:border-dark-border dark:bg-dark-surface">
-          <Breadcrumbs
-            items={[
-              { label: "Dashboard", to: "/dashboard" },
-              { label: "Master Data", to: "/master-data" },
-              { label: "Teams" },
-            ]}
-          />
+          <Breadcrumbs items={CRUMBS[path] ?? CRUMBS["/master-data/teams"]} />
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
               <Building2 size={15} /> ASH Hospital HQ

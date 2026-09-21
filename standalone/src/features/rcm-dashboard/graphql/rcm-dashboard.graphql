@@ -1,0 +1,446 @@
+query GetTeamAssignmentKpis($rcmTeamId: Int) {
+  teamAssignmentKpis(rcmTeamId: $rcmTeamId) {
+    claims {
+      total
+      assigned
+      notAssigned
+      assignmentPercentage
+      notAssignedPercentage
+      workItemType
+    }
+    authorizations {
+      total
+      assigned
+      notAssigned
+      assignmentPercentage
+      notAssignedPercentage
+      workItemType
+    }
+    claimsResubmission {
+      total
+      assigned
+      notAssigned
+      assignmentPercentage
+      notAssignedPercentage
+      workItemType
+    }
+    totals {
+      grandTotal
+      totalAssigned
+      totalNotAssigned
+      overallAssignmentPercentage
+      overallNotAssignedPercentage
+    }
+  }
+}
+
+
+query GetTeamFinancialKpis {
+  teamFinancialKpis {
+    claims {
+      totalAmount
+      assignedAmount
+      notAssignedAmount
+      assignedAmountPercentage
+      notAssignedAmountPercentage
+      workItemType
+    }
+    authorizations {
+      totalAmount
+      assignedAmount
+      notAssignedAmount
+      assignedAmountPercentage
+      notAssignedAmountPercentage
+      workItemType
+    }
+    claimsResubmission {
+      totalAmount
+      assignedAmount
+      notAssignedAmount
+      assignedAmountPercentage
+      notAssignedAmountPercentage
+      workItemType
+    }
+    totals {
+      grandTotalAmount
+      totalAssignedAmount
+      totalNotAssignedAmount
+      overallAssignedAmountPercentage
+      overallNotAssignedAmountPercentage
+    }
+  }
+}
+
+query GetTeamUserPerformanceKpis($teamIds: [Long]) {
+  teamUserPerformanceKpis(teamIds: $teamIds) {
+    team {
+      id
+      name
+    }
+    users {
+      userId
+      userName
+      claims {
+        total
+        assigned
+        assignmentPercentage
+        workItemType
+      }
+      authorizations {
+        total
+        assigned
+        assignmentPercentage
+        workItemType
+      }
+      claimsResubmission {
+        total
+        assigned
+        assignmentPercentage
+        workItemType
+      }
+      claimsFinancial {
+        totalAmount
+        assignedAmount
+      }
+      authorizationsFinancial {
+        totalAmount
+        assignedAmount
+      }
+      claimsResubmissionFinancial {
+        totalAmount
+        assignedAmount
+      }
+      totals {
+        grandTotal
+        totalAssigned
+        overallAssignmentPercentage
+      }
+      financialTotals {
+        grandTotalAmount
+        totalAssignedAmount
+      }
+    }
+  }
+}
+
+
+query GetRcmOptimaTeams($filter: OptimaTeamFilterInput) {
+  optimaTeams(filter: $filter) {
+    id
+    name
+    nameAr
+    active
+  }
+}
+
+
+query GetTeamCoderAvailability($teamId: String!) {
+  teamCoderAvailability(teamId: $teamId) {
+    id
+    coderId
+    coderName
+    dailyCapacity
+    currentWorkload
+    remainingCapacity
+    isAvailable
+    isAtCapacity
+    specialty
+    unavailableReason
+  }
+}
+
+
+query GetUnassignedValidationRequests($first: Int, $last: Int, $after: String, $before: String, $filter: OptimaValidationRequestFilterInput, $sortBy: OptimaValidationRequestsSortingInput) {
+  rcmOptimaValidationRequests(first: $first, last: $last, after: $after, before: $before, filter: $filter, sortBy: $sortBy) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      endCursor
+      startCursor
+    }
+    edges {
+      node {
+        id
+        requestId
+        billNumber
+        patientName
+        nationalId
+        insurancePayer
+        approvalStatus
+        claimStatus
+        createdDate
+        billDate
+        priority
+        gross
+        net
+        requestType
+        departmentName
+        assignment {
+          id
+          completionStatus
+          assigneeName
+          assigneeUser {
+            id
+            fullName
+          }
+        }
+      }
+    }
+  }
+}
+
+
+query GetUnassignedAuthorizations($first: Int, $last: Int, $after: String, $before: String, $filter: AuthorizationSubmissionFilterInput, $sortBy: AuthorizationSubmissionsSortingInput) {
+  authorizationSubmissions(first: $first, last: $last, after: $after, before: $before, filter: $filter, sortBy: $sortBy) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      endCursor
+      startCursor
+    }
+    edges {
+      node {
+        id
+        authorizationNumber
+        billNumber
+        patientName
+        insurancePayerName
+        status
+        priority
+        type
+        createdAt
+        submittedAt
+        dueAt
+        department
+        assignment {
+          id
+          completionStatus
+          assigneeName
+          assigneeId
+          assigneeUser {
+            id
+            fullName
+          }
+        }
+      }
+    }
+  }
+}
+
+
+query GetEffectiveAssignmentSettings($teamId: ID, $userIds: [Long!]!) {
+  effectiveAssignmentSettings(teamId: $teamId, userIds: $userIds) {
+    userId
+    teamId
+    maxClaim
+    maxAuth
+    source
+  }
+}
+
+
+mutation AssignmentAutoAssign($input: AssignmentAutoAssignInput) {
+  assignmentAutoAssign(input: $input)
+}
+
+
+query GetFacilityFinancialBreakdown {
+  rcmOptimaValidationRequests(first: 5000) {
+    edges {
+      node {
+        facility
+        net
+      }
+    }
+  }
+}
+
+
+query GetMemberAssignedClaims($first: Int, $filter: OptimaValidationRequestFilterInput, $sortBy: OptimaValidationRequestsSortingInput) {
+  rcmOptimaValidationRequests(first: $first, filter: $filter, sortBy: $sortBy) {
+    totalCount
+    edges {
+      node {
+        id
+        requestId
+        billNumber
+        patientName
+        nationalId
+        insurancePayer
+        approvalStatus
+        claimStatus
+        createdDate
+        requestType
+        net
+        gross
+        assignment {
+          id
+          completionStatus
+          assigneeName
+          assignedAt
+          assigneeUser {
+            id
+            fullName
+          }
+        }
+      }
+    }
+  }
+}
+
+
+query GetMemberAssignedAuths($first: Int, $filter: AuthorizationSubmissionFilterInput, $sortBy: AuthorizationSubmissionsSortingInput) {
+  authorizationSubmissions(first: $first, filter: $filter, sortBy: $sortBy) {
+    totalCount
+    edges {
+      node {
+        id
+        authorizationNumber
+        billNumber
+        patientName
+        insurancePayerName
+        status
+        priority
+        type
+        createdAt
+        dueAt
+        totalNet
+        assignment {
+          id
+          assigneeName
+          assigneeId
+          assigneeUser {
+            id
+            fullName
+          }
+        }
+      }
+    }
+  }
+}
+
+
+query QueueDashboardTeamAssignmentSetting($teamId: ID!) {
+  assignmentSettingByTeam(teamId: $teamId) {
+    id
+    maxAuth
+    maxClaim
+  }
+}
+
+
+query GetMemberWorkProgressCounts($assignedTo: [String]!) {
+  preClaimsDone: rcmOptimaValidationRequests(
+    first: 1
+    filter: { assignmentAssignedTo: $assignedTo, assignmentCompletionStatuses: [DONE] }
+  ) {
+    totalCount
+  }
+  preClaimsInProgress: rcmOptimaValidationRequests(
+    first: 1
+    filter: { assignmentAssignedTo: $assignedTo, assignmentCompletionStatuses: [IN_PROGRESS] }
+  ) {
+    totalCount
+  }
+  preClaimsOpen: rcmOptimaValidationRequests(
+    first: 1
+    filter: { assignmentAssignedTo: $assignedTo, assignmentCompletionStatuses: [OPEN] }
+  ) {
+    totalCount
+  }
+  claimsDone: claimSubmissions(
+    first: 1
+    filter: { assignmentAssignedTo: $assignedTo, assignmentCompletionStatuses: [DONE] }
+  ) {
+    totalCount
+  }
+  claimsInProgress: claimSubmissions(
+    first: 1
+    filter: { assignmentAssignedTo: $assignedTo, assignmentCompletionStatuses: [IN_PROGRESS] }
+  ) {
+    totalCount
+  }
+  claimsOpen: claimSubmissions(
+    first: 1
+    filter: { assignmentAssignedTo: $assignedTo, assignmentCompletionStatuses: [OPEN] }
+  ) {
+    totalCount
+  }
+  authsDone: authorizationSubmissions(
+    first: 1
+    filter: { assignmentAssignedTo: $assignedTo, assignmentCompletionStatuses: [DONE] }
+  ) {
+    totalCount
+  }
+  authsInProgress: authorizationSubmissions(
+    first: 1
+    filter: { assignmentAssignedTo: $assignedTo, assignmentCompletionStatuses: [IN_PROGRESS] }
+  ) {
+    totalCount
+  }
+  authsOpen: authorizationSubmissions(
+    first: 1
+    filter: { assignmentAssignedTo: $assignedTo, assignmentCompletionStatuses: [OPEN] }
+  ) {
+    totalCount
+  }
+}
+
+
+query GetMemberAssignedClaimSubmissions($first: Int, $filter: ClaimSubmissionFilterInput, $sortBy: ClaimSubmissionsSortingInput) {
+  claimSubmissions(first: $first, filter: $filter, sortBy: $sortBy) {
+    totalCount
+    edges {
+      node {
+        id
+        transactionId
+        claimId
+        patientName
+        insurancePayer
+        approvalStatus
+        status
+        createdAt
+        submittedAt
+        totalNet
+        totalApprovedNet
+        encounterType
+        type
+        priority
+        assignment {
+          id
+          completionStatus
+          assigneeName
+          assignedAt
+          assigneeUser {
+            id
+            fullName
+          }
+        }
+      }
+    }
+  }
+}
+
+
+query GetOverduePendingAuthStats($fromDueAt: Instant) {
+  recentOverdue: authorizationSubmissions(
+    first: 1
+    filter: { statuses: [PAYER_OVERDUE, PROVIDER_OVERDUE], fromDueAt: $fromDueAt }
+  ) {
+    totalCount
+  }
+  allPending: authorizationSubmissions(
+    first: 500
+    filter: { statuses: [PENDING] }
+  ) {
+    totalCount
+    edges {
+      node {
+        id
+        createdAt
+      }
+    }
+  }
+}

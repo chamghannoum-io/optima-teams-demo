@@ -1,0 +1,130 @@
+query QueueDashboardTopCounts($filter: QueueDashboardFilterInput) {
+  queueDashboardTopCounts(filter: $filter) {
+    displayDate
+    claims {
+      total
+      assigned
+      unassigned
+      overdue
+      pending
+    }
+    authorizations {
+      total
+      assigned
+      unassigned
+      overdue
+      pending
+    }
+  }
+}
+
+
+query QueueDashboardAssignmentOverview($filter: QueueDashboardFilterInput) {
+  queueDashboardAssignmentOverview(filter: $filter) {
+    claimSubmissions
+    claimResubmissions
+    claimValidations
+    authorizationSubmissions
+    authorizationResubmissions
+  }
+}
+
+
+query QueueDashboardFacilityFinancialBreakdown($filter: QueueDashboardFilterInput) {
+  queueDashboardFacilityFinancialBreakdown(filter: $filter) {
+    facility
+    claimsCount
+    authorizationsCount
+    totalCount
+    claimsTotalAmount
+    authorizationsTotalAmount
+    totalAmount
+  }
+}
+
+
+query QueueDashboardAuthOverduePending($filter: QueueDashboardFilterInput) {
+  queueDashboardAuthOverduePending(filter: $filter) {
+    overdueLast48h
+    expiringNext24h
+    totalPending
+    byEncounterType {
+      category
+      overdueLast48h
+      expiringNext24h
+    }
+  }
+}
+
+
+query QueueDashboardClaimsOverduePending($filter: QueueDashboardFilterInput) {
+  queueDashboardClaimsOverduePending(filter: $filter) {
+    overdueLast48h
+    expiringNext24h
+    totalPending
+    byEncounterType {
+      category
+      overdueLast48h
+      expiringNext24h
+    }
+  }
+}
+
+
+query QueueDashboardAuthorizationAging(
+  $filter: QueueDashboardFilterInput
+  $ranges: [QueueDashboardAgingRangeInput!]!
+) {
+  queueDashboardAuthorizationAging(filter: $filter, ranges: $ranges) {
+    label
+    fromDays
+    toDays
+    count
+  }
+}
+
+
+query QueueDashboardClaimsAging($filter: QueueDashboardFilterInput) {
+  queueDashboardClaimsAging(filter: $filter) {
+    label
+    fromDays
+    toDays
+    count
+  }
+}
+
+
+query QueueDashboardTeamMemberGrid($filter: QueueDashboardFilterInput) {
+  queueDashboardTeamMemberGrid(filter: $filter) {
+    userId
+    userName
+    claimsAssigned
+    claimValidationsAssigned
+    authorizationsAssigned
+    claimResubmissionsAssigned
+    authorizationResubmissionsAssigned
+    totalAssigned
+    completed
+    overdue
+    isOverlimit
+  }
+}
+
+
+query QueueDashboardMemberView($filter: QueueDashboardFilterInput, $userId: String!) {
+  queueDashboardMemberView(filter: $filter, userId: $userId) {
+    userId
+    userName
+    totalAssigned
+    totalCompleted
+    totalOverdue
+    insights {
+      workItemType
+      completed
+      overdue
+      avgTatSeconds
+      slaCompliance
+      slaBreaches
+    }
+  }
+}

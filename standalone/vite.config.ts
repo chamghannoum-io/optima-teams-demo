@@ -31,6 +31,12 @@ export default defineConfig({
       "@/shared/autocomplete/index.js": fileURLToPath(new URL("./src/vendor/app/autocomplete.tsx", import.meta.url)),
       "@/autocompletes/index.js": fileURLToPath(new URL("./src/vendor/app/autocomplete.tsx", import.meta.url)),
       "@optima/auth": fileURLToPath(new URL("./src/vendor/app/auth.tsx", import.meta.url)),
+      // The ported rcm-dashboard imports these; the page files are byte-identical
+      // to upstream, so the aliases carry the difference rather than edits.
+      "@/autocompletes/mapper.js": fileURLToPath(new URL("./src/vendor/app/autocomplete.tsx", import.meta.url)),
+      "@optima/module-authorization": fileURLToPath(new URL("./src/vendor/app/modules.tsx", import.meta.url)),
+      "@optima/module-active-claims": fileURLToPath(new URL("./src/vendor/app/modules.tsx", import.meta.url)),
+      "@optima/module-query-management": fileURLToPath(new URL("./src/vendor/app/modules.tsx", import.meta.url)),
       "react-i18next": fileURLToPath(new URL("./src/vendor/app/i18n.ts", import.meta.url)),
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },

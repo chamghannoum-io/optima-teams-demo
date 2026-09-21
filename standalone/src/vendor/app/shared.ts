@@ -96,3 +96,64 @@ export function createAutocompleteQueryConfig(props: AutocompleteApiConfig) {
     isPaginated,
   };
 }
+
+/* ── the two context hooks the ported rcm-dashboard reads ──────────────────
+ * Upstream these come from packages/shared/src/site-settings.tsx and
+ * apps/provider/src/app/working-branch-context.tsx, both fed by providers at
+ * the app root. The shapes are copied from those files; there is one tenant
+ * and one working branch locally, so the values are fixed rather than wired to
+ * a provider the standalone shell does not have.
+ */
+
+export interface SiteSettingsContextValue {
+  defaultCurrency: string;
+  isLoading: boolean;
+}
+
+export function useSiteSettings(): SiteSettingsContextValue {
+  return { defaultCurrency: "AED", isLoading: false };
+}
+
+export interface WorkingBranch {
+  id: string;
+  name: string;
+  nameAr: string;
+  healthLicense: string | null;
+  targetSystem?: string | null;
+}
+
+export function useWorkingBranch(): WorkingBranch | null {
+  return {
+    id: "1",
+    name: "ASH Hospital HQ",
+    nameAr: "ASH Hospital HQ",
+    healthLicense: "DXB",
+  };
+}
+
+/* ── date helpers, copied verbatim from packages/shared/src/date.ts ── */
+/**
+ * Convert a `Date` to a "YYYY-MM-DD" string using LOCAL date components.
+ *
+ * Why: `date.toISOString().slice(0, 10)` converts to UTC first, which shifts the
+ * calendar day backward for any user east of UTC (e.g. Saudi Arabia, UTC+3:
+ * picking April 27 at local midnight serializes to "2026-04-26"). For date-only
+ * fields the user's wall-clock date is what we want to send to the backend.
+ */
+export function toIsoDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Parse a "YYYY-MM-DD" string into a `Date` at LOCAL midnight.
+ *
+ * Why: `new Date("2026-04-27")` is parsed as UTC midnight, which renders as the
+ * previous day in negative-offset timezones. Appending "T00:00:00" forces local
+ * interpretation so the calendar shows the day the user originally picked.
+ */
+export function fromIsoDateString(s: string): Date {
+  return new Date(`${s}T00:00:00`);
+}

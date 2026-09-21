@@ -331,3 +331,4 @@ export const RcmUsersDocument = gql`
     }
   }
 `;
+export * from "./generated-dashboard.js";
