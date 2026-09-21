@@ -12,12 +12,38 @@
  */
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { gql, useQuery } from "@apollo/client";
-import { Plus, Trash2, Users, X, AlertTriangle, Search } from "lucide-react";
+import { gql, useMutation, useQuery } from "@apollo/client";
+import { Plus, Trash2, Users, X, AlertTriangle, Search, CalendarOff } from "lucide-react";
 
 import { cn, Button, Badge, Input, Switch } from "@optima/ui";
 
 import { CriteriaBuilder, DIMENSIONS_QUERY, type Criterion } from "./criteria-builder.js";
+import { MemberUnavailabilityDialog } from "./member-unavailability-dialog.js";
+
+const SET_UNAVAILABILITY = gql`
+  mutation SetTeamMemberUnavailability($input: OptimaTeamUserUnavailabilityInput!) {
+    optimaTeamUserUnavailabilitySet(input: $input) {
+      id
+      startDate
+      endDate
+      cancelled
+      activeToday
+    }
+  }
+`;
+
+const CANCEL_UNAVAILABILITY = gql`
+  mutation CancelTeamMemberUnavailability($id: ID!) {
+    optimaTeamUserUnavailabilityCancel(id: $id) {
+      id
+      cancelled
+    }
+  }
+`;
+
+/** yyyy-mm-dd in local time, which is how the window is read. */
+const isoDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 import { DistributionRationale } from "./distribution-rationale.js";
 
 /** One allocation group within a team. Criteria carry the routing, members the work. */
@@ -86,6 +112,36 @@ export function TeamGroups({
 }: TeamGroupsProps) {
   const { t: _t } = useTranslation("provider");
   const [picker, setPicker] = useState<string | null>(null);
+  /** Which member's availability is being edited, if any. */
+  const [away, setAway] = useState<{ groupId: string; member: any } | null>(null);
+  const [setUnavailable, { loading: savingAway }] = useMutation(SET_UNAVAILABILITY);
+  const [cancelUnavailable] = useMutation(CANCEL_UNAVAILABILITY);
+
+  /**
+   * Reflect the saved window on the chip straight away. The member list is
+   * wizard state rather than a live query, so without this the name only greys
+   * out on reopen, and it looks like the save did nothing.
+   */
+  const markAway = (
+    userId: string,
+    unavailableToday: boolean,
+    windows: (existing: any[]) => any[],
+  ) => {
+    onChange(
+      groups.map((g) => ({
+        ...g,
+        members: g.members.map((m: any) =>
+          String(m.id) === String(userId)
+            ? {
+                ...m,
+                unavailableToday,
+                unavailabilities: windows(m.unavailabilities ?? []).filter(Boolean),
+              }
+            : m,
+        ),
+      })),
+    );
+  };
   const [filter, setFilter] = useState("");
 
   const { data: dimData } = useQuery(DIMENSIONS_QUERY);
@@ -392,9 +448,40 @@ export function TeamGroups({
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-white">
                         {initials(personName(m))}
                       </span>
-                      <span className="max-w-[110px] truncate text-slate-700 dark:text-slate-300">
+                      <span
+                        className={cn(
+                          "max-w-[110px] truncate",
+                          m.unavailableToday
+                            ? "text-slate-400 line-through dark:text-slate-500"
+                            : "text-slate-700 dark:text-slate-300",
+                        )}
+                      >
                         {personName(m)}
                       </span>
+                      {/*
+                       * Availability belongs next to the name, because a member
+                       * who is away is still on the team and still shown, and
+                       * the only thing that changes is that allocation skips
+                       * them tonight.
+                       */}
+                      <button
+                        type="button"
+                        aria-label={`Set availability for ${personName(m)}`}
+                        title={
+                          m.unavailableToday
+                            ? `${personName(m)} is unavailable today`
+                            : `Mark ${personName(m)} unavailable`
+                        }
+                        onClick={() => setAway({ groupId: g.id, member: m })}
+                        className={cn(
+                          "rounded p-0.5",
+                          m.unavailableToday
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200",
+                        )}
+                      >
+                        <CalendarOff size={11} />
+                      </button>
                       <button
                         type="button"
                         aria-label={`Remove ${personName(m)}`}
@@ -417,6 +504,44 @@ export function TeamGroups({
       <Button type="button" variant="outline" onClick={addGroup}>
         <Plus size={14} /> Add group
       </Button>
+
+      {/*
+       * Availability. The window is a property of the person, so it is saved
+       * straight away rather than held until the wizard is submitted: the
+       * member is on the team already, and being away is not a draft.
+       */}
+      {away && (
+        <MemberUnavailabilityDialog
+          open
+          memberName={personName(away.member)}
+          existing={(away.member.unavailabilities ?? []).filter((u: any) => !u.cancelled)}
+          saving={savingAway}
+          onClose={() => setAway(null)}
+          onCancelWindow={async (id: string) => {
+            await cancelUnavailable({ variables: { id } });
+            markAway(away.member.id, false, (w: any[]) =>
+              w.map((u) => (String(u.id) === String(id) ? { ...u, cancelled: true } : u)),
+            );
+          }}
+          onConfirm={async ({ startDate, endDate, reason }, resolution) => {
+            if (!teamId) return;
+            const res = await setUnavailable({
+              variables: {
+                input: {
+                  teamId,
+                  userId: away.member.id,
+                  startDate: isoDay(startDate),
+                  endDate: isoDay(endDate),
+                  reason,
+                  action: resolution === "UNASSIGN" ? "UNASSIGN" : "REDISTRIBUTE",
+                },
+              },
+            });
+            const saved = res.data?.optimaTeamUserUnavailabilitySet;
+            markAway(away.member.id, !!saved?.activeToday, (w: any[]) => [...w, saved]);
+          }}
+        />
+      )}
 
       {/* member picker */}
       {open && (

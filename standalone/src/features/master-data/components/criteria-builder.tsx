@@ -1,10 +1,15 @@
 /**
  * The routing-rule editor, and the only place criteria are edited.
  *
- * One row per dimension the registry reports for this level. The row is
- * deliberately the shape of a filter, because that is what it is:
+ * One field per dimension the registry reports for this level, laid out like
+ * every other field in the wizard: label, control, helper line.
  *
- *   [Department]  [is any of ▾]  [ Cardiology × ] [ Emergency × ]  ▾
+ *   Department
+ *   [ Cardiology × ] [ Emergency × ]
+ *
+ * There is no operator control. Every filter means "is any of", and leaving a
+ * dimension out already means "anything", which is what the section says. The
+ * contract still carries NOT_IN and ANY for anything that needs them.
  *
  * Values come from `ApiAutocomplete` bound to the `dimensionOptions` source, so
  * a department here is picked from the same paginated, searchable, server-backed
@@ -15,16 +20,7 @@ import { useMemo, useState } from "react";
 import { gql, useQuery } from "@apollo/client";
 import { Lock, Plus, X } from "lucide-react";
 
-import {
-  Badge,
-  Button,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  cn,
-} from "@optima/ui";
+import { Badge, Button, Label, cn } from "@optima/ui";
 import { ApiAutocomplete, autocompleteQueriesMapper } from "@/shared/autocomplete/index.js";
 import type { IBaseOption } from "@optima/shared";
 
@@ -69,11 +65,6 @@ export interface Dimension {
   values?: { value: string; label: string }[];
 }
 
-const OPERATOR_LABEL: Record<CriterionOperator, string> = {
-  IN: "is any of",
-  NOT_IN: "is none of",
-  ANY: "anything",
-};
 
 /** Dimensions editable at a level. BOTH shows up on teams and on groups. */
 export const dimensionsFor = (dims: Dimension[], level: "TEAM" | "GROUP") =>
@@ -113,11 +104,10 @@ export function CriteriaBuilder({
     const existing = find(code);
     const next: Criterion = {
       dimension: code,
-      operator: existing?.operator ?? "IN",
+      operator: "IN" as CriterionOperator,
       values: existing?.values ?? [],
       ...patch,
     };
-    if (next.operator === "ANY") next.values = [];
     onChange([...criteria.filter((c) => c.dimension !== code), next]);
   };
 
@@ -141,72 +131,47 @@ export function CriteriaBuilder({
         const c = find(d.code)!;
         const conflict = widened(d.code, c, inherited);
         return (
-          <div
-            key={d.code}
-            className={cn(
-              "rounded-lg border bg-white px-3 py-2.5 dark:bg-dark-card",
-              conflict
-                ? "border-red-300 dark:border-red-900"
-                : "border-slate-200 dark:border-dark-border",
-            )}
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="w-32 shrink-0 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                {d.label}
-              </span>
-
-              <Select
-                value={c.operator}
-                onValueChange={(v: string) => put(d.code, { operator: v as CriterionOperator })}
-              >
-                <SelectTrigger className="h-10 w-[130px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {d.operators.map((op) => (
-                    <SelectItem key={op} value={op}>
-                      {OPERATOR_LABEL[op]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="min-w-0 flex-1">
-                {c.operator === "ANY" ? (
-                  <span className="text-xs italic text-slate-500 dark:text-slate-400">
-                    every value, deliberately
-                  </span>
-                ) : (
-                  <DimensionPicker
-                    dimension={d}
-                    teamId={teamId}
-                    values={c.values}
-                    onChange={(values) => put(d.code, { values })}
-                  />
-                )}
-              </div>
-
+          /*
+           * Laid out like Name and Description above: label, control, helper
+           * line. The operator picker is gone. Every filter is "is any of",
+           * because that is what every real team configuration uses, and
+           * leaving a dimension out already means "anything", which the
+           * section's own help text says. The contract still carries NOT_IN
+           * and ANY for anything that needs them.
+           */
+          <div key={d.code} className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label>{d.label}</Label>
               <button
                 type="button"
                 aria-label={`Remove the ${d.label} filter`}
                 onClick={() => drop(d.code)}
-                className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-dark-hover dark:hover:text-slate-200"
+                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-dark-hover dark:hover:text-slate-200"
               >
                 <X size={14} />
               </button>
             </div>
 
-            {conflict && (
-              <p className="mt-1.5 text-[11px] text-red-600 dark:text-red-400">
-                This is wider than the team allows on {d.label.toLowerCase()}, so the group
-                would never match. A group can only narrow its team.
+            {/* Ring on a wrapper, so ApiAutocomplete stays the upstream one. */}
+            <div className={cn(conflict && "rounded-md ring-1 ring-red-400")}>
+              <DimensionPicker
+                dimension={d}
+                teamId={teamId}
+                values={c.values}
+                onChange={(values) => put(d.code, { values })}
+              />
+            </div>
+
+            {conflict ? (
+              <p className="text-[11px] text-red-600 dark:text-red-400">
+                Wider than the team allows, so this group would never match. A group can only
+                narrow its team.
               </p>
-            )}
-            {c.operator === "IN" && c.values.length === 0 && (
-              <p className="mt-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+            ) : c.values.length === 0 ? (
+              <p className="text-[11px] text-amber-700 dark:text-amber-400">
                 No values picked yet, so nothing matches this filter.
               </p>
-            )}
+            ) : null}
           </div>
         );
       })}
@@ -295,6 +260,15 @@ function DimensionPicker({
   );
 }
 
+/**
+ * SCREAMING_CASE reads as prose. A business code like SHJ or INS012 is left
+ * alone, because nobody calls it anything else.
+ */
+const pretty = (v: string) =>
+  /^[A-Z0-9_]+$/.test(v) && v.includes("_")
+    ? v.replace(/_/g, " ").toLowerCase().replace(/^./, (ch) => ch.toUpperCase())
+    : v;
+
 /** Is this group criterion wider than the team's on the same dimension? */
 function widened(code: string, c?: Criterion, inherited?: Criterion[]): boolean {
   if (!c || !inherited) return false;
@@ -322,7 +296,7 @@ function InheritedRow({ inherited, dims }: { inherited: Criterion[]; dims: Dimen
           {label(c.dimension)}
           {c.operator === "ANY"
             ? ": any"
-            : `: ${c.values.slice(0, 2).join(", ")}${c.values.length > 2 ? ` +${c.values.length - 2}` : ""}`}
+            : `: ${c.values.slice(0, 2).map(pretty).join(", ")}${c.values.length > 2 ? ` +${c.values.length - 2}` : ""}`}
         </Badge>
       ))}
     </div>

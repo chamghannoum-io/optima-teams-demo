@@ -33,7 +33,12 @@ import {
 } from "@optima/ui";
 
 import { TeamGroups, type TeamGroup } from "./components/team-groups.js";
-import { CriteriaBuilder, type Criterion } from "./components/criteria-builder.js";
+import {
+  CriteriaBuilder,
+  DIMENSIONS_QUERY,
+  type Criterion,
+  type Dimension,
+} from "./components/criteria-builder.js";
 
 const SAVE_TEAM = gql`
   mutation SaveTeamV2($id: ID, $input: TeamV2Input!) {
@@ -74,6 +79,12 @@ const OPTIONS = gql`
     }
   }
 `;
+
+/** SCREAMING_CASE reads as prose; a business code like SHJ is left alone. */
+const pretty = (v: string) =>
+  /^[A-Z0-9_]+$/.test(v) && v.includes("_")
+    ? v.replace(/_/g, " ").toLowerCase().replace(/^./, (ch) => ch.toUpperCase())
+    : v;
 
 const STEPS = [
   { n: 1, label: "Team Info" },
@@ -141,6 +152,25 @@ export function TeamWizard({
   const [saving, setSaving] = useState(false);
 
   const { data: opts } = useQuery(OPTIONS, { skip: !open });
+  const { data: dimData } = useQuery(DIMENSIONS_QUERY, { skip: !open });
+  const dims: Dimension[] = dimData?.allocationDimensions ?? [];
+
+  /** A group may only narrow its team. Widening means it can never match. */
+  const widenedGroups = useMemo(() => {
+    const out: string[] = [];
+    for (const g of groups) {
+      for (const c of (g.criteria ?? []) as Criterion[]) {
+        const t = criteria.find((x) => x.dimension === c.dimension);
+        if (!t || t.operator !== "IN" || !t.values.length) continue;
+        const allowed = new Set(t.values);
+        if (c.operator === "ANY" || c.values.some((v) => !allowed.has(v))) {
+          out.push(g.name || "Untitled group");
+          break;
+        }
+      }
+    }
+    return out;
+  }, [groups, criteria]);
   const [saveTeam] = useMutation(SAVE_TEAM);
 
   const families = opts?.capacityFamilies ?? [];
@@ -357,7 +387,13 @@ export function TeamWizard({
 
   const nameError = !name.trim();
   const noRule = criteria.every((c) => c.operator !== "ANY" && !c.values.length);
-  const canNext = step === 1 ? !nameError : step === 2 ? groups.length > 0 : true;
+  const canNext =
+    step === 1
+      ? !nameError
+      : step === 2
+        // A widened group can never match, so it is an error, not a warning.
+        ? groups.length > 0 && widenedGroups.length === 0
+        : true;
 
   async function save() {
     setSaving(true);
@@ -530,7 +566,9 @@ export function TeamWizard({
                     <Badge key={c.dimension} variant="default">
                       {c.operator === "ANY"
                         ? `${c.dimension.toLowerCase()}: any`
-                        : `${c.values.slice(0, 2).join(", ")}${c.values.length > 2 ? ` +${c.values.length - 2}` : ""}`}
+                        : // Enum values are ours, so they read as prose rather
+                          // than as AUTHORIZATION_SUBMISSION.
+                          `${c.values.slice(0, 2).map(pretty).join(", ")}${c.values.length > 2 ? ` +${c.values.length - 2}` : ""}`}
                     </Badge>
                   ))}
                 {criteria.length === 0 && (
@@ -563,6 +601,19 @@ export function TeamWizard({
                   </AlertDescription>
                 </Alert>
               )}
+
+              {/* An error, not a warning: a widened group can never match. */}
+              {widenedGroups.length > 0 && (
+                <Alert variant="error">
+                  <AlertTriangle size={15} />
+                  <AlertDescription>
+                    {widenedGroups.join(", ")} {widenedGroups.length > 1 ? "ask" : "asks"} for
+                    work the team itself does not take, so {widenedGroups.length > 1 ? "they" : "it"}{" "}
+                    would never match. A group can only narrow its team.
+                  </AlertDescription>
+                </Alert>
+              )}
+
 
               <TeamGroups
                 groups={groups}
