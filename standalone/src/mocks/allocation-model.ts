@@ -286,22 +286,6 @@ export const POLICIES: AllocationPolicy[] = [
     test: "GREATER_THAN",
     sortOrder: 30,
   },
-  {
-    code: "URGENT_TAT",
-    label: "Urgent after",
-    description:
-      "Authorisations waiting longer than this go only to members cleared for urgent work, because the turnaround is nearly up.",
-    valueType: "NUMBER",
-    scope: "TEAM",
-    // The authorisation equivalent of high cost: what is at risk here is time.
-    appliesToTypes: AUTH_TYPES,
-    defaultValue: 2,
-    unit: "days waiting",
-    handlerTag: "URGENT",
-    itemField: "ageDays",
-    test: "GREATER_THAN",
-    sortOrder: 40,
-  },
 ];
 
 export const policyByCode = (code: string): AllocationPolicy | undefined =>

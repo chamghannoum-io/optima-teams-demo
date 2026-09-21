@@ -574,7 +574,7 @@ const typeDefs = /* GraphQL */ `
     priority: Int
     uniformCapacity: Boolean
     supervisorIds: [ID!]
-    """Member ids per policy handler tag, e.g. {tag: "URGENT", memberIds: [...]}"""
+    """Member ids per policy handler tag, e.g. {tag: "HIGH_COST", memberIds: [...]}"""
     handlers: [PolicyHandlerInput!]
     groups: [TeamGroupSaveInput!]
   }

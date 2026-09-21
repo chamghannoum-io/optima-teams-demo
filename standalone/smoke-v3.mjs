@@ -44,7 +44,7 @@ const reg = await run(`{
 }`);
 check("dimensions served as data", reg.allocationDimensions.length === 6,
   reg.allocationDimensions.map((d) => d.code).join(", "));
-check("policies served as data", reg.allocationPolicies.length >= 4,
+check("policies served as data", reg.allocationPolicies.length >= 3,
   reg.allocationPolicies.map((p) => p.code).join(", "));
 check("capacity families replace division", reg.capacityFamilies.length === 2,
   reg.capacityFamilies.map((f) => `${f.code}(exceed=${f.allowExceedByDefault})`).join(", "));
@@ -54,12 +54,16 @@ for (const pol of reg.allocationPolicies.filter((x) => x.handlerTag)) {
   console.log(`       ${pol.label.padEnd(22)} -> ${pol.appliesToTypes.length} types, clearance "${pol.handlerTag}"`);
 }
 const hc = reg.allocationPolicies.find((p) => p.code === "HIGH_COST");
-const ur = reg.allocationPolicies.find((p) => p.code === "URGENT_TAT");
 check("high cost applies to claim work only",
   hc.appliesToTypes.every((t) => t.startsWith("CLAIM") || t === "RECONCILIATION"));
-check("authorisation work gets its own policy instead",
-  ur.appliesToTypes.every((t) => t.startsWith("AUTHORIZATION")),
-  ur.appliesToTypes.join(", "));
+// The point of appliesToTypes is that a team is only asked about policies its
+// own work makes relevant, so an authorisation team should see fewer.
+check("an authorisation team is offered fewer policies than a claims team",
+  reg.allocationPolicies.filter((p) =>
+    p.appliesToTypes.some((t) => t.startsWith("AUTHORIZATION"))).length <
+  reg.allocationPolicies.filter((p) =>
+    p.appliesToTypes.some((t) => t.startsWith("CLAIM"))).length,
+  reg.allocationPolicies.map((p) => p.code).join(", "));
 
 console.log("\n2. Generic value source, one query for every dimension");
 for (const code of ["FACILITY", "DEPARTMENT", "PAYER", "WORK_ITEM_TYPE"]) {
@@ -102,11 +106,12 @@ console.log(`       ${authTeam.name}: ${authTeam.applicablePolicies.map((p) => p
 console.log(`       ${claimTeam.name}: ${claimTeam.applicablePolicies.map((p) => p.label).join(", ")}`);
 check("auth team is not asked about high cost",
   !authTeam.applicablePolicies.some((p) => p.code === "HIGH_COST"));
-check("auth team IS asked about urgency",
-  authTeam.applicablePolicies.some((p) => p.code === "URGENT_TAT"));
+check("auth team still gets the policies that apply to all work",
+  authTeam.applicablePolicies.some((p) => p.code === "DAILY_LIMIT"),
+  authTeam.applicablePolicies.map((p) => p.code).join(", "));
 check("claim team is asked about high cost",
   claimTeam.applicablePolicies.some((p) => p.code === "HIGH_COST"));
-check("claim team is not asked about urgency",
+check("claim team is asked about nothing auth-only",
   !claimTeam.applicablePolicies.some((p) => p.code === "URGENT_TAT"));
 
 console.log("\n5. Allocation still works, with a reason when it does not");
@@ -125,7 +130,12 @@ const reasons = [...new Set(p.unmatched.map((u) => u.reason))];
 console.log(`       unmatched reasons: ${reasons.slice(0, 3).join(" | ") || "(none)"}`);
 check("reasons name the dimension", reasons.every((r) => !/^No group accepts this item$/.test(r)) || reasons.length === 0);
 console.log(`       policy impact: ${p.policyImpact.map((x) => `${x.label} flagged ${x.flagged}, ${x.unassigned} unplaced`).join(" | ") || "(no policy applies)"}`);
-check("policy impact reported for this team's work", p.policyImpact.length > 0);
+// Only policies with a handlerTag flag items, and those are claims-only now,
+// so an auth team legitimately reports no impact.
+check("policy impact is reported where a flagging policy applies",
+  p.policyImpact.length > 0 ||
+    !(sample.applicablePolicies ?? []).some((x) => x.handlerTag),
+  `${p.policyImpact.length} impact rows for ${sample.name}`);
 
 console.log("\n6. Readiness, supervisor attribution");
 const rd = await run(`{
@@ -191,9 +201,8 @@ check("team spans several facilities", s.facilityIds.length > 1, s.facilityIds.j
 check("mixed families allowed, division no longer single-valued", s.division === null,
   `capacities: ${s.capacities.map((c) => `${c.family} exceed=${c.allowExceed}`).join(", ")}`);
 check("capacity declared per family it touches", s.capacities.length === 2);
-check("a mixed team gets BOTH policies",
-  s.applicablePolicies.some((p) => p.code === "HIGH_COST") &&
-  s.applicablePolicies.some((p) => p.code === "URGENT_TAT"),
+check("a mixed team gets the claim-side policy its work earns",
+  s.applicablePolicies.some((p) => p.code === "HIGH_COST"),
   s.applicablePolicies.map((p) => p.code).join(", "));
 console.log(`       rule: ${s.criteriaSummary.join(" · ")}`);
 

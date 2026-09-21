@@ -631,7 +631,7 @@ export function TeamWizard({
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Rules for the work this team handles. Each is offered only when the team's
                 own work makes it relevant, so a claims team is asked about value and an
-                authorisation team about turnaround.
+                authorisation team is not.
               </p>
 
               {applicable.length === 0 ? (

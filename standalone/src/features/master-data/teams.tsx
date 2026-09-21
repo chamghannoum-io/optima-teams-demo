@@ -21,7 +21,7 @@ import {
   cn,
 } from "@/components/enhanced";
 import type { FilterFieldConfig } from "@/components/enhanced";
-import { Pencil, Users, Trash2, ChevronDown, LayoutDashboard, List, Gauge} from "lucide-react";
+import { Pencil, Users, Trash2, LayoutDashboard, List, Gauge } from "lucide-react";
 import { Permission, usePermission, useAuth, isRcmSupervisor } from "@optima/auth";
 import {
   useBranchesAutocompleteQuery,
@@ -102,8 +102,6 @@ export default function TeamsPage() {
     normalizedAppRole === "rcmsupervisor";
   const canManageTeams = hasManageTeamsPermission || isRcmSupervisorUser;
   const [editTeam, setEditTeam] = useState<OptimaTeam | null>(null);
-  /** Which rows have their routing rule expanded. */
-  const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
   /** Two views: the supervisor dashboard, and the teams list itself. */
   const [view, setView] = useState<"dashboard" | "allocation" | "teams">("dashboard");
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -303,48 +301,10 @@ export default function TeamsPage() {
         header: t("common.description", "Description"),
         cell: (info) => {
           const team = info.row.original as any;
-          const rule: string[] = team.criteriaSummary ?? [];
-          const isOpen = expandedRules.has(team.id);
           return (
-            <div className="min-w-[16rem] space-y-1">
-              <div className="flex items-start gap-1.5">
-                <p className="flex-1 text-sm text-slate-700 dark:text-slate-300">
-                  {team.description || (
-                    <span className="text-slate-400">No description</span>
-                  )}
-                </p>
-                {rule.length > 0 && (
-                  <button
-                    type="button"
-                    aria-expanded={isOpen}
-                    aria-label={isOpen ? "Hide routing rule" : "Show routing rule"}
-                    onClick={() =>
-                      setExpandedRules((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(team.id)) next.delete(team.id);
-                        else next.add(team.id);
-                        return next;
-                      })
-                    }
-                    className="mt-0.5 shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-dark-hover dark:hover:text-slate-200"
-                  >
-                    <ChevronDown
-                      size={14}
-                      className={cn("transition-transform", isOpen && "rotate-180")}
-                    />
-                  </button>
-                )}
-              </div>
-              {isOpen && (
-                <div className="flex flex-wrap gap-1 pt-0.5">
-                  {rule.map((chip) => (
-                    <Badge key={chip} variant="default">
-                      {chip}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
+            <p className="min-w-[16rem] text-sm text-slate-700 dark:text-slate-300">
+              {team.description || <span className="text-slate-400">No description</span>}
+            </p>
           );
         },
       }),
@@ -544,10 +504,7 @@ export default function TeamsPage() {
           ]
         : []),
     ],
-    // expandedRules belongs here: without it the cell closes over the first
-    // empty Set and the routing-rule chevron toggles state that nothing reads,
-    // so it looks like a dead control.
-    [t, canManageTeams, updateTeam, togglingIds, refetchTeams, expandedRules]
+    [t, canManageTeams, updateTeam, togglingIds, refetchTeams]
   );
 
   if (combinedError) {
