@@ -257,7 +257,14 @@ export function ApiAutocomplete({
                   <X size={14} />
                 </span>
               )}
-              <ChevronsUpDown size={16} className="opacity-50" />
+              {/*
+                * Upstream's ApiAutocomplete shows this on every trigger. In the
+                * tag variant it reads as a sort control on a column header and
+                * does nothing, because the tags already show the value and the
+                * whole row opens the picker. Kept for the single-value variant,
+                * where it is the only thing saying the field is a dropdown.
+                */}
+              {!showMultipleAsTags && <ChevronsUpDown size={16} className="opacity-50" />}
             </span>
           </button>
         </PopoverPrimitive.Trigger>

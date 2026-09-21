@@ -36,7 +36,7 @@ const LABELS: Record<string, string> = {
   "common.name": "Name",
 };
 
-function translate(key: string, opts?: any): string {
+export function translate(key: string, opts?: any): string {
   if (LABELS[key]) {
     const base = LABELS[key];
     return opts && typeof opts.count === "number" ? `${opts.count} ${base}` : base;
