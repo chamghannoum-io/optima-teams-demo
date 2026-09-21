@@ -64,7 +64,7 @@ const TOOLS = {
           effectiveCriteria { dimension operator values }
           workItemTypes encounterScope
           departments payers payerCatchAll claimStatuses
-          members { id firstName lastName }
+          members { id firstName lastName unavailableToday }
         }
       }
       allocationDimensions {

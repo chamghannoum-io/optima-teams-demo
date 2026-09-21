@@ -20,7 +20,7 @@ const src = fs.readFileSync(path.join(here, 'match-groups.js'), 'utf8');
 const harness = new Function(
   '$',
   `${src.replace(/^return \[\{[\s\S]*$/m, '')}
-   return { criterionAccepts, criteriaAccept, specificityOf, mergeCriteria, criteriaFromLegacy, servesFacility, normKey, normValue };`
+   return { criterionAccepts, criteriaAccept, specificityOf, mergeCriteria, criteriaFromLegacy, servesFacility, normKey, normValue, availableMembers };`
 );
 const stub$ = () => ({ first: () => ({ json: { items: [] } }) });
 const M = harness(stub$);
@@ -160,6 +160,22 @@ check('an unrelated facility does not match',
   M.servesFacility({ branches: [{ healthLicense: 'DXB' }] }, { facilityId: 'SHJ' }), false);
 check('a team with no branches serves everything',
   M.servesFacility({ branches: [] }, { facilityId: 'ANYTHING' }), true);
+
+/* ── member availability ──────────────────────────────────────────────── */
+console.log('availability');
+
+const M1 = { id: 'u1' };
+const M2 = { id: 'u2', unavailableToday: true };
+const M3 = { id: 'u3', unavailableToday: false };
+
+check('someone away today is dropped from the pool',
+  M.availableMembers({ members: [M1, M2, M3] }).map((m) => m.id), ['u1', 'u3']);
+check('an absent flag means available, so an older T-0002 does not empty every pool',
+  M.availableMembers({ members: [M1] }).map((m) => m.id), ['u1']);
+check('a group with no members is still empty, not an error',
+  M.availableMembers({}).length, 0);
+check('a group where everyone is away yields nothing',
+  M.availableMembers({ members: [M2, { id: 'u4', unavailableToday: true }] }).length, 0);
 
 /* ── the regressions that bit before ───────────────────────────────────── */
 console.log('known regressions');

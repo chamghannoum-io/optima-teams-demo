@@ -186,6 +186,20 @@ function servesFacility(team, item) {
   }) || String(team.branchId ?? '') === String(item.branchId);
 }
 
+/**
+ * Members who can actually be given work tonight.
+ *
+ * Somebody on leave is still a member of the group, so they come back from
+ * T-0002; they just cannot take anything. Filtering here rather than in
+ * Distribute keeps them out of `userIds` too, so T-0003 and T-004 are not
+ * asked for the capacity of people who are away.
+ *
+ * Absent field means available: an older T-0002 that does not select
+ * unavailableToday must not silently empty every pool.
+ */
+const availableMembers = (g) =>
+  (g.members ?? []).filter((m) => m.unavailableToday !== true);
+
 /* ── match ─────────────────────────────────────────────────────────────── */
 
 const assignments = [];
@@ -228,7 +242,7 @@ for (const item of ranked) {
   // allocates the same way; array order is insertion order and is not stable.
   candidates.sort((a, b) => b.spec - a.spec || String(a.group.id).localeCompare(String(b.group.id)));
   const best = candidates[0];
-  const members = (best.group.members ?? []).map((m) => String(m.id ?? m.userId));
+  const members = availableMembers(best.group).map((m) => String(m.id ?? m.userId));
   members.forEach((m) => memberIds.add(m));
 
   assignments.push({
@@ -241,7 +255,7 @@ for (const item of ranked) {
     // Every group that accepted, narrowest first, so Distribute can fall
     // through to the next one when the winner has no capacity left.
     groupFallbacks: candidates.slice(1).map((c) => {
-      const ids = (c.group.members ?? []).map((m) => String(m.id ?? m.userId));
+      const ids = availableMembers(c.group).map((m) => String(m.id ?? m.userId));
       // Fallback members need capacity fetched too, or Distribute reads them
       // as zero and the fallback can never fire.
       ids.forEach((m) => memberIds.add(m));

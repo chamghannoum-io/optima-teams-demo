@@ -205,8 +205,56 @@ const typeDefs = /* GraphQL */ `
     handlerTags: [String!]!
     "Derived from handlerTags. Kept so v1-shaped callers keep working."
     handlesHighCost: Boolean
+    """
+    Windows in which this person is not available for work.
+
+    v1 had these and v2 dropped them, which is not only a broken query: an
+    unavailable member stayed in the allocation pool and kept being given work
+    while they were away. Availability is a property of the person, not of a
+    group, which is why it lives here and not on membership.
+    """
+    unavailabilities: [OptimaTeamUserUnavailability!]!
+    """True when a window covers today. What the allocation pool filters on."""
+    unavailableToday: Boolean!
+    "The v1 contract wrapped a member; here a member is the user, so this is id."
+    userId: ID!
+    "Likewise: v1 nested the user inside the member, so this returns self."
+    user: User!
     """Per-member cap, used when the team is not on uniform capacity."""
     capacityOverride: Int
+  }
+
+  """One window in which a member is unavailable. Shape follows v1 exactly."""
+  type OptimaTeamUserUnavailability {
+    id: ID!
+    rcmTeamId: ID
+    userId: ID
+    startDate: String
+    endDate: String
+    reason: String
+    cancelled: Boolean
+    """Whether the window covers today."""
+    activeToday: Boolean
+    createdBy: String
+    createdDate: String
+  }
+
+  """
+  UNASSIGN pushes the person's active work back to the unassigned bucket.
+  REDISTRIBUTE records the window only, and a supervisor reassigns by hand.
+  """
+  enum OptimaTeamUnavailabilityAction {
+    UNASSIGN
+    REDISTRIBUTE
+  }
+
+  input OptimaTeamUserUnavailabilityInput {
+    teamId: ID!
+    userId: ID!
+    startDate: String!
+    endDate: String!
+    reason: String
+    action: OptimaTeamUnavailabilityAction!
   }
 
   type RcmTeamCapacity {
@@ -229,7 +277,7 @@ const typeDefs = /* GraphQL */ `
     criteriaSummary: [String!]!
     rotationOrder: Int
     specificity: Int!
-    members: [User!]!
+    members(availableOnly: Boolean): [User!]!
     capacity: RcmTeamCapacity!
 
     "Derived from criteria. Kept so v1-shaped callers keep working."
@@ -296,7 +344,7 @@ const typeDefs = /* GraphQL */ `
     active: Boolean!
     rotationEnabled: Boolean!
     groups: [RcmTeamGroup!]!
-    members: [User!]!
+    members(availableOnly: Boolean): [User!]!
     capacity: RcmTeamCapacity!
     coverage: RcmTeamCoverageReport!
 
@@ -762,6 +810,12 @@ const typeDefs = /* GraphQL */ `
     optimaTeamCreate(input: OptimaTeamInput!): RcmTeamV2
     optimaTeamUserAdd(id: ID!, userIds: [ID!]!): RcmTeamV2
     optimaTeamUserRemove(id: ID!, userIds: [ID!]!): RcmTeamV2
+    """Mark a member unavailable for a date range. Rejects overlaps, as v1 does."""
+    optimaTeamUserUnavailabilitySet(
+      input: OptimaTeamUserUnavailabilityInput!
+    ): OptimaTeamUserUnavailability
+    """Cancel a window. Kept, not deleted, so the history stays auditable."""
+    optimaTeamUserUnavailabilityCancel(id: ID!): OptimaTeamUserUnavailability
 
     optimaTeamV2GroupUpdate(groupId: ID!, input: RcmTeamGroupInput!): RcmTeamGroup
     optimaTeamV2GroupCreate(teamId: ID!, input: RcmTeamGroupInput!): RcmTeamGroup
@@ -1501,7 +1555,11 @@ function allocationPreview(t: Team, count: number) {
   // Per-member remaining capacity, keyed by group.
   const cap = new Map<string, { userId: string; name: string; groupName: string; assigned: number; capacity: number }>();
   for (const g of t.groups) {
-    for (const m of g.members) {
+    // Anyone away today never enters the map, so they cannot be drawn and
+    // their capacity is not counted as available. This is the correctness half
+    // of restoring unavailability: v1 filtered the pool, v2 dropped the
+    // concept entirely and kept handing work to people on leave.
+    for (const m of available(g.members as any[])) {
       const k = `${g.id}:${m.id}`;
       cap.set(k, {
         userId: m.id,
@@ -1533,7 +1591,7 @@ function allocationPreview(t: Team, count: number) {
     const flagged = flaggingPolicies(t, item);
     const eligible = flagged.reduce(
       (members: any[], p) => members.filter((m: any) => hasTag(m, p.handlerTag!)),
-      g.members as any[],
+      available(g.members as any[]),
     );
     const pool = eligible
       .map((m) => cap.get(`${g.id}:${m.id}`)!)
@@ -1548,6 +1606,8 @@ function allocationPreview(t: Team, count: number) {
         flaggedBy: flagged.map((p) => p.code),
         reason: !g.members.length
           ? "Group has no members"
+          : !available(g.members as any[]).length
+          ? "Every member of the group is unavailable"
           : eligible.length === 0 && flagged.length
             ? `No member cleared for ${flagged.map((p) => p.label.toLowerCase()).join(" and ")}`
             : "Group at capacity",
@@ -1719,6 +1779,51 @@ function simulateRun(day: number) {
 let runCache: any[] | null = null;
 /** Cheap memo: a run walks every team, and the dashboard asks on every render. */
 const allRuns = () => (runCache ??= Array.from({ length: RUN_COUNT }, (_, d) => simulateRun(d + 1)));
+
+/* ────────────────────────── member availability ──────────────────────────
+ * v1 had unavailability windows and v2 dropped them. That reads as a broken
+ * query, but the real cost is allocation: an unavailable member stayed in the
+ * pool and kept being handed work while they were away.
+ *
+ * Availability is a property of the person, not of a group membership. The
+ * team id is recorded for provenance and permissions only, which also matches
+ * v1, where UNASSIGN explicitly acts across every team because assignments
+ * carry no team dimension.
+ * ------------------------------------------------------------------------ */
+
+interface Unavailability {
+  id: string;
+  rcmTeamId: string;
+  userId: string;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+  cancelled: boolean;
+  /** UNASSIGN or REDISTRIBUTE. Recorded so the UI can show what was chosen. */
+  action: string;
+  createdBy: string;
+  createdDate: string;
+}
+
+const unavailabilities: Unavailability[] = [];
+let unavailabilitySeq = 1;
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** Inclusive on both ends, which is how a supervisor reads "away 1st to 5th". */
+const coversDay = (u: Unavailability, d: string) =>
+  !u.cancelled && u.startDate <= d && u.endDate >= d;
+
+const windowsFor = (userId: string) =>
+  unavailabilities.filter((u) => String(u.userId) === String(userId));
+
+/** The one question allocation asks. */
+const isUnavailable = (userId: string, on = today()) =>
+  windowsFor(userId).some((u) => coversDay(u, on));
+
+/** Drop anyone away today. Used everywhere a pool is built. */
+const available = <T extends { id: string }>(members: T[]): T[] =>
+  members.filter((m) => !isUnavailable(m.id));
 
 /** Per-team assignment settings; defaults match observed coder throughput. */
 const teamSettings = new Map<string, { maxAuth: number; maxClaim: number }>();
@@ -2024,6 +2129,16 @@ const resolvers = {
   User: {
     handlerTags: (u: any) => u.handlerTags ?? [],
     handlesHighCost: (u: any) => (u.handlerTags ?? []).includes("HIGH_COST"),
+    unavailabilities: (u: any) => windowsFor(u.id),
+    unavailableToday: (u: any) => isUnavailable(u.id),
+    // v1 wrapped a member around the user. Here a member is the user, so the
+    // wrapper's two fields resolve to the id and to self.
+    userId: (u: any) => u.id,
+    user: (u: any) => u,
+  },
+
+  OptimaTeamUserUnavailability: {
+    activeToday: (u: Unavailability) => coversDay(u, today()),
   },
 
   AllocationPolicy: {
@@ -2349,9 +2464,12 @@ const resolvers = {
       return t.groups.flatMap((g) => g.members.filter((m) => !seen.has(m.id) && seen.add(m.id)));
     },
     coverage,
-    members: (t: Team) => {
+    members: (t: Team, { availableOnly }: any) => {
       const seen = new Set<string>();
-      return t.groups.flatMap((g) => g.members.filter((m) => !seen.has(m.id) && seen.add(m.id)));
+      const all = t.groups.flatMap((g) =>
+        g.members.filter((m) => !seen.has(m.id) && seen.add(m.id)),
+      );
+      return availableOnly ? available(all) : all;
     },
     criteriaSummary: (t: Team) => describeCriteria(t.criteria),
     policies: (t: Team) => t.policies ?? [],
@@ -2382,6 +2500,8 @@ const resolvers = {
 
   RcmTeamGroup: {
     specificity,
+    members: (g: Group, { availableOnly }: any) =>
+      availableOnly ? available(g.members as any[]) : g.members,
     capacity: groupCapacity,
     effectiveCriteria: (g: Group) => mergeCriteria(teamOfGroup(g.id)?.criteria, g.criteria),
     criteriaSummary: (g: Group) => describeCriteria(g.criteria),
@@ -2628,6 +2748,66 @@ const resolvers = {
       const drop = new Set(userIds.map(String));
       t.groups.forEach((g) => (g.members = g.members.filter((m) => !drop.has(String(m.id)))));
       return t;
+    },
+
+    /**
+     * Mark a member unavailable. Validation follows v1 exactly, because the
+     * rules are not arbitrary: an inverted range is a typo, a non-member is
+     * the wrong team picked, and overlapping windows make "is this person
+     * away" ambiguous for the allocator.
+     */
+    optimaTeamUserUnavailabilitySet: (_: unknown, { input }: any) => {
+      const t = findTeam(input.teamId);
+      if (!t) throw new Error("Team not found");
+      if (input.endDate < input.startDate) {
+        throw new Error("endDate cannot be before startDate");
+      }
+      const roster = new Set(t.groups.flatMap((g) => g.members.map((m) => String(m.id))));
+      if (!roster.has(String(input.userId))) {
+        throw new Error("User is not a member of the team");
+      }
+      const overlaps = unavailabilities.some(
+        (u) =>
+          !u.cancelled &&
+          String(u.userId) === String(input.userId) &&
+          u.startDate <= input.endDate &&
+          u.endDate >= input.startDate,
+      );
+      if (overlaps) {
+        throw new Error("User already has an unavailability window overlapping these dates");
+      }
+
+      const row: Unavailability = {
+        id: String(unavailabilitySeq++),
+        rcmTeamId: String(input.teamId),
+        userId: String(input.userId),
+        startDate: input.startDate,
+        endDate: input.endDate,
+        reason: input.reason ?? null,
+        cancelled: false,
+        action: input.action,
+        createdBy: "Manager Provider",
+        createdDate: new Date().toISOString(),
+      };
+      unavailabilities.push(row);
+
+      // The action is recorded, not executed. Upstream UNASSIGN calls
+      // assignmentService.unassignAllActiveForCoder, which pushes the person's
+      // active work back to the unassigned bucket across every team, since an
+      // assignment records no team. Standalone simulates allocation per run
+      // rather than persisting assignments, so there is nothing here to
+      // unassign, and pretending otherwise would make the demo claim an effect
+      // it does not have. Either way the person leaves tonight's pool, which
+      // is the part that changes what gets allocated.
+      return row;
+    },
+
+    optimaTeamUserUnavailabilityCancel: (_: unknown, { id }: any) => {
+      const row = unavailabilities.find((u) => u.id === String(id));
+      if (!row) throw new Error("Unavailability not found");
+      // Cancelled, never deleted, so the window stays auditable.
+      row.cancelled = true;
+      return row;
     },
 
     optimaTeamV2GroupUpdate: (_: unknown, { groupId, input }: any) => {

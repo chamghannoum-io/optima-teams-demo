@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "pseudonymize": "node scripts/pseudonymize.mjs",
     "build:public": "node scripts/pseudonymize.mjs && cross-env PUBLIC=1 vite build",
-    "test": "node workflow/match-groups.test.mjs && node workflow/distribute.test.mjs && node workflow/matcher-parity.test.mjs && node workflow/registry-parity.test.mjs && node workflow/patch-workflow.mjs --check",
+    "test": "node workflow/match-groups.test.mjs && node workflow/distribute.test.mjs && node workflow/matcher-parity.test.mjs && node workflow/registry-parity.test.mjs && node availability.test.mjs && node smoke-v3.mjs && node validate-queries.mjs && node workflow/patch-workflow.mjs --check",
     "replay": "node replay.mjs",
     "simulate": "node workflow/capture-fixtures.mjs"
   },
