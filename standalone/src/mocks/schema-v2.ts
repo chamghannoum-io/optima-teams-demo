@@ -573,6 +573,73 @@ const typeDefs = /* GraphQL */ `
     sharedMemberships: Int!
   }
 
+  """
+  One execution of the allocation workflow.
+
+  Optima already persists every run to assignment_auto_assign_request_response_log
+  (requestPayload, responsePayload, isFailed, indexed on created_date and
+  is_failed) and exposes none of it. So the numbers a supervisor needs at 9am
+  are already in the database and unreachable. This type is the shape that
+  table should be read through: upstream parses responsePayload into it, here
+  it is served from the same summary the workflow emits.
+  """
+  type AllocationRun {
+    id: ID!
+    startedAt: String!
+    finishedAt: String
+    """A dry run previews without calling T-0005. The Review step uses this."""
+    dryRun: Boolean!
+    failed: Boolean!
+    """Null for the nightly trigger, a user for a manual run."""
+    triggeredBy: String
+    totals: AllocationRunTotals!
+    byGroup: [AllocationRunGroup!]!
+    """Why work fell through, by the dimension that rejected it."""
+    unmatchedByDimension: [AllocationRunReason!]!
+    """Groups that accepted work they had no capacity for."""
+    overflow: [AllocationRunOverflow!]!
+  }
+
+  type AllocationRunTotals {
+    ranked: Int!
+    matched: Int!
+    assigned: Int!
+    unmatched: Int!
+    overflow: Int!
+    """Items the winning group could not take, placed by a broader group."""
+    fallback: Int!
+    assignees: Int!
+  }
+
+  type AllocationRunGroup {
+    groupId: ID!
+    groupName: String!
+    teamName: String!
+    matched: Int!
+    assigned: Int!
+  }
+
+  type AllocationRunReason {
+    """Registry dimension code, or null when nothing accepted at all."""
+    dimension: String
+    label: String!
+    count: Int!
+    """The values that had nowhere to go, worst first."""
+    topValues: [AllocationRunValue!]!
+  }
+
+  """One dimension value and how much work it cost."""
+  type AllocationRunValue {
+    value: String!
+    count: Int!
+  }
+
+  type AllocationRunOverflow {
+    groupName: String!
+    count: Int!
+    reason: String!
+  }
+
   """Whether the whole estate can actually allocate the work that arrives."""
   type AllocationReadiness {
     teamsTotal: Int!
@@ -635,6 +702,13 @@ const typeDefs = /* GraphQL */ `
     optimaAllocationEstate: AllocationEstate!
     """Estate-wide readiness: what would fall through today."""
     optimaAllocationReadiness: AllocationReadiness!
+    """
+    Allocation run history, newest first. Backed upstream by
+    assignment_auto_assign_request_response_log.
+    """
+    optimaAllocationRuns(first: Int, failedOnly: Boolean): [AllocationRun!]!
+    """The most recent run, or null if allocation has never run."""
+    optimaLatestAllocationRun: AllocationRun
     """Teams matching a supervisor-style filter."""
     optimaTeamsFiltered(filter: TeamQueryFilter): [RcmTeamV2!]!
     """Dry run of a deletion: what it would break, without deleting."""
@@ -1381,13 +1455,20 @@ function matchGroup(t: Team, item: any) {
  * possible because criteria are data: "no group accepts this" was all v2 could
  * say, and it is the first question a supervisor asks.
  */
-function rejectionReason(t: Team, item: any): string {
+function rejectionDetail(t: Team, item: any): { reason: string; dimension: string | null; value: string | null } {
   const active = t.groups.filter((g) => g.active);
-  if (!active.length) return "Team has no active groups";
+  if (!active.length) {
+    return { reason: "Team has no active groups", dimension: null, value: null };
+  }
   if (!criteriaAccept(t.criteria, item)) {
     const c = rejectingCriterion(t.criteria, item);
-    const label = dimensionByCode(c?.dimension ?? "")?.label ?? c?.dimension ?? "";
-    return `Outside the team's rule on ${label.toLowerCase()}`;
+    const dim = dimensionByCode(c?.dimension ?? "");
+    const label = dim?.label ?? c?.dimension ?? "";
+    return {
+      reason: `Outside the team's rule on ${label.toLowerCase()}`,
+      dimension: c?.dimension ?? null,
+      value: dim ? String(item[dim.itemField] ?? "(none)") : null,
+    };
   }
   const blamed = new Map<string, number>();
   for (const g of active) {
@@ -1396,7 +1477,7 @@ function rejectionReason(t: Team, item: any): string {
     blamed.set(c.dimension, (blamed.get(c.dimension) ?? 0) + 1);
   }
   const worst = [...blamed.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (!worst) return "No group accepts this item";
+  if (!worst) return { reason: "No group accepts this item", dimension: null, value: null };
   const dim = dimensionByCode(worst[0]);
   const value = item[dim?.itemField ?? ""] ?? "(none)";
   // Name the work item type as well: the same department is often covered for
@@ -1405,8 +1486,15 @@ function rejectionReason(t: Team, item: any): string {
   const wit = item.workItemType
     ? ` for ${String(item.workItemType).replace(/_/g, " ").toLowerCase()}`
     : "";
-  return `No group admits ${dim?.label.toLowerCase() ?? worst[0]} "${value}"${wit}`;
+  return {
+    reason: `No group admits ${dim?.label.toLowerCase() ?? worst[0]} "${value}"${wit}`,
+    dimension: worst[0],
+    value: String(value),
+  };
 }
+
+/** The sentence alone, for callers that only render it. */
+const rejectionReason = (t: Team, item: any): string => rejectionDetail(t, item).reason;
 
 function allocationPreview(t: Team, count: number) {
   const items = buildItems(t, count);
@@ -1433,7 +1521,7 @@ function allocationPreview(t: Team, count: number) {
   for (const item of items) {
     const g = matchGroup(t, item);
     if (!g) {
-      unmatched.push({ ...item, reason: rejectionReason(t, item) });
+      unmatched.push({ ...item, ...rejectionDetail(t, item) });
       continue;
     }
     matched.set(g.id, (matched.get(g.id) ?? 0) + 1);
@@ -1523,6 +1611,114 @@ function allocationPreview(t: Team, count: number) {
     unmatched,
   };
 }
+
+/* ───────────────────────── allocation run history ────────────────────────
+ * What the nightly workflow did, per run.
+ *
+ * Upstream this is a read over assignment_auto_assign_request_response_log,
+ * whose responsePayload already holds the workflow's summary. Nothing reads
+ * that table today, so the numbers a supervisor needs at 9am are in the
+ * database and unreachable. Here the same summary is produced by running the
+ * preview engine across every team, so the shape is exercised against real
+ * behaviour rather than mocked.
+ * ------------------------------------------------------------------------ */
+
+const RUN_COUNT = 14;
+const DAY_MS = 86_400_000;
+
+/** One estate-wide run. Deterministic in `day`, so the history is stable. */
+function simulateRun(day: number) {
+  const started = new Date(Date.now() - day * DAY_MS);
+  started.setHours(0, 12, 0, 0);
+
+  const totals = { ranked: 0, matched: 0, assigned: 0, unmatched: 0, overflow: 0, fallback: 0 };
+  const byGroup = new Map<string, any>();
+  const reasons = new Map<string, { count: number; values: Map<string, number> }>();
+  const overflow = new Map<string, { count: number; reason: string }>();
+  const assignees = new Set<string>();
+
+  for (const t of teams) {
+    if (!t.active) continue;
+    // Volume drifts a little day to day, the way arrivals actually do.
+    const scale = 0.85 + ((day * 37) % 31) / 100;
+    const preview = allocationPreview(t, Math.round(300 * scale));
+
+    const bump = (name: string, field: "matched" | "assigned") => {
+      const key = `${t.id}:${name}`;
+      if (!byGroup.has(key)) {
+        byGroup.set(key, { groupId: key, groupName: name, teamName: t.name, matched: 0, assigned: 0 });
+      }
+      byGroup.get(key)[field] += 1;
+    };
+
+    for (const row of preview.items ?? []) {
+      totals.ranked += 1;
+      totals.matched += 1;
+      totals.assigned += 1;
+      bump(row.groupName, "matched");
+      bump(row.groupName, "assigned");
+      if (row.assigneeId) assignees.add(String(row.assigneeId));
+    }
+
+    for (const u of preview.unmatched ?? []) {
+      totals.ranked += 1;
+      // Two different failures share this array. An item a group accepted but
+      // had no room for is overflow, and a capacity problem; an item nothing
+      // accepted is unmatched, and a configuration problem. Counting them
+      // together is what makes a coverage gap look like a staffing gap.
+      if (u.groupName) {
+        totals.overflow += 1;
+        totals.matched += 1;
+        bump(u.groupName, "matched");
+        const o = overflow.get(u.groupName) ?? { count: 0, reason: u.reason ?? "Group at capacity" };
+        o.count += 1;
+        overflow.set(u.groupName, o);
+        continue;
+      }
+      totals.unmatched += 1;
+      const key = u.dimension ?? "NONE";
+      if (!reasons.has(key)) reasons.set(key, { count: 0, values: new Map() });
+      const r = reasons.get(key)!;
+      r.count += 1;
+      const v = String(u.value ?? "(none)");
+      r.values.set(v, (r.values.get(v) ?? 0) + 1);
+    }
+  }
+
+  return {
+    id: `run-${started.toISOString().slice(0, 10)}`,
+    startedAt: started.toISOString(),
+    finishedAt: new Date(started.getTime() + 41_000).toISOString(),
+    dryRun: false,
+    // One failure in the window, so the failed filter and the UI's error state
+    // are exercised by the seed rather than only in theory.
+    failed: day === 4,
+    triggeredBy: day === 1 ? "Supervisor (manual)" : null,
+    totals: { ...totals, assignees: assignees.size },
+    byGroup: [...byGroup.values()].sort((a, b) => b.matched - a.matched),
+    unmatchedByDimension: [...reasons.entries()]
+      .map(([dimension, r]) => ({
+        dimension: dimension === "NONE" ? null : dimension,
+        label:
+          dimension === "NONE"
+            ? "Nothing accepted the item"
+            : (dimensionByCode(dimension)?.label ?? dimension),
+        count: r.count,
+        topValues: [...r.values.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 6)
+          .map(([value, count]) => ({ value, count })),
+      }))
+      .sort((a, b) => b.count - a.count),
+    overflow: [...overflow.entries()]
+      .map(([groupName, o]) => ({ groupName, count: o.count, reason: o.reason }))
+      .sort((a, b) => b.count - a.count),
+  };
+}
+
+let runCache: any[] | null = null;
+/** Cheap memo: a run walks every team, and the dashboard asks on every render. */
+const allRuns = () => (runCache ??= Array.from({ length: RUN_COUNT }, (_, d) => simulateRun(d + 1)));
 
 /** Per-team assignment settings; defaults match observed coder throughput. */
 const teamSettings = new Map<string, { maxAuth: number; maxClaim: number }>();
@@ -1961,6 +2157,11 @@ const resolvers = {
     },
 
     optimaAllocationReadiness: () => readinessOf(teams),
+    optimaAllocationRuns: (_: unknown, { first, failedOnly }: any) => {
+      const rows = failedOnly ? allRuns().filter((r) => r.failed) : allRuns();
+      return rows.slice(0, first ?? RUN_COUNT);
+    },
+    optimaLatestAllocationRun: () => allRuns()[0] ?? null,
 
     /** The team list, narrowed the way a supervisor thinks about it. */
     optimaTeamDeletionImpact: (_: unknown, { id }: any) => {

@@ -10,7 +10,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "pseudonymize": "node scripts/pseudonymize.mjs",
-    "build:public": "node scripts/pseudonymize.mjs && cross-env PUBLIC=1 vite build"
+    "build:public": "node scripts/pseudonymize.mjs && cross-env PUBLIC=1 vite build",
+    "test": "node workflow/match-groups.test.mjs && node workflow/distribute.test.mjs && node workflow/matcher-parity.test.mjs && node workflow/registry-parity.test.mjs && node workflow/patch-workflow.mjs --check",
+    "replay": "node replay.mjs",
+    "simulate": "node workflow/capture-fixtures.mjs"
   },
   "dependencies": {
     "@apollo/client": "^3.11.8",
@@ -29,6 +32,8 @@
     "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
     "date-fns": "^4.4.0",
+    "echarts": "^6.1.0",
+    "echarts-for-react": "^3.0.6",
     "graphql": "^16.9.0",
     "graphql-tag": "^2.12.6",
     "graphql-yoga": "^5.22.0",

@@ -28,6 +28,7 @@ import {
   useReadiness,
 } from "./components/allocation-readiness.js";
 import { AllocationPreview } from "./components/allocation-preview.js";
+import { AllocationRuns } from "./components/allocation-runs.js";
 
 const TEAMS = gql`
   query DashboardTeams {
@@ -109,6 +110,18 @@ export function AllocationDashboard({ onOpenTeam }: { onOpenTeam?: (teamId: stri
           )}
         </p>
       )}
+
+      {/*
+       * What the last run actually did.
+       *
+       * Readiness above is a forecast; this is the outcome, and it is the half
+       * that has never been visible. Optima has been writing every run to
+       * assignment_auto_assign_request_response_log and exposing none of it.
+       */}
+      <section className="space-y-2">
+        <SectionHeader micro title="Last night's run" />
+        <AllocationRuns />
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/*
