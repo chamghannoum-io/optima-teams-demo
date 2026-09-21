@@ -35,6 +35,23 @@ if (live && (!gateway || !gateway.startsWith("http"))) {
   process.exit(1);
 }
 
+/*
+ * Refuse to commit in fixture mode.
+ *
+ * The four read tools are gated, but Step 4 - Assign is not: it always makes a
+ * real HTTP call. Fixture mode drops gatewayBaseUrl, so that call falls back to
+ * the node's default, which is the production gateway. Committing without an
+ * explicit gateway would therefore write to production from a run that looks
+ * entirely local.
+ */
+if (commit && !live) {
+  console.log("Refusing: --commit needs --live --gateway <url>.\n");
+  console.log("  Step 4 - Assign has no fixture, so it always calls a real gateway.");
+  console.log("  Without --gateway it falls back to the production default in the");
+  console.log("  node, and a run that looks local would write to production.");
+  process.exit(1);
+}
+
 if (!fs.existsSync(FIXTURE)) {
   console.log(`missing ${path.basename(FIXTURE)}. Run: node server.mjs, then npm run simulate`);
   process.exit(1);
