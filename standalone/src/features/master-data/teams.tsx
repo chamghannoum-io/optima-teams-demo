@@ -21,7 +21,7 @@ import {
   cn,
 } from "@/components/enhanced";
 import type { FilterFieldConfig } from "@/components/enhanced";
-import { Pencil, Users, Trash2, ChevronDown, LayoutDashboard, List } from "lucide-react";
+import { Pencil, Users, Trash2, ChevronDown, LayoutDashboard, List, Gauge} from "lucide-react";
 import { Permission, usePermission, useAuth, isRcmSupervisor } from "@optima/auth";
 import {
   useBranchesAutocompleteQuery,
@@ -36,6 +36,7 @@ import { TeamWizard } from "./team-wizard.js";
 import { gql, useQuery } from "@apollo/client";
 import { ReadinessBanner } from "./components/allocation-readiness.js";
 import { AllocationDashboard } from "./allocation-dashboard.js";
+import RcmDashboardPage from "../rcm-dashboard/index.js";
 import { DeleteTeamDialog } from "./components/delete-team-dialog.js";
 
 type OptimaTeam = NonNullable<GetOptimaTeamsQuery["optimaTeams"]>[number];
@@ -104,7 +105,7 @@ export default function TeamsPage() {
   /** Which rows have their routing rule expanded. */
   const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
   /** Two views: the supervisor dashboard, and the teams list itself. */
-  const [view, setView] = useState<"dashboard" | "teams">("dashboard");
+  const [view, setView] = useState<"dashboard" | "allocation" | "teams">("dashboard");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [deleteTeam, setDeleteTeam] = useState<{ id: string; name: string } | null>(null);
   // 1 = Team Info (edit pencil); 2 = Members (manage-members shortcut)
@@ -594,10 +595,13 @@ export default function TeamsPage() {
         }
       />
 
-      <PageTabs value={view} onValueChange={(v: string) => setView(v as "dashboard" | "teams")}>
+      <PageTabs value={view} onValueChange={(v: string) => setView(v as "dashboard" | "allocation" | "teams")}>
         <PageTabsList className="justify-start px-6">
           <PageTabsTrigger value="dashboard">
             <LayoutDashboard size={13} /> Dashboard
+          </PageTabsTrigger>
+          <PageTabsTrigger value="allocation">
+            <Gauge size={13} /> Allocation
           </PageTabsTrigger>
           <PageTabsTrigger value="teams">
             <List size={13} /> Teams
@@ -605,7 +609,17 @@ export default function TeamsPage() {
           </PageTabsTrigger>
         </PageTabsList>
 
+        {/*
+         * The real RCM Supervisor Dashboard, byte-identical to
+         * features/rcm-dashboard upstream. It carries its own My Day / My Team
+         * tabs, as it does in the app.
+         */}
         <PageTabsContent value="dashboard">
+          <RcmDashboardPage />
+        </PageTabsContent>
+
+        {/* Allocation readiness and the run log: what this module adds. */}
+        <PageTabsContent value="allocation">
           <PageContent>
             <AllocationDashboard onOpenTeam={openTeam} />
           </PageContent>
