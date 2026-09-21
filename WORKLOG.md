@@ -231,6 +231,109 @@ baseline of 433/227. The +32 is the alias restoration.
 
 ---
 
+## 2026-09-21b, Track B and C: run history and the dashboard
+
+### Committed
+
+```
+054474d  Allocation run history, and the dashboard panels to read it
+fde037d  Workflow v3 matching: criteria, capacity fallback, offline simulation
+6b99751  Teams v3: dimension registry, criteria builder, allocation dashboard
+```
+
+Secret scan before each: gitleaks found four hits in the working tree
+(`.env`, `docs/Walkthough.md`, `docs/RCM Auto-Assignment (1).json`,
+`standalone/dist/`), all gitignored and untracked, so none could be staged.
+`gitleaks protect --staged` clean on every commit.
+
+### Track B, the observability gap
+
+`assignment_auto_assign_request_response_log` already holds every run's
+request, response and failure flag, indexed on `created_date` and `is_failed`,
+and no GraphQL field reads it. Closing that is the cheapest high-value thing
+on the whole list, so it went first.
+
+`AllocationRun` is the shape that table should be read through. Upstream parses
+`responsePayload` into it; here it is produced by running the existing preview
+engine across every team, so the shape is exercised against real behaviour
+rather than a fixture that agrees with itself.
+
+**Unmatched and overflow are now counted apart.** They arrive in the same array
+from the preview engine and they are different failures: nothing accepted the
+item (coverage, a configuration problem) against a group accepted it and had no
+capacity (staffing). Counting them together makes a coverage gap look like a
+staffing gap, which sends a supervisor to hire instead of to the group editor.
+
+`rejectionReason` became `rejectionDetail`, returning the dimension and value
+next to the sentence. It already computed both and discarded them, which is why
+"why did this fall through" could only ever be rendered as prose.
+
+### Track C, the dashboard
+
+Laid out to match upstream `features/rcm-dashboard`'s `MyTeamTab`: counts strip,
+then chart paired with breakdown, then a second pair.
+
+`dashboard-chart.tsx` holds the conventions once. Upstream repeats the same
+tooltip, axis and dark-theme setup in every chart and differs only in the
+series; copying that repetition would have been five chances to drift. Colours
+and axis styling are taken verbatim from `aging-chart.tsx` and
+`assignment-overview-chart.tsx`, so a chart here reads as the same chart.
+
+Two things the first screenshot caught, both real:
+
+- **The gradient was lying.** `BAR_COLORS` runs green to orange, which encodes
+  "further right is worse". True of aging buckets, false of a group breakdown.
+  Now opt-in via `palette="gradient"`.
+- **The x-axis was unreadable.** Eight bars labelled Submission, Coders,
+  Submission, Resubmission. Group names repeat across teams, so the bare name
+  is not a label; ambiguous ones are now qualified by team.
+
+And one bug: the label `useMemo` went in below the early returns, so the hook
+order changed between renders and the panel threw. Caught by the screenshot
+run, not by the build.
+
+**Bundle.** echarts via its default entry cost 607 KB (201 KB gzipped) for a
+page that draws bars. Registering `BarChart`, `Grid`, `Tooltip`, `Legend` and
+`CanvasRenderer` per-component gets that back. Matters because this deploys
+publicly.
+
+### Verified
+
+| | |
+|---|---|
+| `npm test` | 43 matcher, 18 distribute, 35 parity, 25 registry, workflow in sync |
+| `smoke-v3.mjs` | all checks passed |
+| `validate-queries.mjs` | 25 documents, new `AllocationRuns` valid |
+| `npm run build` | clean, 1,867 KB / 567 KB gzipped |
+| `shots.mjs` | no console errors at 1440px or 900px |
+
+### A pre-existing failure, not introduced here
+
+`validate-queries.mjs` reports 3 invalid documents, all v1 unavailability
+operations in `vendor/app/generated.ts`:
+`GetOptimaTeamMembers` (`availableOnly`, `userId`, `unavailableToday`),
+`SetOptimaTeamUserUnavailability`, `CancelOptimaTeamUserUnavailability`.
+
+Confirmed pre-existing by stashing this session's work and re-running: 3 invalid
+before, 3 invalid after. The v2 schema never implemented member unavailability,
+which v1 has and the extraction carried over. Worth closing, since availability
+is a real input to allocation: an unavailable member should drop out of the
+pool before the draw, and today nothing removes them.
+
+### Next
+
+1. **Member unavailability in the v2 schema**, above. It is also an allocation
+   correctness gap, not only a broken query.
+2. **Department on resubmissions and claim submissions**, 32.5% of the queue,
+   still the largest coverage blocker. Backend.
+3. **T-0002 gateway component** updated to what `server.mjs` now serves, which
+   is what phase 2 waits on.
+4. Dark theme pass over the new panels. The tokens and `.dark` variant exist
+   and the charts follow the class, but nothing has been reviewed side by side
+   against the real dashboard yet.
+
+---
+
 ## Background established before this session
 
 - Prod runs **v1** of the workflow. 43 batches (facility x work item type),
