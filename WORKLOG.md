@@ -231,6 +231,77 @@ baseline of 433/227. The +32 is the alias restoration.
 
 ---
 
+## 2026-09-21d, running it in a real n8n
+
+Webhook: `https://neurix.opt-test.iohealth.com/api/webhook/assignmentautoassignv3`.
+Both modes now work against it.
+
+| Mode | Payload | Tool calls | Use when |
+|---|---|---|---|
+| fixture | 192 KB | none | n8n cannot reach this machine |
+| live | 0 KB | real, via tunnel | you want the actual calls exercised |
+
+```bash
+node server.mjs                                    # gateway on :4000
+ngrok http 4000                                    # localtunnel is not usable, see below
+node workflow/post-to-n8n.mjs <webhook>   --live --gateway https://<id>.ngrok-free.dev/api/tool
+```
+
+Verified live: HTTP 200, and one run added exactly one call each to T-0001,
+T-0002, T-0003 and T-004 in the gateway log, and none to T-0005 because
+`dryRun` was on. 660 ranked, 465 matched, 195 unmatched, 0 overflow, the same
+figures the local harness produces.
+
+### Four defects, each found only by doing it for real
+
+**Fixture mode had never worked.** `Match Groups` named
+`$('Step 1 - Get Teams')` and `Distribute` named the counts and capacities
+steps, all HTTP nodes. Every tool step is gated, so in fixture mode those
+nodes never execute and the reference is null. They now read whichever branch
+actually ran.
+
+**The harness was the reason it was not caught, which is worse than the bug.**
+`capture-fixtures.mjs` copied each FX node's output into the HTTP node's slot,
+which n8n will never do, and its `$()` stub returned undefined for a node that
+had not run where n8n throws. It reported a clean fixture run against a
+workflow that could not survive first contact. Both fixed: no aliasing, and
+the stub throws.
+
+**`--commit` in fixture mode would have written to production.** The four read
+tools are gated; `Step 4 - Assign` is not, and fixture mode drops
+`gatewayBaseUrl`, so the URL fell back to the node's production default. The
+poster now refuses `--commit` unless `--live --gateway` is given.
+
+**Live mode 404'd.** Tool URLs resolve their code from
+`body.components[0].components.find(...)`, which production sends and a local
+run does not, so the path built as `/api/tool/null`. Optional-chained, with
+the plain tool code as the fallback.
+
+### Tunnels
+
+`localtunnel` issues a URL then serves 502/503 within a minute, matching what
+`RCM-v2-workflow.md` already recorded. It also needs a `bypass-tunnel-reminder`
+header that n8n's HTTP nodes will not send. **Use ngrok**: 200 on every
+attempt, no headers, all five tools exercised through it including T-0005.
+
+The ngrok URL is ephemeral. Do not save it into the workflow.
+
+### Capacity moved onto the team query
+
+Capacity is a team setting, so asking `effectiveAssignmentSettings` for it was
+a second source for a question the team already answers, and that source is
+the one with the membership bug. T-0002 now returns `uniformCapacity`,
+`capacities { family limit allowExceed }` and `capacityOverride` per member.
+
+Resolution order in `Distribute`: the member's override when the team is not on
+uniform capacity, then the team's limit for that work item type's family, then
+T-004. T-004 stays wired as a fallback for a gateway that has not been updated.
+
+Proven by emptying `effectiveAssignmentSettings` from the fixture entirely:
+465 items still placed across 23 batches, 0 overflow.
+
+---
+
 ## 2026-09-21c, member unavailability restored
 
 `953d901`. v1 had unavailability windows and v2 dropped the concept. It
