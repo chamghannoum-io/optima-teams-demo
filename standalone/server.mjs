@@ -58,13 +58,18 @@ const TOOLS = {
         id name active division encounterScope logicAxis facilityId
         criteria { dimension operator values }
         branches { id name healthLicense }
+        # Capacity belongs to the team, so it travels with the team. The wizard
+        # edits exactly these, which is why reading them from a second call was
+        # asking two sources the same question.
+        uniformCapacity
+        capacities { family limit allowExceed }
         groups {
           id name active specificity
           criteria { dimension operator values }
           effectiveCriteria { dimension operator values }
           workItemTypes encounterScope
           departments payers payerCatchAll claimStatuses
-          members { id firstName lastName unavailableToday }
+          members { id firstName lastName unavailableToday capacityOverride }
         }
       }
       allocationDimensions {

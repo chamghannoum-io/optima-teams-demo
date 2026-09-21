@@ -34,6 +34,13 @@ const kpiRaw = toolData('Step 2 - Assigned Counts', 'FX Step 2 - Assigned Counts
 const capRaw = toolData('Step 3 - Capacities', 'FX Step 3 - Capacities');
 
 const counts = kpiRaw.data?.usersWorkTypeAssignedCounts ?? kpiRaw.usersWorkTypeAssignedCounts ?? [];
+/**
+ * Fallback only. Capacity is the team's own setting and now travels on the
+ * assignment from T-0002, which is where the wizard writes it. T-004 stays
+ * wired so a gateway that has not been updated still works, and because it is
+ * the only source when a member's caps come from an assignment setting rather
+ * than from the team.
+ */
 const caps = capRaw.data?.effectiveAssignmentSettings ?? capRaw.effectiveAssignmentSettings ?? [];
 
 const AUTH = ['AUTHORIZATION_SUBMISSION', 'AUTHORIZATION_RESUBMISSION'];
@@ -65,25 +72,63 @@ for (const c of caps) {
   }
 }
 
-const capOf = (uid, wit) => {
-  const r = state[uid];
-  if (!r) return 0;
-  return AUTH.includes(wit) ? r.maxAuth : r.maxClaim;
+/** Which capacity family a work item type draws from. */
+const familyOf = (wit) => (AUTH.includes(wit) ? 'AUTH' : 'CLAIM');
+
+/**
+ * The cap for one member on one work item type.
+ *
+ * The team's own rules win, because that is what an admin edited on the Rules
+ * step: a per-member override first, then the team's limit for that family.
+ * T-004 is consulted only when the team carried nothing, which is a gateway
+ * that has not been updated yet.
+ */
+/**
+ * Running total for one member. T-004 seeds it where it has a row, but a
+ * member can now be capped entirely by the team, so the entry has to exist
+ * whether or not an assignment setting was returned for them.
+ */
+const stateOf = (uid) => {
+  if (!state[uid]) {
+    state[uid] = { maxAuth: 0, maxClaim: 0, used: assignedBy[uid] ?? 0, teams: 0 };
+  }
+  return state[uid];
 };
-const capLeft = (uid, wit) => Math.max(0, capOf(uid, wit) - (state[uid]?.used ?? 0));
+
+const capOf = (uid, wit, item) => {
+  const family = familyOf(wit);
+  if (item) {
+    const override = (item.memberCaps ?? {})[String(uid)];
+    if (item.uniformCapacity === false && typeof override === 'number') return override;
+    const rule = (item.capacityRules ?? []).find((c) => c.family === family);
+    if (rule && typeof rule.limit === 'number') return rule.limit;
+  }
+  const r = stateOf(uid);
+  return family === 'AUTH' ? r.maxAuth : r.maxClaim;
+};
+
+/** Does this family keep allocating past the limit? Team setting, then T-004. */
+const allowsExceed = (wit, item) =>
+  ((item?.capacityRules ?? []).find((c) => c.family === familyOf(wit)) ?? {}).allowExceed === true;
+const capLeft = (uid, wit, item) => Math.max(0, capOf(uid, wit, item) - stateOf(uid).used);
 
 /** Fraction of this member's cap already consumed. Unknown cap sorts last. */
-const utilisation = (uid, wit) => {
-  const cap = capOf(uid, wit);
+const utilisation = (uid, wit, item) => {
+  const cap = capOf(uid, wit, item);
   if (!cap) return Infinity;
-  return (state[uid]?.used ?? 0) / cap;
+  return stateOf(uid).used / cap;
 };
 
 /** Eligible members of one group, least utilised first. */
-function poolFor(memberIds, wit) {
+function poolFor(memberIds, wit, item) {
   return (memberIds ?? [])
-    .filter((uid) => capLeft(uid, wit) > 0)
-    .sort((a, b) => utilisation(a, wit) - utilisation(b, wit) || String(a).localeCompare(String(b)));
+    // A family set to keep allocating past its limit never runs out.
+    .filter((uid) => allowsExceed(wit, item) || capLeft(uid, wit, item) > 0)
+    .sort(
+      (a, b) =>
+        utilisation(a, wit, item) - utilisation(b, wit, item) ||
+        String(a).localeCompare(String(b)),
+    );
 }
 
 const perAssignee = {};
@@ -100,7 +145,7 @@ for (const item of matched.assignments) {
 
   let placed = null;
   for (let i = 0; i < tiers.length; i += 1) {
-    const pool = poolFor(tiers[i].members, item.workItemType);
+    const pool = poolFor(tiers[i].members, item.workItemType, item);
     if (!pool.length) continue;
     placed = { tier: tiers[i], uid: pool[0], depth: i };
     break;
@@ -121,7 +166,7 @@ for (const item of matched.assignments) {
   }
 
   const { tier, uid, depth } = placed;
-  state[uid].used += 1;
+  stateOf(uid).used += 1;
   if (depth > 0) {
     fallbackUsed.push({ id: item.id, from: item.groupName, to: tier.groupName, depth });
   }

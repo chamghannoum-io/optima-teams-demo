@@ -276,6 +276,16 @@ for (const item of ranked) {
     // to tell "nobody is in this group" from "everybody in it is on leave",
     // which send a supervisor to two different places.
     groupRoster: (best.group.members ?? []).length,
+    // Capacity rides with the team that won, because it is the team's own
+    // setting. Per-member overrides come along on the member rows.
+    capacityRules: best.team.capacities ?? [],
+    uniformCapacity: best.team.uniformCapacity !== false,
+    memberCaps: Object.fromEntries(
+      availableMembers(best.group).map((m) => [
+        String(m.id ?? m.userId),
+        m.capacityOverride ?? null,
+      ]),
+    ),
     // Every group that accepted, narrowest first, so Distribute can fall
     // through to the next one when the winner has no capacity left.
     groupFallbacks: candidates.slice(1).map((c) => {

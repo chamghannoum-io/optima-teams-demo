@@ -150,6 +150,69 @@ out = distribute({
 });
 check('an auth item cannot consume claim capacity', out[0].skipped, true);
 
+/* -- capacity from the team, not from T-004 ---------------------------- */
+console.log('capacity carried on the team');
+
+const teamCap = (over = {}) => ({
+  capacityRules: [{ family: 'AUTH', limit: 4, allowExceed: false },
+                  { family: 'CLAIM', limit: 9, allowExceed: false }],
+  uniformCapacity: true,
+  memberCaps: {},
+  ...over,
+});
+
+// No T-004 rows at all: the team's own limit has to be enough.
+out = distribute({
+  assignments: Array.from({ length: 10 }, (_, i) =>
+    item(`i${i}`, { groupMembers: ['u1'], groupRoster: 1, ...teamCap() })),
+  caps: [],
+});
+check('the team limit applies with no T-004 row at all', out[0].itemCount, 4);
+
+// The team's figure wins over the assignment setting.
+out = distribute({
+  assignments: Array.from({ length: 10 }, (_, i) =>
+    item(`i${i}`, { groupMembers: ['u1'], groupRoster: 1, ...teamCap() })),
+  caps: [cap('u1', 99)],
+});
+check('the team beats T-004 when both are present', out[0].itemCount, 4);
+
+// Per-member override, which is what "Set capacity per member" writes.
+out = distribute({
+  assignments: Array.from({ length: 10 }, (_, i) =>
+    item(`i${i}`, { groupMembers: ['u1'], groupRoster: 1,
+      ...teamCap({ uniformCapacity: false, memberCaps: { u1: 2 } }) })),
+  caps: [],
+});
+check('a per-member override beats the team limit', out[0].itemCount, 2);
+
+// An override is ignored while the team is on uniform capacity, matching what
+// the Rules step says: the checkbox is off, so everyone gets the team figure.
+out = distribute({
+  assignments: Array.from({ length: 10 }, (_, i) =>
+    item(`i${i}`, { groupMembers: ['u1'], groupRoster: 1,
+      ...teamCap({ uniformCapacity: true, memberCaps: { u1: 2 } }) })),
+  caps: [],
+});
+check('an override is ignored on uniform capacity', out[0].itemCount, 4);
+
+// Claim work draws on the claim family, not the auth one.
+out = distribute({
+  assignments: Array.from({ length: 12 }, (_, i) =>
+    item(`i${i}`, { workItemType: 'CLAIM_SUBMISSION', groupMembers: ['u1'], groupRoster: 1, ...teamCap() })),
+  caps: [],
+});
+check('the family decides which limit applies', out[0].itemCount, 9);
+
+// allowExceed is a family property, so the cap stops stopping anything.
+out = distribute({
+  assignments: Array.from({ length: 10 }, (_, i) =>
+    item(`i${i}`, { groupMembers: ['u1'], groupRoster: 1,
+      ...teamCap({ capacityRules: [{ family: 'AUTH', limit: 4, allowExceed: true }] }) })),
+  caps: [],
+});
+check('allow-exceed keeps allocating past the limit', out[0].itemCount, 10);
+
 /* -- why work was not placed ------------------------------------------- */
 console.log('overflow reasons');
 
