@@ -114,7 +114,7 @@ export function DeleteTeamDialog({
           {impact.affectedTeams.length > 0 ? (
             <div>
               <p className="mb-1 text-slate-600 dark:text-slate-300">
-                Left covering this facility and division:
+                Still covering work this team takes:
               </p>
               <div className="flex flex-wrap gap-1">
                 {impact.affectedTeams.map((t: any) => (
@@ -127,7 +127,7 @@ export function DeleteTeamDialog({
           ) : (
             <p className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
               <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-              No other team covers this facility and division. Its work will have nowhere to go.
+              No other team's rule overlaps this one. Its work will have nowhere to go.
             </p>
           )}
 

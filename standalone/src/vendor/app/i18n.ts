@@ -27,6 +27,13 @@ const LABELS: Record<string, string> = {
   "common.close": "Close",
   "common.error": "Error",
   "common.team": "teams",
+  "filters.button": "Filters",
+  "filters.title": "Filters",
+  "filters.clearTooltip": "Clear",
+  "filters.searchPlaceholder": "Search filters",
+  "filters.activeFilters": "Active filters",
+  "common.search": "Search",
+  "common.name": "Name",
 };
 
 function translate(key: string, opts?: any): string {
@@ -34,6 +41,8 @@ function translate(key: string, opts?: any): string {
     const base = LABELS[key];
     return opts && typeof opts.count === "number" ? `${opts.count} ${base}` : base;
   }
+  // i18next accepts a bare string as the default, and the app uses that form.
+  if (typeof opts === "string") return opts;
   if (opts?.defaultValue) return String(opts.defaultValue);
   const leaf = String(key).split(".").pop() ?? String(key);
   const words = leaf.replace(/[_-]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2");

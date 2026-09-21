@@ -12,12 +12,173 @@ import { makeExecutableSchema } from "@graphql-tools/schema";
 import seed from "./teams-v2-real.json";
 import peopleSeed from "./people.json";
 import volumes from "./volumes.json";
+import {
+  CAPACITY_FAMILIES,
+  DIMENSIONS,
+  POLICIES,
+  type Criterion,
+  admittedValues,
+  criteriaAccept,
+  criterionFor,
+  describeCriteria,
+  dimensionByCode,
+  familyOfWorkItemType,
+  mergeCriteria,
+  normKey,
+  policiesFor,
+  policyByCode,
+  policyFlags,
+  prettyValue,
+  rejectingCriterion,
+  specificityOf,
+  widensBeyond,
+} from "./allocation-model.js";
 
 const typeDefs = /* GraphQL */ `
   enum RcmTeamDivision { AUTH CLAIM }
   enum RcmTeamEncounterScope { OP IP BOTH }
   enum RcmTeamLogicAxis { DEPARTMENT PAYER }
   enum RcmTeamAdviceSeverity { BLOCKER WARNING INFO }
+
+  enum CriterionOperator { IN NOT_IN ANY }
+  enum CriterionLevel { TEAM GROUP BOTH }
+
+  """
+  A routing axis. These are registry rows, not schema fields, so a client who
+  splits work some other way needs a row here and a value source, nothing more.
+  """
+  type AllocationDimension {
+    code: String!
+    label: String!
+    """Teams prefilter, groups refine. BOTH may be constrained at either level."""
+    level: CriterionLevel!
+    operators: [CriterionOperator!]!
+    """Which dimensionValues() source backs this dimension's picker."""
+    valueSource: String!
+    """Field on a work item this dimension tests."""
+    itemField: String!
+    coverageChecked: Boolean!
+    """EXACT, or NORMALISED for sources that spell the same thing many ways."""
+    matchMode: String!
+    """
+    Synonyms, normalised alias to normalised canonical. Normalisation handles
+    punctuation and case; a misspelling can only be bridged by data.
+    """
+    aliases: [DimensionAlias!]!
+    """How to render a value: a business code as-is, or one of our enums as prose."""
+    valueStyle: String!
+    sortOrder: Int!
+    """Estate-wide pickable values, so a filter bar needs one round trip."""
+    values: [DimensionValue!]!
+  }
+
+  """One accepted synonym for a dimension value."""
+  type DimensionAlias {
+    from: String!
+    to: String!
+  }
+
+  """One clause of a routing rule: dimension, operator, values."""
+  type Criterion {
+    dimension: String!
+    operator: CriterionOperator!
+    values: [String!]!
+    """Resolved display labels, so chips do not show raw payer codes."""
+    labels: [String!]!
+  }
+  input CriterionInput {
+    dimension: String!
+    operator: CriterionOperator!
+    values: [String!]
+  }
+
+  """A pickable value for one dimension."""
+  type DimensionValue {
+    value: String!
+    label: String!
+    """Observed items per day, so an admin can see what a choice is worth."""
+    perDay: Float
+  }
+
+  """
+  Relay shape so every dimension is backed by a real paginated, searchable list,
+  the same contract ApiAutocomplete drives everywhere else in Optima.
+  """
+  type PageInfo { hasNextPage: Boolean!, endCursor: String }
+  type DimensionOptionNode { id: ID!, name: String!, perDay: Float }
+  type DimensionOptionEdge { node: DimensionOptionNode!, cursor: String! }
+  type DimensionOptionConnection {
+    edges: [DimensionOptionEdge!]!
+    pageInfo: PageInfo!
+    totalCount: Int!
+  }
+  input DimensionOptionFilter {
+    """Which registry dimension to list. This is what makes one source serve all."""
+    dimension: String!
+    teamId: ID
+    name_Icontains: String
+  }
+
+  """
+  What replaces division: work item types sharing a daily cap and overflow rule.
+  """
+  type CapacityFamily {
+    code: String!
+    label: String!
+    workItemTypes: [String!]!
+    defaultLimit: Int!
+    allowExceedByDefault: Boolean!
+  }
+  """
+  A rule about what happens to work once a group has claimed it. Registry rows,
+  declaring which work they apply to, so a team is only asked about the policies
+  its own work makes relevant.
+  """
+  type AllocationPolicy {
+    code: String!
+    label: String!
+    description: String!
+    valueType: String!
+    scope: String!
+    appliesToTypes: [String!]!
+    defaultNumber: Float
+    defaultFlag: Boolean
+    unit: String
+    """Members need this tag to receive work the policy flags."""
+    handlerTag: String
+    itemField: String
+    sortOrder: Int!
+  }
+
+  """One policy's setting on one team, per family where the policy is per-family."""
+  type PolicySetting {
+    code: String!
+    family: String
+    number: Float
+    flag: Boolean
+  }
+  input PolicySettingInput {
+    code: String!
+    family: String
+    number: Float
+    flag: Boolean
+  }
+
+  type TeamCapacityRule {
+    family: String!
+    label: String!
+    limit: Int!
+    allowExceed: Boolean!
+  }
+  input PolicyHandlerInput {
+    tag: String!
+    memberIds: [ID!]!
+  }
+  input TeamCapacityRuleInput {
+    family: String!
+    limit: Int
+    allowExceed: Boolean
+  }
 
   enum RcmWorkItemType {
     RECONCILIATION
@@ -37,7 +198,12 @@ const typeDefs = /* GraphQL */ `
     isActive: Boolean
     """Sits in every group of the team and receives work from all of them."""
     isSupervisor: Boolean
-    """Eligible to receive items over the team's high-cost threshold."""
+    """
+    Policy handler tags this member carries. A policy that flags an item routes
+    it only to members holding that policy's tag.
+    """
+    handlerTags: [String!]!
+    "Derived from handlerTags. Kept so v1-shaped callers keep working."
     handlesHighCost: Boolean
     """Per-member cap, used when the team is not on uniform capacity."""
     capacityOverride: Int
@@ -56,16 +222,23 @@ const typeDefs = /* GraphQL */ `
     rcmTeamId: ID!
     name: String!
     active: Boolean!
+    """This group's own rule. It may only narrow its team's, never widen it."""
+    criteria: [Criterion!]!
+    """Team rule plus this group's, which is what the matcher actually runs."""
+    effectiveCriteria: [Criterion!]!
+    criteriaSummary: [String!]!
+    rotationOrder: Int
+    specificity: Int!
+    members: [User!]!
+    capacity: RcmTeamCapacity!
+
+    "Derived from criteria. Kept so v1-shaped callers keep working."
     workItemTypes: [RcmWorkItemType!]!
     encounterScope: RcmTeamEncounterScope!
     departments: [String!]!
     payers: [ID!]!
     payerCatchAll: Boolean!
     claimStatuses: [String!]!
-    rotationOrder: Int
-    specificity: Int!
-    members: [User!]!
-    capacity: RcmTeamCapacity!
   }
 
   type RcmTeamCoverageReport {
@@ -121,34 +294,44 @@ const typeDefs = /* GraphQL */ `
     branches: [Branch!]
     usersDetails: [User!]
     active: Boolean!
-    facilityId: String!
-    division: RcmTeamDivision!
-    encounterScope: RcmTeamEncounterScope!
-    logicAxis: RcmTeamLogicAxis!
     rotationEnabled: Boolean!
     groups: [RcmTeamGroup!]!
     members: [User!]!
     capacity: RcmTeamCapacity!
     coverage: RcmTeamCoverageReport!
-    """AUTH teams keep allocating past the cap; CLAIM teams defer instead."""
-    allowExceedCapacity: Boolean!
+
+    """The team's routing rule. Prefilters work before its groups refine it."""
+    criteria: [Criterion!]!
+    """Chip text for the rule, in registry order."""
+    criteriaSummary: [String!]!
+    """Every policy setting on this team. The source of truth for capacity too."""
+    policies: [PolicySetting!]!
+    """The policies this team's work makes relevant, with its current settings."""
+    applicablePolicies: [AllocationPolicy!]!
+    """Derived view of the daily-limit and overflow policies, per family."""
+    capacities: [TeamCapacityRule!]!
+    """Breaks ties when two teams' rules are equally specific. Higher wins."""
+    priority: Int!
+
     """One cap for everyone, or per-member overrides."""
     uniformCapacity: Boolean!
+
+    "Derived from criteria and policies. Kept so v1-shaped callers keep working."
+    highCostThreshold: Float
+    facilityId: String
+    facilityIds: [String!]!
+    division: RcmTeamDivision
+    encounterScope: RcmTeamEncounterScope
+    logicAxis: RcmTeamLogicAxis
+    allowExceedCapacity: Boolean!
     maxAuth: Int!
     maxClaim: Int!
-    """Net value above which an item needs a high-cost handler (AED)."""
-    highCostThreshold: Float
   }
 
   input RcmTeamGroupInput {
     name: String
     active: Boolean
-    workItemTypes: [RcmWorkItemType!]
-    encounterScope: RcmTeamEncounterScope
-    departments: [String!]
-    payers: [ID!]
-    payerCatchAll: Boolean
-    claimStatuses: [String!]
+    criteria: [CriterionInput!]
     memberIds: [ID!]
   }
 
@@ -159,8 +342,8 @@ const typeDefs = /* GraphQL */ `
   type CodeConcept { code: String!, display: String }
   type CodeEdge { node: CodeConcept! }
   type CodeConnection { edges: [CodeEdge!]! }
-  type UserEdge { node: User! }
-  type UserConnection { edges: [UserEdge!]! }
+  type UserEdge { node: User!, cursor: String }
+  type UserConnection { edges: [UserEdge!]!, pageInfo: PageInfo, totalCount: Int }
   input BranchFilterInput { vendors: [ID!] }
   input CodeSystemConceptSearchFilter { codeSystemCode: String, display: String }
   input UserFilterInput { search: String }
@@ -178,7 +361,6 @@ const typeDefs = /* GraphQL */ `
   type PreviewItem {
     id: ID!
     net: Float
-    highCost: Boolean!
     workItemType: String!
     department: String
     payer: String
@@ -187,6 +369,8 @@ const typeDefs = /* GraphQL */ `
     priority: String
     ageDays: Float!
     rank: Float!
+    """Codes of the policies that flagged this item."""
+    flaggedBy: [String!]!
     groupId: ID
     groupName: String
     assigneeId: ID
@@ -215,13 +399,10 @@ const typeDefs = /* GraphQL */ `
   type AllocationPreview {
     teamId: ID!
     teamName: String!
-    """What this preview covers: facility x division x encounter."""
-    facilityId: String!
-    division: String!
-    encounterScope: String!
-    highCostThreshold: Float
-    highCostCount: Int!
-    highCostUnassigned: Int!
+    """What this preview covers, stated as the team's own rule."""
+    scope: [String!]!
+    """What each policy did to this run. Empty when no policy applies."""
+    policyImpact: [PolicyImpact!]!
     totalItems: Int!
     assignedCount: Int!
     unassignedCount: Int!
@@ -229,6 +410,16 @@ const typeDefs = /* GraphQL */ `
     byAssignee: [PreviewAssignee!]!
     items: [PreviewItem!]!
     unmatched: [PreviewItem!]!
+  }
+
+  """What one policy flagged in a preview run, and what it cost."""
+  type PolicyImpact {
+    code: String!
+    label: String!
+    unit: String
+    threshold: Float!
+    flagged: Int!
+    unassigned: Int!
   }
 
   """Per-user or per-team assignment limits."""
@@ -295,29 +486,20 @@ const typeDefs = /* GraphQL */ `
     id: ID
     name: String!
     active: Boolean
-    workItemTypes: [String!]
-    encounterScope: String
-    departments: [String!]
-    payers: [ID!]
-    payerCatchAll: Boolean
-    claimStatuses: [String!]
+    criteria: [CriterionInput!]
     memberIds: [ID!]
   }
   input TeamV2Input {
-    allowExceedCapacity: Boolean
-    uniformCapacity: Boolean
-    highCostThreshold: Float
-    supervisorIds: [ID!]
-    highCostMemberIds: [ID!]
     name: String!
     description: String
-    facilityId: String
-    division: String
-    encounterScope: String
-    logicAxis: String
     active: Boolean
-    maxAuth: Int
-    maxClaim: Int
+    criteria: [CriterionInput!]
+    policies: [PolicySettingInput!]
+    priority: Int
+    uniformCapacity: Boolean
+    supervisorIds: [ID!]
+    """Member ids per policy handler tag, e.g. {tag: "URGENT", memberIds: [...]}"""
+    handlers: [PolicyHandlerInput!]
     groups: [TeamGroupSaveInput!]
   }
 
@@ -357,6 +539,38 @@ const typeDefs = /* GraphQL */ `
     """What is wrong, in a sentence a supervisor can act on."""
     message: String!
     kind: String!
+    """Who owns fixing this. Empty when no team has a supervisor to tell."""
+    supervisorIds: [ID!]!
+    supervisorNames: [String!]!
+    """Estimated items per day that fall through while this stands."""
+    itemsAtRiskPerDay: Float!
+  }
+
+  """
+  What one supervisor would be told. Nothing is allocated silently, so every
+  gap on a team reaches the person responsible for that team.
+  """
+  type SupervisorAlert {
+    userId: ID!
+    name: String!
+    teamNames: [String!]!
+    blockers: Int!
+    warnings: Int!
+    itemsAtRiskPerDay: Float!
+  }
+
+  """
+  The estate in totals. People and capacity are de-duplicated across teams:
+  someone in two teams is one person with one daily capacity, not two.
+  """
+  type AllocationEstate {
+    teams: Int!
+    activeTeams: Int!
+    groups: Int!
+    people: Int!
+    capacityPerDay: Int!
+    """Memberships minus distinct people, i.e. how much sharing is going on."""
+    sharedMemberships: Int!
   }
 
   """Whether the whole estate can actually allocate the work that arrives."""
@@ -366,6 +580,11 @@ const typeDefs = /* GraphQL */ `
     issues: [ReadinessIssue!]!
     """Facility + work item type combinations no active team handles."""
     unhandled: [String!]!
+    """Per-supervisor digest of everything above. Point 4 of the feedback."""
+    supervisorAlerts: [SupervisorAlert!]!
+    """Issues nobody owns, because the team has no supervisor set."""
+    unownedIssues: Int!
+    itemsAtRiskPerDay: Float!
   }
 
   """What deleting a team would leave behind."""
@@ -378,16 +597,42 @@ const typeDefs = /* GraphQL */ `
     affectedTeams: [RcmTeamV2!]!
   }
 
-  """Filter the team list the way a supervisor thinks about it."""
+  """
+  Filter the team list by the same dimensions teams are routed on, so the filter
+  bar is generated from the registry rather than hand-written per client.
+  """
   input TeamQueryFilter {
-    branchId: ID
-    encounterScope: String
-    departments: [String!]
-    payers: [ID!]
-    workItemType: String
+    name: String
+    active: Boolean
+    """Match teams whose rule admits these values. One entry per dimension."""
+    criteria: [CriterionInput!]
   }
 
   type Query {
+    """The routing axes this tenant is configured with."""
+    allocationDimensions: [AllocationDimension!]!
+    """The policies this tenant is configured with."""
+    allocationPolicies: [AllocationPolicy!]!
+    """The work item families capacity is declared against."""
+    capacityFamilies: [CapacityFamily!]!
+    """
+    Pickable values for any dimension, from one endpoint, so the criteria
+    builder needs no per-dimension wiring.
+    """
+    dimensionValues(dimension: String!, teamId: ID): [DimensionValue!]!
+
+    """Paginated, searchable values for any dimension. Backs ApiAutocomplete."""
+    dimensionOptions(
+      first: Int
+      after: String
+      filter: DimensionOptionFilter!
+    ): DimensionOptionConnection!
+
+    """Staff picker, relay-shaped like the rest."""
+    rcmUsers(first: Int, after: String, filter: UserFilterInput): UserConnection
+
+    """Estate totals, de-duplicated across teams."""
+    optimaAllocationEstate: AllocationEstate!
     """Estate-wide readiness: what would fall through today."""
     optimaAllocationReadiness: AllocationReadiness!
     """Teams matching a supervisor-style filter."""
@@ -463,31 +708,106 @@ type Group = {
   rcmTeamId?: string;
   name: string;
   active: boolean;
-  workItemTypes: string[];
-  encounterScope: string;
-  departments: string[];
-  payers: string[];
-  payerCatchAll: boolean;
-  claimStatuses: string[];
+  criteria: Criterion[];
   rotationOrder: number;
   members: User[];
 };
+type PolicySetting = { code: string; family?: string | null; number?: number | null; flag?: boolean | null };
 type Team = {
   id: string;
   name: string;
   active: boolean;
-  facilityId: string;
-  /** Key into the volume data. Real code resolves this via branches.healthLicense. */
-  siteKey: string;
-  division: string;
-  encounterScope: string;
-  logicAxis: string;
+  criteria: Criterion[];
+  policies: PolicySetting[];
+  priority: number;
+  /** Keys into the volume data, one per facility the rule admits. */
+  siteKeys: string[];
   rotationEnabled: boolean;
   groups: Group[];
 };
 
-const teams: Team[] = JSON.parse(JSON.stringify(seed));
-teams.forEach((t) => t.groups.forEach((g) => (g.rcmTeamId = t.id)));
+const IN = (dimension: string, values: string[]): Criterion => ({
+  dimension,
+  operator: "IN",
+  values,
+});
+
+/**
+ * The seed is the v1-shaped estate: facilityId, division, encounterScope, a
+ * logicAxis, and groups holding parallel arrays. Fold all of it into criteria
+ * once, on load, so nothing downstream knows those columns ever existed.
+ */
+function migrateSeedTeam(raw: any): Team {
+  const teamCriteria: Criterion[] = [IN("FACILITY", [raw.facilityId])];
+  if (raw.encounterScope && raw.encounterScope !== "BOTH") {
+    teamCriteria.push(IN("ENCOUNTER_TYPE", [raw.encounterScope]));
+  }
+  // The team prefilters on the union of what its groups actually handle.
+  const allTypes = [
+    ...new Set((raw.groups ?? []).flatMap((g: any) => g.workItemTypes ?? [])),
+  ] as string[];
+  if (allTypes.length) teamCriteria.push(IN("WORK_ITEM_TYPE", allTypes));
+
+  const groups: Group[] = (raw.groups ?? []).map((g: any, i: number) => {
+    const criteria: Criterion[] = [];
+    if (g.workItemTypes?.length) criteria.push(IN("WORK_ITEM_TYPE", g.workItemTypes));
+    if (g.encounterScope && g.encounterScope !== raw.encounterScope) {
+      if (g.encounterScope !== "BOTH") criteria.push(IN("ENCOUNTER_TYPE", [g.encounterScope]));
+    }
+    if (g.departments?.length) criteria.push(IN("DEPARTMENT", g.departments));
+    // The catch-all toggle becomes an explicit ANY, which is all it ever meant.
+    if (g.payerCatchAll) criteria.push({ dimension: "PAYER", operator: "ANY", values: [] });
+    else if (g.payers?.length) criteria.push(IN("PAYER", g.payers));
+    if (g.claimStatuses?.length) criteria.push(IN("CLAIM_STATUS", g.claimStatuses));
+    return {
+      id: String(g.id),
+      rcmTeamId: String(raw.id),
+      name: g.name,
+      active: g.active ?? true,
+      criteria,
+      rotationOrder: g.rotationOrder ?? i,
+      members: g.members ?? [],
+    };
+  });
+
+  // Policy settings for every family the team's work touches, plus the team-wide
+  // policies that work makes relevant.
+  const families = [
+    ...new Set(allTypes.map((w) => familyOfWorkItemType(w)?.code).filter(Boolean)),
+  ] as string[];
+  const policies: PolicySetting[] = [];
+  for (const code of families.length ? families : ["CLAIM"]) {
+    const f = CAPACITY_FAMILIES.find((x) => x.code === code)!;
+    policies.push({ code: "DAILY_LIMIT", family: code, number: f.defaultLimit });
+    policies.push({ code: "ALLOW_EXCEED", family: code, flag: f.allowExceedByDefault });
+  }
+  for (const p of policiesFor(allTypes)) {
+    if (p.scope !== "TEAM") continue;
+    policies.push(
+      p.valueType === "NUMBER"
+        ? { code: p.code, number: p.defaultValue as number }
+        : { code: p.code, flag: p.defaultValue as boolean },
+    );
+  }
+
+  return {
+    ...raw,
+    id: String(raw.id),
+    criteria: teamCriteria,
+    policies,
+    priority: 0,
+    siteKeys: [raw.siteKey].filter(Boolean),
+    groups,
+  };
+}
+
+const teams: Team[] = (JSON.parse(JSON.stringify(seed)) as any[]).map(migrateSeedTeam);
+
+/** facility code to volume key, learned from the seed. */
+const SITE_KEY = new Map<string, string>();
+for (const raw of seed as any[]) {
+  if (raw.facilityId && raw.siteKey) SITE_KEY.set(raw.facilityId, raw.siteKey);
+}
 
 const allUsers: User[] = peopleSeed as User[];
 
@@ -495,25 +815,82 @@ let nextGroupId = Math.max(0, ...teams.flatMap((t) => t.groups.map((g) => +g.id)
 
 /** Observed daily volume, per facility, falling back to the global mix. */
 const V: any = volumes;
-const deptVolumes = (facility: string): Record<string, number> =>
-  V.bySite.departments[facility] ?? V.global.departments;
-const payerVolumes = (facility: string): Record<string, number> =>
-  V.bySite.payers[facility] ?? V.global.payers;
-const burstOf = (facility: string): number =>
-  Math.max(1, V.bySite.burst[facility] ?? V.global.burst);
+const ALL_FACILITIES = [...SITE_KEY.keys()].sort();
+const WORK_ITEM_TYPES = CAPACITY_FAMILIES.flatMap((f) => f.workItemTypes);
+const ENCOUNTER_TYPES = ["OP", "IP"];
+const CLAIM_STATUSES = ["OPEN", "CHECKED", "VALIDATED"];
+
+/**
+ * A team may now serve several facilities, so volumes are summed across the
+ * ones its rule admits rather than read from one siteKey.
+ */
+const sumVolumes = (keys: string[], bucket: "departments" | "payers") => {
+  const out: Record<string, number> = {};
+  const sources = keys.length
+    ? keys.map((k) => V.bySite[bucket][k] ?? V.global[bucket])
+    : [V.global[bucket]];
+  for (const src of sources) {
+    for (const [k, v] of Object.entries(src as Record<string, number>)) {
+      out[k] = (out[k] ?? 0) + v;
+    }
+  }
+  return out;
+};
+
+/** Facilities a team's rule admits, resolved through the FACILITY criterion. */
+const facilitiesOf = (t: Team): string[] =>
+  admittedValues(t.criteria, "FACILITY", ALL_FACILITIES);
+const siteKeysOf = (t: Team): string[] =>
+  facilitiesOf(t)
+    .map((f) => SITE_KEY.get(f))
+    .filter(Boolean) as string[];
+
+const deptVolumes = (t: Team): Record<string, number> =>
+  sumVolumes(siteKeysOf(t), "departments");
+const payerVolumes = (t: Team): Record<string, number> =>
+  sumVolumes(siteKeysOf(t), "payers");
+const burstOf = (t: Team): number => {
+  const keys = siteKeysOf(t);
+  const vals = keys.map((k) => V.bySite.burst[k] ?? V.global.burst);
+  return Math.max(1, ...(vals.length ? vals : [V.global.burst]));
+};
+
+/** The universe of values for a dimension, in this team's context. */
+function universeOf(code: string, t?: Team): string[] {
+  switch (code) {
+    case "FACILITY":
+      return ALL_FACILITIES;
+    case "WORK_ITEM_TYPE":
+      return WORK_ITEM_TYPES;
+    case "ENCOUNTER_TYPE":
+      return ENCOUNTER_TYPES;
+    case "CLAIM_STATUS":
+      return CLAIM_STATUSES;
+    case "DEPARTMENT":
+      // "(unresolved)" is a real coverage gap but not something to pick from a list.
+      return Object.keys(t ? deptVolumes(t) : V.global.departments)
+        .filter((d) => d !== "(unresolved)")
+        .sort();
+    case "PAYER":
+      return Object.keys(t ? payerVolumes(t) : V.global.payers).sort();
+    default:
+      return [];
+  }
+}
+
+/** Observed per-day volume for one value, used to price a coverage gap. */
+function volumeOf(t: Team, code: string, value: string): number {
+  if (code === "DEPARTMENT") return deptVolumes(t)[value] ?? 0;
+  if (code === "PAYER") return payerVolumes(t)[value] ?? 0;
+  return 0;
+}
 
 const NAMED_PAYER_THRESHOLD = 10;
 /** Stands in for effectiveAssignmentSettings; ~150/day matches observed coder throughput. */
 const USER_CAPACITY = 150;
 
-// Round-2 defaults: AUTH overflows past a cap, CLAIM defers; uniform capacity on.
 for (const t of teams as any[]) {
-  t.allowExceedCapacity ??= t.division === "AUTH";
   t.uniformCapacity ??= true;
-  t.maxAuth ??= USER_CAPACITY;
-  t.maxClaim ??= USER_CAPACITY;
-  // AED 3,000 on resubmission work, per the agreed policy.
-  t.highCostThreshold ??= 3000;
 }
 
 /**
@@ -546,9 +923,15 @@ for (const t of teams as any[]) {
   supervisor.isSupervisor = true;
   syncSupervisor(t, supervisor);
 
-  // Every third member, and always the supervisor, handles high-cost items.
+  // Seed a handler roster for every policy this team's work makes relevant, so
+  // the demo estate has both high-cost clearance on claims teams and urgency
+  // clearance on authorisation teams, from the same mechanism.
+  const tags = policiesFor(typesHandled(t)).map((p) => p.handlerTag).filter(Boolean) as string[];
   roster.forEach((m, i) => {
-    if (i % 3 === 0 || m.isSupervisor) m.handlesHighCost = true;
+    m.handlerTags ??= [];
+    if (i % 3 === 0 || m.isSupervisor) {
+      for (const tag of tags) if (!m.handlerTags.includes(tag)) m.handlerTags.push(tag);
+    }
   });
 }
 
@@ -558,26 +941,74 @@ const findGroup = (id: string) =>
 const teamOfGroup = (id: string) =>
   teams.find((t) => t.groups.some((g) => String(g.id) === String(id)));
 
-/** Narrowness, matching RcmTeamGroup.specificity(). Catch-all scores 0 on payers. */
+/** Narrowness of a group's effective rule. Generic over whatever dimensions exist. */
 function specificity(g: Group): number {
-  const n = (size: number) => (size === 0 ? 0 : Math.floor(100 / size));
-  return (
-    n(g.workItemTypes.length) +
-    n(g.departments.length) +
-    (g.payerCatchAll ? 0 : n(g.payers.length)) +
-    n(g.claimStatuses.length) +
-    (g.encounterScope !== "BOTH" ? 100 : 0)
-  );
+  const t = teamOfGroup(g.id);
+  return specificityOf(mergeCriteria(t?.criteria, g.criteria));
 }
 
-/** A member's daily cap: the team figure, unless they carry an override. */
+/** One policy setting on a team, by code and optional family. */
+const settingOf = (t: Team | undefined, code: string, family?: string) =>
+  (t?.policies ?? []).find((p) => p.code === code && (family ? p.family === family : !p.family));
+
+/** The team's cap for a work item family, from the DAILY_LIMIT policy. */
+function limitFor(t: Team | undefined, family: string | undefined): number {
+  const n = settingOf(t, "DAILY_LIMIT", family)?.number;
+  if (typeof n === "number") return n;
+  return CAPACITY_FAMILIES.find((f) => f.code === family)?.defaultLimit ?? USER_CAPACITY;
+}
+
+/** Whether this team keeps allocating past the cap, from the ALLOW_EXCEED policy. */
+function allowsExceed(t: Team | undefined, family: string | undefined): boolean {
+  const f = settingOf(t, "ALLOW_EXCEED", family)?.flag;
+  if (typeof f === "boolean") return f;
+  return CAPACITY_FAMILIES.find((x) => x.code === family)?.allowExceedByDefault ?? false;
+}
+
+/** Derived capacity view, so callers that think in families still work. */
+function capacitiesOf(t: Team) {
+  const families = [
+    ...new Set(typesHandled(t).map((w) => familyOfWorkItemType(w)?.code).filter(Boolean)),
+  ] as string[];
+  return families.map((family) => ({
+    family,
+    label: CAPACITY_FAMILIES.find((f) => f.code === family)?.label ?? family,
+    limit: limitFor(t, family),
+    allowExceed: allowsExceed(t, family),
+  }));
+}
+
+/**
+ * Policies that flag this item, with the members allowed to take it. This is
+ * the generalisation of the high-cost rule: a policy names a handler tag, and
+ * an item it flags may only go to members carrying that tag.
+ */
+function flaggingPolicies(t: Team, item: any) {
+  return POLICIES.filter((p) => {
+    if (!p.handlerTag) return false;
+    const setting = settingOf(t, p.code);
+    const value = p.valueType === "NUMBER" ? setting?.number : setting?.flag;
+    return policyFlags(p, value ?? undefined, item);
+  });
+}
+
+const hasTag = (m: any, tag: string) => (m.handlerTags ?? []).includes(tag);
+
+/**
+ * A member's daily cap. With several families on one team the headline figure is
+ * the largest, since a member draws from whichever queue has work; the per-item
+ * check in the preview still uses that item's own family.
+ */
 function capOf(t: Team | undefined, m: any): number {
   const team: any = t;
-  const base = team ? (team.division === "AUTH" ? team.maxAuth : team.maxClaim) : USER_CAPACITY;
   if (team && team.uniformCapacity === false && typeof m.capacityOverride === "number") {
     return m.capacityOverride;
   }
-  return base ?? USER_CAPACITY;
+  const limits = (t?.policies ?? [])
+    .filter((p) => p.code === "DAILY_LIMIT" && typeof p.number === "number")
+    .map((p) => p.number as number);
+  if (!limits.length) return USER_CAPACITY;
+  return Math.max(...limits);
 }
 
 function groupCapacity(g: Group) {
@@ -603,25 +1034,105 @@ function teamCapacity(t: Team) {
   };
 }
 
-function meanFor(t: Team, g: Group): number {
-  if (t.logicAxis === "DEPARTMENT") {
-    const v = deptVolumes(t.siteKey);
-    return g.departments.reduce((a, d) => a + (v[d] ?? 0), 0);
+/** Dimensions the volume data can price. */
+const VOLUME_DIMENSIONS = ["DEPARTMENT", "PAYER"];
+
+const volumesFor = (t: Team, code: string): Record<string, number> =>
+  code === "PAYER" ? payerVolumes(t) : deptVolumes(t);
+
+/**
+ * Which volume-bearing dimension this team's groups actually split on. This is
+ * what `logicAxis` used to declare; it is now simply observed from the rules,
+ * so a team that splits by payer is one whose groups name payers.
+ */
+function volumeDimensionOf(t: Team): string {
+  const counts = VOLUME_DIMENSIONS.map((code) => ({
+    code,
+    n: t.groups.filter((g) => g.active && criterionFor(g.criteria, code)).length,
+  })).sort((a, b) => b.n - a.n);
+  return counts[0].n ? counts[0].code : "DEPARTMENT";
+}
+
+/**
+ * Daily volume each active group wins, settled by the same narrowest-wins rule
+ * the matcher uses, so a projection cannot disagree with an actual run. Equal
+ * specificity splits the value evenly, which is what the old catch-all did.
+ */
+function meansByGroup(t: Team): Map<string, number> {
+  const code = volumeDimensionOf(t);
+  const field = dimensionByCode(code)?.itemField ?? "department";
+  const vols = volumesFor(t, code);
+  const out = new Map<string, number>(t.groups.map((g) => [g.id, 0]));
+  const active = t.groups.filter((g) => g.active);
+
+  for (const [value, perDay] of Object.entries(vols)) {
+    const probe: Record<string, unknown> = { [field]: value };
+    const accepting = active
+      .map((g) => ({
+        g,
+        spec: specificityOf(mergeCriteria(t.criteria, g.criteria)),
+        ok: criteriaAccept(
+          mergeCriteria(t.criteria, g.criteria).filter((c) => c.dimension === code),
+          probe,
+        ),
+      }))
+      .filter((x) => x.ok);
+    if (!accepting.length) continue;
+    const top = Math.max(...accepting.map((x) => x.spec));
+    const winners = accepting.filter((x) => x.spec === top);
+    for (const w of winners) out.set(w.g.id, (out.get(w.g.id) ?? 0) + perDay / winners.length);
   }
-  const v = payerVolumes(t.siteKey);
-  const named = g.payers.reduce((a, p) => a + (v[p] ?? 0), 0);
-  const catchAlls = t.groups.filter((x) => x.active && x.payerCatchAll).length;
-  const tail = Object.values(v)
-    .filter((x) => x < NAMED_PAYER_THRESHOLD)
-    .reduce((a, b) => a + b, 0);
-  return named + (g.payerCatchAll && catchAlls ? tail / catchAlls : 0);
+  return out;
+}
+
+const meanFor = (t: Team, g: Group): number => meansByGroup(t).get(g.id) ?? 0;
+
+/**
+ * Values of a dimension seen at this team's facilities that no active group
+ * admits. Generic, so it reports uncovered departments and uncovered payers
+ * through one code path, and will report whatever a client adds next.
+ *
+ * Scoped by work item type when given: a team handling two types needs the full
+ * value set for each one independently, which is how a "submission covers every
+ * department, resubmission covers three" gap gets caught.
+ */
+function uncoveredValues(t: Team, code: string, workItemType?: string): string[] {
+  const dim = dimensionByCode(code);
+  if (!dim) return [];
+  const universe = universeOf(code, t);
+  const active = t.groups.filter((g) => g.active);
+  return universe.filter((value) => {
+    const probe: Record<string, unknown> = { [dim.itemField]: value };
+    if (workItemType) probe.workItemType = workItemType;
+    return !active.some((g) => {
+      const eff = mergeCriteria(t.criteria, g.criteria);
+      const relevant = eff.filter(
+        (c) => c.dimension === code || (workItemType && c.dimension === "WORK_ITEM_TYPE"),
+      );
+      return criteriaAccept(relevant, probe);
+    });
+  });
+}
+
+/** Work item types this team's active groups handle. Hoisted: the seed uses it. */
+function typesHandled(t: Team): string[] {
+  const active = t.groups.filter((g) => g.active);
+  if (!active.length) return [];
+  return [
+    ...new Set(
+      active.flatMap((g) =>
+        admittedValues(mergeCriteria(t.criteria, g.criteria), "WORK_ITEM_TYPE", WORK_ITEM_TYPES),
+      ),
+    ),
+  ];
 }
 
 function advice(t: Team) {
   const active = t.groups.filter((g) => g.active);
-  const burst = burstOf(t.siteKey);
+  const burst = burstOf(t);
+  const means = meansByGroup(t);
   const projections = active.map((g) => {
-    const mean = meanFor(t, g);
+    const mean = means.get(g.id) ?? 0;
     const cap = groupCapacity(g);
     return {
       groupId: g.id,
@@ -666,15 +1177,18 @@ function advice(t: Team) {
         message: `Load is uneven: the busiest group is projected ${mx.toFixed(0)} items/day and the quietest ${mn.toFixed(0)} (${(mx / mn).toFixed(1)}×). Rebalancing would even out the queues.`,
       });
   }
-  if (t.logicAxis === "PAYER" && !active.some((g) => g.payerCatchAll)) {
-    const named = new Set(active.flatMap((g) => g.payers));
-    const unnamed = Object.keys(payerVolumes(t.siteKey)).filter((p) => !named.has(p)).length;
-    if (unnamed > 0)
-      findings.push({
-        severity: "BLOCKER",
-        groupId: null,
-        message: `${unnamed} payers seen at this facility are not named by any group, and no group is a catch-all, their work will not be allocated.`,
-      });
+  // With the catch-all toggle gone, a value no group admits is simply a gap, and
+  // saying so is the whole replacement for it.
+  for (const code of VOLUME_DIMENSIONS) {
+    const gaps = uncoveredValues(t, code);
+    if (!gaps.length) continue;
+    const perDay = gaps.reduce((a, v) => a + volumeOf(t, code, v), 0);
+    if (perDay <= 0) continue;
+    findings.push({
+      severity: perDay >= 1 ? "BLOCKER" : "WARNING",
+      groupId: null,
+      message: `${gaps.length} ${dimensionByCode(code)?.label.toLowerCase() ?? code} values seen here are admitted by no group, about ${perDay.toFixed(0)} items/day that would not be allocated.`,
+    });
   }
   return {
     projections,
@@ -684,15 +1198,22 @@ function advice(t: Team) {
   };
 }
 
-/** Volume-packed: heaviest item into the lightest group. */
+/**
+ * Volume-packed: heaviest value into the lightest group. Works on whichever
+ * volume dimension the team's groups already split on, so the same code
+ * suggests a department split and a payer split.
+ */
 function suggest(t: Team) {
   const active = t.groups.filter((g) => g.active);
   if (!active.length) return [];
-  const byDept = t.logicAxis === "DEPARTMENT";
-  const vols = byDept ? deptVolumes(t.siteKey) : payerVolumes(t.siteKey);
+  const code = volumeDimensionOf(t);
+  const byDept = code === "DEPARTMENT";
+  const vols = volumesFor(t, code);
   const picked = new Map<string, string[]>(active.map((g) => [g.id, []]));
   const load = new Map<string, number>(active.map((g) => [g.id, 0]));
 
+  // Below the threshold a payer is long-tail: naming each one clutters the rule
+  // for no routing benefit, so the tail is spread instead.
   const candidates = Object.entries(vols)
     .filter(([, v]) => (byDept ? true : v >= NAMED_PAYER_THRESHOLD))
     .sort((a, b) => b[1] - a[1]);
@@ -712,41 +1233,53 @@ function suggest(t: Team) {
   return active.map((g) => ({
     groupId: g.id,
     groupName: g.name,
+    dimension: code,
+    values: picked.get(g.id)!,
     departments: byDept ? picked.get(g.id)! : [],
     namedPayers: byDept ? [] : picked.get(g.id)!,
-    catchAll: !byDept,
+    catchAll: false,
     projectedPerDay:
       Math.round(((load.get(g.id) ?? 0) + (byDept ? 0 : tail / active.length)) * 10) / 10,
   }));
 }
 
+/**
+ * Coverage over every dimension the registry marks coverage-checked, rather
+ * than a department branch and a payer branch. The legacy field names are kept
+ * so existing callers read the same report.
+ */
 function coverage(t: Team) {
   const active = t.groups.filter((g) => g.active);
   const empty = active.filter((g) => !g.members.length).map((g) => g.id);
-  if (t.logicAxis === "DEPARTMENT") {
-    const covered = new Set(active.flatMap((g) => g.departments));
-    const counts: Record<string, number> = {};
-    active.flatMap((g) => g.departments).forEach((d) => (counts[d] = (counts[d] ?? 0) + 1));
-    const uncovered = Object.keys(deptVolumes(t.siteKey)).filter((d) => !covered.has(d));
-    return {
-      uncoveredDepartments: uncovered,
-      overlappingDepartments: Object.entries(counts).filter(([, c]) => c > 1).map(([d]) => d),
-      uncoveredPayers: [],
-      emptyGroupIds: empty,
-      complete: uncovered.length === 0 && empty.length === 0,
-    };
+
+  const gapsFor = (code: string) =>
+    DIMENSIONS.some((d) => d.code === code && d.coverageChecked) ? uncoveredValues(t, code) : [];
+
+  const uncoveredDepartments = gapsFor("DEPARTMENT");
+  const uncoveredPayers = gapsFor("PAYER");
+
+  // Two groups admitting the same department is legal, but worth surfacing,
+  // since narrowest-wins then decides something the admin may not have meant.
+  const counts: Record<string, number> = {};
+  for (const g of active) {
+    for (const d of admittedValues(
+      mergeCriteria(t.criteria, g.criteria),
+      "DEPARTMENT",
+      universeOf("DEPARTMENT", t),
+    )) {
+      counts[d] = (counts[d] ?? 0) + 1;
+    }
   }
-  const anyCatchAll = active.some((g) => g.payerCatchAll);
-  const named = new Set(active.flatMap((g) => g.payers));
-  const uncovered = anyCatchAll
-    ? []
-    : Object.keys(payerVolumes(t.siteKey)).filter((p) => !named.has(p));
+
   return {
-    uncoveredDepartments: [],
-    overlappingDepartments: [],
-    uncoveredPayers: uncovered,
+    uncoveredDepartments,
+    overlappingDepartments: Object.entries(counts)
+      .filter(([, c]) => c > 1)
+      .map(([d]) => d),
+    uncoveredPayers,
     emptyGroupIds: empty,
-    complete: uncovered.length === 0 && empty.length === 0,
+    complete:
+      uncoveredDepartments.length === 0 && uncoveredPayers.length === 0 && empty.length === 0,
   };
 }
 
@@ -768,11 +1301,15 @@ function rng(seed: number) {
 
 function buildItems(t: Team, count: number) {
   const rand = rng(Number(t.id) * 7919);
-  const byDept = t.logicAxis === "DEPARTMENT";
-  const vols = byDept ? deptVolumes(t.siteKey) : payerVolumes(t.siteKey);
+  // Generate on whichever axis the team splits on, so the preview exercises the
+  // rules the admin actually wrote.
+  const code = volumeDimensionOf(t);
+  const byDept = code === "DEPARTMENT";
+  const vols = volumesFor(t, code);
   const entries = Object.entries(vols);
   const total = entries.reduce((a, [, v]) => a + v, 0) || 1;
-  const types = [...new Set(t.groups.flatMap((g) => g.workItemTypes))];
+  const types = typesHandled(t);
+  const facilities = facilitiesOf(t);
   /**
    * Claim status is a property of the item's stage, not a free variable: a claim
    * being submitted is VALIDATED by definition, one awaiting coding is OPEN or
@@ -784,7 +1321,7 @@ function buildItems(t: Team, count: number) {
     if (wt === "CLAIM_SUBMISSION") return "VALIDATED";
     return null; // resubmission / reconciliation carry no pre-claim status
   };
-  const encs = t.encounterScope === "BOTH" ? ["OP", "IP"] : [t.encounterScope];
+  const encs = admittedValues(t.criteria, "ENCOUNTER_TYPE", ENCOUNTER_TYPES);
 
   const items: any[] = [];
   for (let i = 0; i < count; i++) {
@@ -800,46 +1337,75 @@ function buildItems(t: Team, count: number) {
     const workItemType = types.length ? types[Math.floor(rand() * types.length)] : "CLAIM_VALIDATION";
     const claimStatus = statusFor(workItemType, rand());
     const rank = Math.round((PRIORITY_SCORE[priority] + ageDays * 0.7) * 100) / 100;
-    // Resubmission work carries a value; that is what the high-cost rule acts on.
-    const isResub = workItemType.includes("RESUBMISSION");
-    const net = isResub ? Math.round(rand() * 8000) : null;
+    // Claim work carries a net value; authorisation work does not. That is
+    // exactly why one policy can apply to claims and another to authorisations.
+    const net = familyOfWorkItemType(workItemType)?.code === "CLAIM"
+      ? Math.round(rand() * 8000)
+      : null;
     items.push({
       id: `${t.id}-${i + 1}`,
       workItemType,
+      facilityId: facilities[Math.floor(rand() * facilities.length)] ?? null,
       department: byDept ? key : null,
       payer: byDept ? null : key,
       claimStatus,
-      encounterType: encs[Math.floor(rand() * encs.length)],
+      encounterType: encs[Math.floor(rand() * encs.length)] ?? null,
       priority,
       ageDays,
       rank,
       net,
-      highCost: net != null && net > ((t as any).highCostThreshold ?? Infinity),
     });
   }
   // Highest rank first, age dominates quickly, which is the anti-starvation rule.
   return items.sort((a, b) => b.rank - a.rank);
 }
 
-/** Narrowest matching group wins; remaining capacity breaks ties. */
+/**
+ * The whole matcher, for every dimension a client will ever configure: a group
+ * accepts an item when its effective rule admits it, and the narrowest accepting
+ * group wins. The v2 version of this hardcoded work item type, encounter scope,
+ * a logicAxis branch and claim status; none of that is named here.
+ */
 function matchGroup(t: Team, item: any) {
-  const candidates = t.groups.filter((g) => {
-    if (!g.active) return false;
-    if (!g.workItemTypes.includes(item.workItemType)) return false;
-    if (item.encounterType && g.encounterScope !== "BOTH" && g.encounterScope !== item.encounterType)
-      return false;
-    if (t.logicAxis === "DEPARTMENT") {
-      if (!item.department || !g.departments.includes(item.department)) return false;
-    } else {
-      const named = item.payer && g.payers.includes(item.payer);
-      if (!named && !g.payerCatchAll) return false;
-    }
-    if (g.claimStatuses.length && item.claimStatus && !g.claimStatuses.includes(item.claimStatus))
-      return false;
-    return true;
-  });
+  const candidates = t.groups
+    .filter((g) => g.active)
+    .map((g) => ({ g, eff: mergeCriteria(t.criteria, g.criteria) }))
+    .filter(({ eff }) => criteriaAccept(eff, item));
   if (!candidates.length) return null;
-  return candidates.sort((a, b) => specificity(b) - specificity(a))[0];
+  candidates.sort((a, b) => specificityOf(b.eff) - specificityOf(a.eff));
+  return candidates[0].g;
+}
+
+/**
+ * Why an item matched nothing, named down to the clause that rejected it. Only
+ * possible because criteria are data: "no group accepts this" was all v2 could
+ * say, and it is the first question a supervisor asks.
+ */
+function rejectionReason(t: Team, item: any): string {
+  const active = t.groups.filter((g) => g.active);
+  if (!active.length) return "Team has no active groups";
+  if (!criteriaAccept(t.criteria, item)) {
+    const c = rejectingCriterion(t.criteria, item);
+    const label = dimensionByCode(c?.dimension ?? "")?.label ?? c?.dimension ?? "";
+    return `Outside the team's rule on ${label.toLowerCase()}`;
+  }
+  const blamed = new Map<string, number>();
+  for (const g of active) {
+    const c = rejectingCriterion(mergeCriteria(t.criteria, g.criteria), item);
+    if (!c) continue;
+    blamed.set(c.dimension, (blamed.get(c.dimension) ?? 0) + 1);
+  }
+  const worst = [...blamed.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (!worst) return "No group accepts this item";
+  const dim = dimensionByCode(worst[0]);
+  const value = item[dim?.itemField ?? ""] ?? "(none)";
+  // Name the work item type as well: the same department is often covered for
+  // one type and not another, and "no group admits Physiotherapy" reads as a
+  // contradiction when a group plainly lists it.
+  const wit = item.workItemType
+    ? ` for ${String(item.workItemType).replace(/_/g, " ").toLowerCase()}`
+    : "";
+  return `No group admits ${dim?.label.toLowerCase() ?? worst[0]} "${value}"${wit}`;
 }
 
 function allocationPreview(t: Team, count: number) {
@@ -867,30 +1433,35 @@ function allocationPreview(t: Team, count: number) {
   for (const item of items) {
     const g = matchGroup(t, item);
     if (!g) {
-      unmatched.push({ ...item, reason: "No group accepts this item" });
+      unmatched.push({ ...item, reason: rejectionReason(t, item) });
       continue;
     }
     matched.set(g.id, (matched.get(g.id) ?? 0) + 1);
     // Least-loaded member of that group with capacity left.
-    const team: any = t;
-    // High-cost items go only to members tagged for them.
-    const eligible = item.highCost
-      ? g.members.filter((m: any) => m.handlesHighCost)
-      : g.members;
+    const family = familyOfWorkItemType(item.workItemType)?.code;
+    const exceed = allowsExceed(t, family);
+    // Every policy that flags this item narrows who may take it. Nothing here
+    // knows what "high cost" is; it asks the registry which policies bit.
+    const flagged = flaggingPolicies(t, item);
+    const eligible = flagged.reduce(
+      (members: any[], p) => members.filter((m: any) => hasTag(m, p.handlerTag!)),
+      g.members as any[],
+    );
     const pool = eligible
       .map((m) => cap.get(`${g.id}:${m.id}`)!)
-      // AUTH teams keep allocating past the cap; CLAIM teams stop at it.
-      .filter((c) => c && (team.allowExceedCapacity || c.assigned < c.capacity))
+      // Overflow is a property of the item's family, not of the whole team.
+      .filter((c) => c && (exceed || c.assigned < c.capacity))
       .sort((a, b) => a.assigned - b.assigned);
     if (!pool.length) {
       unmatched.push({
         ...item,
         groupId: g.id,
         groupName: g.name,
+        flaggedBy: flagged.map((p) => p.code),
         reason: !g.members.length
           ? "Group has no members"
-          : item.highCost
-            ? "No member tagged for high-cost work"
+          : eligible.length === 0 && flagged.length
+            ? `No member cleared for ${flagged.map((p) => p.label.toLowerCase()).join(" and ")}`
             : "Group at capacity",
       });
       continue;
@@ -902,23 +1473,38 @@ function allocationPreview(t: Team, count: number) {
       ...item,
       groupId: g.id,
       groupName: g.name,
+      flaggedBy: flagged.map((p) => p.code),
       assigneeId: who.userId,
       assigneeName: who.name,
       reason: null,
     });
   }
 
-  const highCostAll = items.filter((i: any) => i.highCost).length;
-  const highCostLost = unmatched.filter((i: any) => i.highCost).length;
+  // Per-policy counts, so the preview reports whatever policies are in play
+  // rather than a hardcoded high-cost pair.
+  const relevant = policiesFor(typesHandled(t)).filter((p) => p.handlerTag);
+  const policyImpact = relevant.map((p) => {
+    const setting = settingOf(t, p.code);
+    const flaggedCount = items.filter((i: any) =>
+      policyFlags(p, (p.valueType === "NUMBER" ? setting?.number : setting?.flag) ?? undefined, i),
+    ).length;
+    const lost = unmatched.filter((i: any) => (i.flaggedBy ?? []).includes(p.code)).length;
+    return {
+      code: p.code,
+      label: p.label,
+      unit: p.unit ?? null,
+      threshold: setting?.number ?? (p.defaultValue as number),
+      flagged: flaggedCount,
+      unassigned: lost,
+    };
+  });
   return {
     teamId: t.id,
     teamName: t.name,
-    facilityId: t.facilityId,
-    division: (t as any).division,
-    encounterScope: (t as any).encounterScope,
-    highCostThreshold: (t as any).highCostThreshold ?? null,
-    highCostCount: highCostAll,
-    highCostUnassigned: highCostLost,
+    // Round-2 asked the preview to state its scope explicitly. That scope is now
+    // whatever the team's rule says, rather than a fixed facility/division line.
+    scope: describeCriteria(t.criteria),
+    policyImpact,
     totalItems: items.length,
     assignedCount: out.length,
     unassignedCount: unmatched.length,
@@ -943,145 +1529,281 @@ const teamSettings = new Map<string, { maxAuth: number; maxClaim: number }>();
 const settingsFor = (teamId: string) =>
   teamSettings.get(String(teamId)) ?? { maxAuth: USER_CAPACITY, maxClaim: USER_CAPACITY };
 
+const nameOf = (m: any): string =>
+  [m.firstName, m.lastName].filter(Boolean).join(" ") || String(m.id);
+
+/** Distinct members of a team flagged as supervising it. */
+function supervisorsOf(t: any): any[] {
+  const seen = new Map<string, any>();
+  for (const g of t.groups ?? []) {
+    for (const m of g.members ?? []) if (m.isSupervisor) seen.set(String(m.id), m);
+  }
+  return [...seen.values()];
+}
+
+/** The (facility, work item type, encounter) space a team's rule admits. */
+function admittedSpace(t: any): Set<string> {
+  const out = new Set<string>();
+  for (const f of admittedValues(t.criteria, "FACILITY", ALL_FACILITIES)) {
+    for (const w of admittedValues(t.criteria, "WORK_ITEM_TYPE", WORK_ITEM_TYPES)) {
+      for (const e of admittedValues(t.criteria, "ENCOUNTER_TYPE", ENCOUNTER_TYPES)) {
+        out.add(`${f}|${w}|${e}`);
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * Readiness over an arbitrary set of teams. Taking the list as an argument lets
  * the deletion preview ask what readiness would be once a team is gone.
+ *
+ * Every check here is written against criteria rather than against named fields,
+ * so a dimension a client adds later is covered without touching this function.
+ * Nothing blocks a save; the feedback was that the admin owns the decision and
+ * the system's job is to make the consequence impossible to miss.
  */
 function readinessOf(input: any[]): any {
   const list = input.filter((t) => t.active);
-    const issues: any[] = [];
-    const AUTH_TYPES = ["AUTHORIZATION_SUBMISSION", "AUTHORIZATION_RESUBMISSION"];
-    const CLAIM_TYPES = [
-      "CLAIM_VALIDATION",
-      "CLAIM_SUBMISSION",
-      "CLAIM_RESUBMISSION",
-      "RECONCILIATION",
-    ];
-    const label = (w: string) =>
-      w.replace("AUTHORIZATION_", "auth ").replace("CLAIM_", "claim ").toLowerCase();
+  const issues: any[] = [];
+  const unhandled: string[] = [];
+  const label = (w: string) =>
+    w.replace("AUTHORIZATION_", "auth ").replace("CLAIM_", "claim ").toLowerCase();
 
-    // A facility that runs a division but leaves one of its work item types
-    // unhandled will silently drop those items.
-    const unhandled: string[] = [];
-    const byFacility = new Map<string, any[]>();
-    for (const t of list) {
-      if (!t.active) continue;
-      byFacility.set(t.facilityId, [...(byFacility.get(t.facilityId) ?? []), t]);
+  /** Every issue carries who is expected to act on it. */
+  const add = (issue: any, t?: any) => {
+    const sups = t ? supervisorsOf(t) : [];
+    issues.push({
+      teamId: t?.id ?? null,
+      teamName: t?.name ?? null,
+      facilityId: t ? (facilitiesOf(t)[0] ?? null) : null,
+      itemsAtRiskPerDay: 0,
+      supervisorIds: sups.map((m) => String(m.id)),
+      supervisorNames: sups.map(nameOf),
+      ...issue,
+    });
+  };
+
+  // A facility somebody runs, carrying a work item type no active group admits.
+  // Only families the facility actually runs are checked: a site doing pure
+  // authorisation work should not be told it has no reconciliation group.
+  for (const facilityId of ALL_FACILITIES) {
+    const here = list.filter((t) => facilitiesOf(t).includes(facilityId));
+    if (!here.length) continue;
+    const familiesRun = new Set(
+      here.flatMap((t) => typesHandled(t).map((w) => familyOfWorkItemType(w)?.code)),
+    );
+    for (const wit of WORK_ITEM_TYPES) {
+      if (!familiesRun.has(familyOfWorkItemType(wit)?.code)) continue;
+      const probe = { facilityId, workItemType: wit };
+      const covered = here.some((t) =>
+        t.groups.some(
+          (g: any) =>
+            g.active &&
+            criteriaAccept(
+              mergeCriteria(t.criteria, g.criteria).filter(
+                (c) => c.dimension === "FACILITY" || c.dimension === "WORK_ITEM_TYPE",
+              ),
+              probe,
+            ),
+        ),
+      );
+      if (covered) continue;
+      unhandled.push(`${facilityId} · ${wit}`);
+      add({
+        severity: "WARNING",
+        kind: "UNHANDLED_TYPE",
+        facilityId,
+        message: `${facilityId} has teams but no active group handles ${label(wit)}.`,
+      });
     }
-    for (const [facilityId, ts] of byFacility) {
-      for (const division of ["AUTH", "CLAIM"]) {
-        const divTeams = ts.filter((x: any) => x.division === division);
-        if (!divTeams.length) continue;
-        const handled = new Set<string>(
-          divTeams.flatMap((x: any) =>
-            x.groups.filter((g: any) => g.active).flatMap((g: any) => g.workItemTypes)),
-        );
-        for (const wt of division === "AUTH" ? AUTH_TYPES : CLAIM_TYPES) {
-          if (handled.has(wt)) continue;
-          unhandled.push(`${facilityId} · ${wt}`);
-          issues.push({
-            severity: "WARNING",
-            kind: "UNHANDLED_TYPE",
-            teamId: null,
-            teamName: null,
-            facilityId,
-            message: `${facilityId} runs ${division} work, but no active group handles ${label(wt)}.`,
-          });
-        }
-      }
-    }
+  }
 
-    const ready = new Set(list.filter((t) => t.active).map((t) => t.id));
-    for (const t of list) {
-      if (!t.active) continue;
-      const active = t.groups.filter((g: any) => g.active);
+  const ready = new Set(list.map((t) => t.id));
 
-      if (!active.length) {
-        ready.delete(t.id);
-        issues.push({
+  for (const t of list) {
+    const active = t.groups.filter((g: any) => g.active);
+
+    if (!active.length) {
+      ready.delete(t.id);
+      add(
+        {
           severity: "BLOCKER",
           kind: "NO_GROUPS",
-          teamId: t.id,
-          teamName: t.name,
-          facilityId: t.facilityId,
           message: `${t.name} has no active groups, it cannot receive any work.`,
-        });
-        continue;
-      }
+        },
+        t,
+      );
+      continue;
+    }
 
-      for (const g of active.filter((g: any) => !g.members.length)) {
-        ready.delete(t.id);
-        issues.push({
+    for (const g of active) {
+      if (g.members.length) continue;
+      ready.delete(t.id);
+      add(
+        {
           severity: "BLOCKER",
           kind: "EMPTY_GROUP",
-          teamId: t.id,
-          teamName: t.name,
-          facilityId: t.facilityId,
           message: `${t.name}, group "${g.name}" has no members, so work matched there has nowhere to go.`,
-        });
-      }
+        },
+        t,
+      );
+    }
 
-      // Coverage is per work item type: a team handling two types needs the
-      // full department set for each one independently.
-      if (t.logicAxis === "DEPARTMENT") {
-        const all = Object.keys(deptVolumes(t.siteKey));
-        const types = [...new Set(active.flatMap((g: any) => g.workItemTypes))] as string[];
-        for (const wt of types) {
-          const covered = new Set<string>(
-            active
-              .filter((g: any) => g.workItemTypes.includes(wt))
-              .flatMap((g: any) => g.departments),
-          );
-          const missing = all.filter((d) => !covered.has(d));
-          if (!missing.length) continue;
-          ready.delete(t.id);
-          issues.push({
-            severity: "WARNING",
-            kind: "UNCOVERED_DEPARTMENTS",
-            teamId: t.id,
-            teamName: t.name,
-            facilityId: t.facilityId,
-            message: `${t.name}, ${missing.length} of ${all.length} departments have no group for ${label(wt)}.`,
-          });
-        }
-      } else if (!active.some((g: any) => g.payerCatchAll)) {
+    // A group may only narrow its team's rule. Widening it means work the team
+    // was never meant to hold, which is the one structural rule left to enforce.
+    for (const g of active) {
+      const broken = widensBeyond(t.criteria, g.criteria);
+      if (!broken.length) continue;
+      ready.delete(t.id);
+      add(
+        {
+          severity: "BLOCKER",
+          kind: "GROUP_WIDENS_TEAM",
+          message: `${t.name}, group "${g.name}" allows ${broken
+            .map((d) => dimensionByCode(d)?.label.toLowerCase() ?? d)
+            .join(" and ")} its team does not, so it can never match.`,
+        },
+        t,
+      );
+    }
+
+    // Coverage, per dimension the registry checks, per work item type. Naming
+    // every gap is what replaces the catch-all toggle.
+    for (const dim of DIMENSIONS.filter((d) => d.coverageChecked)) {
+      if (dim.code === "WORK_ITEM_TYPE") continue; // handled estate-wide above
+      const handled = typesHandled(t);
+      for (const wt of handled) {
+        const missing = uncoveredValues(t, dim.code, wt);
+        if (!missing.length) continue;
+        // The volume table counts items, not items per work item type, so split
+        // it across the types this team handles rather than charging each one
+        // the full figure and inflating the estate total.
+        const perDay =
+          missing.reduce((a, v) => a + volumeOf(t, dim.code, v), 0) / Math.max(1, handled.length);
+        const universe = universeOf(dim.code, t).length;
         ready.delete(t.id);
-        issues.push({
-          severity: "WARNING",
-          kind: "NO_PAYER_CATCH_ALL",
-          teamId: t.id,
-          teamName: t.name,
-          facilityId: t.facilityId,
-          message: `${t.name} names payers but has no catch-all group, smaller payers will not be allocated.`,
-        });
-      }
-
-      // Resubmission carries the high-value work; someone has to be cleared for it.
-      const doesResub = active.some((g: any) =>
-        g.workItemTypes.some((w: string) => w.includes("RESUBMISSION")));
-      const anyHighCost = active.some((g: any) =>
-        g.members.some((m: any) => m.handlesHighCost));
-      if (doesResub && !anyHighCost) {
-        issues.push({
-          severity: "WARNING",
-          kind: "NO_HIGH_COST_HANDLER",
-          teamId: t.id,
-          teamName: t.name,
-          facilityId: t.facilityId,
-          message: `${t.name} handles resubmission but nobody is tagged for high-cost items (over AED ${(t.highCostThreshold ?? 3000).toLocaleString()}).`,
-        });
+        add(
+          {
+            severity: perDay >= 1 ? "WARNING" : "INFO",
+            kind: `UNCOVERED_${dim.code}`,
+            itemsAtRiskPerDay: Math.round(perDay * 10) / 10,
+            message: `${t.name}, ${missing.length} of ${universe} ${dim.label.toLowerCase()} values have no group for ${label(
+              wt,
+            )}${perDay >= 1 ? `, about ${perDay.toFixed(0)} items/day` : ""}.`,
+          },
+          t,
+        );
       }
     }
 
-    const rank: Record<string, number> = { BLOCKER: 0, WARNING: 1, INFO: 2 };
-    issues.sort((a, b) => rank[a.severity] - rank[b.severity]);
-    return {
-      teamsTotal: list.filter((t) => t.active).length,
-      teamsReady: ready.size,
-      issues,
-      unhandled: [...new Set(unhandled)],
-    };
+    // Any policy that routes by handler tag needs somebody carrying that tag.
+    // Written against the registry, so a policy added later is checked too.
+    for (const pol of policiesFor(typesHandled(t))) {
+      if (!pol.handlerTag) continue;
+      const covered = active.some((g: any) =>
+        g.members.some((m: any) => (m.handlerTags ?? []).includes(pol.handlerTag)),
+      );
+      if (covered) continue;
+      const setting = (t.policies ?? []).find((x: any) => x.code === pol.code && !x.family);
+      const threshold = setting?.number ?? pol.defaultValue;
+      add(
+        {
+          severity: "WARNING",
+          kind: `NO_HANDLER_${pol.code}`,
+          message: `${t.name} has nobody cleared for ${pol.label.toLowerCase()} work (over ${Number(
+            threshold,
+          ).toLocaleString()}${pol.unit ? ` ${pol.unit}` : ""}), so those items will not be assigned.`,
+        },
+        t,
+      );
+    }
+
+    // Without a supervisor there is nobody to warn, which defeats the point.
+    if (!supervisorsOf(t).length) {
+      add(
+        {
+          severity: "WARNING",
+          kind: "NO_SUPERVISOR",
+          message: `${t.name} has no supervisor, so nobody is told when its work goes unallocated.`,
+        },
+        t,
+      );
+    }
+  }
+
+  // Two teams whose rules both admit the same work. Legal, and sometimes meant,
+  // but with facilities now multi-select it is easy to do by accident, and the
+  // narrower rule silently wins.
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const a = list[i];
+      const b = list[j];
+      const sa = admittedSpace(a);
+      const shared = [...admittedSpace(b)].filter((k) => sa.has(k));
+      if (!shared.length) continue;
+      const winner = specificityOf(a.criteria) >= specificityOf(b.criteria) ? a : b;
+      const sample = shared[0].split("|");
+      add(
+        {
+          severity: "INFO",
+          kind: "OVERLAPPING_TEAMS",
+          teamId: a.id,
+          teamName: a.name,
+          facilityId: sample[0],
+          message: `${a.name} and ${b.name} both take ${label(sample[1])} at ${sample[0]} (${
+            sample[2]
+          }). The narrower rule wins, currently ${winner.name}.`,
+        },
+        a,
+      );
+    }
+  }
+
+  const rank: Record<string, number> = { BLOCKER: 0, WARNING: 1, INFO: 2 };
+  issues.sort((a, b) => rank[a.severity] - rank[b.severity]);
+
+  // Point 4: roll every issue up to the people who have to act on it.
+  const byUser = new Map<string, any>();
+  for (const is of issues) {
+    is.supervisorIds.forEach((uid: string, idx: number) => {
+      const cur = byUser.get(uid) ?? {
+        userId: uid,
+        name: is.supervisorNames[idx],
+        teamNames: new Set<string>(),
+        blockers: 0,
+        warnings: 0,
+        itemsAtRiskPerDay: 0,
+      };
+      if (is.teamName) cur.teamNames.add(is.teamName);
+      if (is.severity === "BLOCKER") cur.blockers += 1;
+      if (is.severity === "WARNING") cur.warnings += 1;
+      cur.itemsAtRiskPerDay += is.itemsAtRiskPerDay ?? 0;
+      byUser.set(uid, cur);
+    });
+  }
+  const supervisorAlerts = [...byUser.values()]
+    .map((a) => ({
+      ...a,
+      teamNames: [...a.teamNames],
+      itemsAtRiskPerDay: Math.round(a.itemsAtRiskPerDay * 10) / 10,
+    }))
+    .sort((a, b) => b.blockers - a.blockers || b.itemsAtRiskPerDay - a.itemsAtRiskPerDay);
+
+  return {
+    teamsTotal: list.length,
+    teamsReady: ready.size,
+    issues,
+    unhandled: [...new Set(unhandled)],
+    supervisorAlerts,
+    unownedIssues: issues.filter(
+      (i) => i.severity !== "INFO" && !i.supervisorIds.length,
+    ).length,
+    itemsAtRiskPerDay:
+      Math.round(issues.reduce((a, i) => a + (i.itemsAtRiskPerDay ?? 0), 0) * 10) / 10,
+  };
 }
+
 
 /**
  * What removing a team would cost: readiness recomputed without it, plus the
@@ -1089,22 +1811,155 @@ function readinessOf(input: any[]): any {
  * deletion itself, so the warning and the outcome cannot drift apart.
  */
 function deletionResult(t: any, without: any[]): any {
+  // "Affected" is now whoever's rule overlaps the one being removed, which is
+  // the honest answer once a team can span several facilities.
+  const gone = admittedSpace(t);
   return {
     deletedId: t.id,
     deletedName: t.name,
     readiness: readinessOf(without),
     affectedTeams: without.filter(
-      (x) => x.active && x.facilityId === t.facilityId && x.division === t.division,
+      (x) => x.active && [...admittedSpace(x)].some((k) => gone.has(k)),
     ),
   };
 }
 
 const resolvers = {
+  User: {
+    handlerTags: (u: any) => u.handlerTags ?? [],
+    handlesHighCost: (u: any) => (u.handlerTags ?? []).includes("HIGH_COST"),
+  },
+
+  AllocationPolicy: {
+    defaultNumber: (p: any) => (p.valueType === "NUMBER" ? p.defaultValue : null),
+    defaultFlag: (p: any) => (p.valueType === "FLAG" ? p.defaultValue : null),
+  },
+
+  AllocationDimension: {
+    values: (d: any) =>
+      universeOf(d.code).map((value) => ({
+        value,
+        label: prettyValue(value, d),
+        perDay: null,
+      })),
+  },
+
   Query: {
+    /** The registry. Served as data so the UI has no per-dimension wiring. */
+    allocationDimensions: () =>
+      [...DIMENSIONS]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((d) => ({
+          ...d,
+          // The registry holds a map because that is what the matcher indexes
+          // into; GraphQL wants rows.
+          aliases: Object.entries(d.aliases ?? {}).map(([from, to]) => ({ from, to })),
+        })),
+    allocationPolicies: () => [...POLICIES].sort((a, b) => a.sortOrder - b.sortOrder),
+    capacityFamilies: () => CAPACITY_FAMILIES,
+
+    /**
+     * Paginated, searchable values for any dimension, in the relay shape
+     * ApiAutocomplete expects. One resolver serves every dimension, so adding a
+     * registry row gives it a real Optima picker with no new endpoint.
+     */
+    dimensionOptions: (_: unknown, { first, after, filter }: any) => {
+      const t = filter?.teamId ? findTeam(filter.teamId) : undefined;
+      const dim = dimensionByCode(filter.dimension);
+      const priced = filter.dimension === "DEPARTMENT" || filter.dimension === "PAYER";
+      const q = String(filter?.name_Icontains ?? "").toLowerCase();
+
+      let rows = universeOf(filter.dimension, t).map((value) => ({
+        id: value,
+        name: prettyValue(value, dim),
+        perDay: priced && t ? Math.round(volumeOf(t, filter.dimension, value) * 10) / 10 : null,
+      }));
+      if (q) rows = rows.filter((r) => r.name.toLowerCase().includes(q));
+
+      const start = after ? rows.findIndex((r) => r.id === after) + 1 : 0;
+      const size = first ?? 20;
+      const page = rows.slice(start, start + size);
+      return {
+        edges: page.map((node) => ({ node, cursor: node.id })),
+        pageInfo: {
+          hasNextPage: start + size < rows.length,
+          endCursor: page.length ? page[page.length - 1].id : null,
+        },
+        totalCount: rows.length,
+      };
+    },
+
+    rcmUsers: (_: unknown, { first, after, filter }: any) => {
+      const q = String(filter?.search ?? "").toLowerCase();
+      let rows = allUsers;
+      if (q) {
+        rows = rows.filter((u) =>
+          [u.firstName, u.lastName, u.email]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(q),
+        );
+      }
+      const start = after ? rows.findIndex((r) => String(r.id) === after) + 1 : 0;
+      const size = first ?? 20;
+      const page = rows.slice(start, start + size);
+      return {
+        edges: page.map((node) => ({ node, cursor: String(node.id) })),
+        pageInfo: {
+          hasNextPage: start + size < rows.length,
+          endCursor: page.length ? String(page[page.length - 1].id) : null,
+        },
+        totalCount: rows.length,
+      };
+    },
+
+    /** Pickable values for any dimension, priced by observed volume where known. */
+    dimensionValues: (_: unknown, { dimension, teamId }: any) => {
+      const t = teamId ? findTeam(teamId) : undefined;
+      const values = universeOf(dimension, t);
+      const priced = t && (dimension === "DEPARTMENT" || dimension === "PAYER");
+      const dim = dimensionByCode(dimension);
+      return values.map((value) => ({
+        value,
+        label: prettyValue(value, dim),
+        perDay: priced ? Math.round(volumeOf(t!, dimension, value) * 10) / 10 : null,
+      }));
+    },
+
     /**
      * Estate-wide readiness. Answers one question: would anything arriving today
      * fail to be allocated? It warns; it never blocks.
      */
+    /**
+     * Estate totals. Capacity is summed over DISTINCT people, because a member
+     * of two teams still only works one day: summing team capacities overstates
+     * the estate by every shared membership.
+     */
+    optimaAllocationEstate: () => {
+      const active = teams.filter((t) => t.active);
+      const seen = new Map<string, { team: Team; member: any }>();
+      let memberships = 0;
+      for (const t of active) {
+        for (const g of t.groups) {
+          if (!g.active) continue;
+          for (const m of g.members) {
+            memberships += 1;
+            if (!seen.has(String(m.id))) seen.set(String(m.id), { team: t, member: m });
+          }
+        }
+      }
+      const capacityPerDay = [...seen.values()].reduce((n, x) => n + capOf(x.team, x.member), 0);
+      return {
+        teams: teams.length,
+        activeTeams: active.length,
+        groups: active.reduce((n, t) => n + t.groups.filter((g) => g.active).length, 0),
+        people: seen.size,
+        capacityPerDay,
+        sharedMemberships: memberships - seen.size,
+      };
+    },
+
     optimaAllocationReadiness: () => readinessOf(teams),
 
     /** The team list, narrowed the way a supervisor thinks about it. */
@@ -1114,33 +1969,38 @@ const resolvers = {
       return deletionResult(t, teams.filter((x) => String(x.id) !== String(id)));
     },
 
+    /**
+     * One filter for every dimension. A team matches when some active group's
+     * effective rule admits each filter value, which is the same predicate the
+     * matcher uses, so filtering and routing cannot disagree.
+     */
     optimaTeamsFiltered: (_: unknown, { filter }: any) => {
       let out = teams as any[];
       if (!filter) return out;
-      if (filter.branchId) {
-        out = out.filter((t) => String(t.facilityId) === String(filter.branchId));
+      if (filter.name?.trim()) {
+        const q = filter.name.trim().toLowerCase();
+        out = out.filter((t) => t.name.toLowerCase().includes(q));
       }
-      if (filter.encounterScope) {
-        // A BOTH team serves either encounter, so it matches every scope.
-        out = out.filter(
-          (t) => t.encounterScope === filter.encounterScope || t.encounterScope === "BOTH",
+      if (typeof filter.active === "boolean") out = out.filter((t) => t.active === filter.active);
+
+      for (const c of filter.criteria ?? []) {
+        const dim = dimensionByCode(c.dimension);
+        if (!dim || !(c.values ?? []).length) continue;
+        out = out.filter((t) =>
+          (c.values as string[]).some((value) => {
+            const probe: Record<string, unknown> = { [dim.itemField]: value };
+            return t.groups.some(
+              (g: any) =>
+                g.active &&
+                criteriaAccept(
+                  mergeCriteria(t.criteria, g.criteria).filter(
+                    (x: Criterion) => x.dimension === c.dimension,
+                  ),
+                  probe,
+                ),
+            );
+          }),
         );
-      }
-      if (filter.departments?.length) {
-        const want = new Set(filter.departments.map((d: string) => d.toLowerCase()));
-        out = out.filter((t) =>
-          t.groups.some((g: any) =>
-            g.active && g.departments.some((d: string) => want.has(d.toLowerCase()))));
-      }
-      if (filter.payers?.length) {
-        const want = new Set(filter.payers.map(String));
-        out = out.filter((t) =>
-          t.groups.some((g: any) =>
-            g.active && (g.payerCatchAll || g.payers.some((p: any) => want.has(String(p))))));
-      }
-      if (filter.workItemType) {
-        out = out.filter((t) =>
-          t.groups.some((g: any) => g.active && g.workItemTypes.includes(filter.workItemType)));
       }
       return out;
     },
@@ -1152,8 +2012,8 @@ const resolvers = {
     optimaDistributionRationale: (_: unknown, { teamId, groupCount }: any) => {
       const t = findTeam(teamId);
       if (!t) return null;
-      const byDept = t.logicAxis === "DEPARTMENT";
-      const vols: Record<string, number> = byDept ? deptVolumes(t.siteKey) : payerVolumes(t.siteKey);
+      const code = volumeDimensionOf(t);
+      const vols: Record<string, number> = volumesFor(t, code);
       const entries = Object.entries(vols).sort((a, b) => b[1] - a[1]);
       const total = entries.reduce((a, [, v]) => a + v, 0) || 1;
       const n = Math.max(1, groupCount || 1);
@@ -1172,11 +2032,11 @@ const resolvers = {
       const round = (x: number) => Math.round(x * 10) / 10;
       const tail = entries.filter(([, v]) => v < 1);
       return {
-        facilityId: t.facilityId,
-        axis: t.logicAxis,
+        facilityId: facilitiesOf(t).join(", "),
+        axis: code,
         totalPerDay: round(total),
         criteriaCount: entries.length,
-        burstFactor: burstOf(t.siteKey),
+        burstFactor: burstOf(t),
         top: entries.slice(0, 6).map(([name, v]) => ({
           name, perDay: round(v), sharePct: round((v / total) * 100),
         })),
@@ -1192,20 +2052,12 @@ const resolvers = {
       };
     },
 
-    facilityOptions: () => [...new Set(teams.map((t) => t.facilityId))].sort(),
-    /** Every department seen at this team's facility, or across all when creating. */
-    departmentOptionsFor: (_: unknown, { teamId }: any) => {
-      const t = teamId ? findTeam(teamId) : null;
-      const src = t ? deptVolumes(t.siteKey) : V.global.departments;
-      // "(unresolved)" marks a production tag with no canonical department. It is
-      // worth seeing as a coverage gap, but it is not something to pick from a list.
-      return Object.keys(src).filter((d) => d !== "(unresolved)").sort();
-    },
-    payerOptionsFor: (_: unknown, { teamId }: any) => {
-      const t = teamId ? findTeam(teamId) : null;
-      const src = t ? payerVolumes(t.siteKey) : V.global.payers;
-      return Object.keys(src).sort();
-    },
+    /* Thin wrappers over dimensionValues, kept for v1-shaped callers. */
+    facilityOptions: () => universeOf("FACILITY"),
+    departmentOptionsFor: (_: unknown, { teamId }: any) =>
+      universeOf("DEPARTMENT", teamId ? findTeam(teamId) : undefined),
+    payerOptionsFor: (_: unknown, { teamId }: any) =>
+      universeOf("PAYER", teamId ? findTeam(teamId) : undefined),
 
     assignmentSettingByTeam: (_: unknown, { teamId }: any) => {
       const st = settingsFor(teamId);
@@ -1245,11 +2097,12 @@ const resolvers = {
     },
     optimaTeam: (_: unknown, { id }: any) => findTeam(id) ?? null,
     branches: () => ({
-      edges: teams.map((t) => ({ node: { id: t.id, name: t.facilityId, nameAr: null } })),
+      edges: ALL_FACILITIES.map((f) => ({
+        node: { id: f, name: f, nameAr: null, healthLicense: f },
+      })),
     }),
     codeSystemConcepts: (_: unknown, { filter }: any) => {
-      const all = new Set<string>();
-      teams.forEach((t) => t.groups.forEach((g) => g.departments.forEach((d) => all.add(d))));
+      const all = new Set<string>(universeOf("DEPARTMENT"));
       const q = (filter?.display ?? "").toLowerCase();
       return {
         edges: [...all]
@@ -1271,13 +2124,21 @@ const resolvers = {
     },
     facilityDepartments: (_: unknown, { teamId }: any) => {
       const t = findTeam(teamId);
-      return t ? Object.keys(deptVolumes(t.siteKey)).sort() : [];
+      return t ? universeOf("DEPARTMENT", t) : [];
     },
     facilityPayers: (_: unknown, { teamId }: any) => {
       const t = findTeam(teamId);
-      return t ? Object.keys(payerVolumes(t.siteKey)).sort() : [];
+      return t ? universeOf("PAYER", t) : [];
     },
     allUsers: () => allUsers,
+  },
+
+  /** Values on a criterion are ids; labels are what a chip should show. */
+  Criterion: {
+    labels: (c: Criterion) => {
+      if (c.operator === "ANY") return [];
+      return c.values;
+    },
   },
 
   RcmTeamV2: {
@@ -1291,9 +2152,62 @@ const resolvers = {
       const seen = new Set<string>();
       return t.groups.flatMap((g) => g.members.filter((m) => !seen.has(m.id) && seen.add(m.id)));
     },
+    criteriaSummary: (t: Team) => describeCriteria(t.criteria),
+    policies: (t: Team) => t.policies ?? [],
+    applicablePolicies: (t: Team) => policiesFor(typesHandled(t)),
+    capacities: capacitiesOf,
+
+    /* Derived legacy fields. Nothing in the model stores these any more; they are
+     * computed from the rule so v1-shaped callers keep reading what they expect. */
+    facilityIds: (t: Team) => facilitiesOf(t),
+    facilityId: (t: Team) => facilitiesOf(t)[0] ?? null,
+    division: (t: Team) => {
+      const fams = [
+        ...new Set(typesHandled(t).map((w) => familyOfWorkItemType(w)?.code)),
+      ].filter(Boolean);
+      // A team spanning both families has no single division; that is now legal.
+      return fams.length === 1 ? fams[0] : null;
+    },
+    encounterScope: (t: Team) => {
+      const enc = admittedValues(t.criteria, "ENCOUNTER_TYPE", ENCOUNTER_TYPES);
+      return enc.length === 1 ? enc[0] : "BOTH";
+    },
+    logicAxis: (t: Team) => volumeDimensionOf(t),
+    allowExceedCapacity: (t: Team) => capacitiesOf(t).some((c) => c.allowExceed),
+    highCostThreshold: (t: Team) => settingOf(t, "HIGH_COST")?.number ?? null,
+    maxAuth: (t: Team) => limitFor(t, "AUTH"),
+    maxClaim: (t: Team) => limitFor(t, "CLAIM"),
   },
 
-  RcmTeamGroup: { specificity, capacity: groupCapacity },
+  RcmTeamGroup: {
+    specificity,
+    capacity: groupCapacity,
+    effectiveCriteria: (g: Group) => mergeCriteria(teamOfGroup(g.id)?.criteria, g.criteria),
+    criteriaSummary: (g: Group) => describeCriteria(g.criteria),
+
+    /* Derived legacy fields, read off the group's effective rule. */
+    workItemTypes: (g: Group) =>
+      admittedValues(
+        mergeCriteria(teamOfGroup(g.id)?.criteria, g.criteria),
+        "WORK_ITEM_TYPE",
+        WORK_ITEM_TYPES,
+      ),
+    encounterScope: (g: Group) => {
+      const enc = admittedValues(
+        mergeCriteria(teamOfGroup(g.id)?.criteria, g.criteria),
+        "ENCOUNTER_TYPE",
+        ENCOUNTER_TYPES,
+      );
+      return enc.length === 1 ? enc[0] : "BOTH";
+    },
+    departments: (g: Group) => criterionFor(g.criteria, "DEPARTMENT")?.values ?? [],
+    payers: (g: Group) => criterionFor(g.criteria, "PAYER")?.values ?? [],
+    // The catch-all toggle is gone from the model; it was only ever "admit every
+    // payer", which is what operator ANY says. Derived so the running v2
+    // workflow keeps reading the field it expects.
+    payerCatchAll: (g: Group) => criterionFor(g.criteria, "PAYER")?.operator === "ANY",
+    claimStatuses: (g: Group) => criterionFor(g.criteria, "CLAIM_STATUS")?.values ?? [],
+  },
 
   Mutation: {
     optimaTeamV2Delete: (_: unknown, { id }: any) => {
@@ -1309,44 +2223,38 @@ const resolvers = {
       const existing = id ? findTeam(id) : null;
       const target: any = existing ?? {
         id: String(Math.max(0, ...teams.map((x) => +x.id)) + 1),
-        siteKey: teams[0]?.siteKey,
         createdDate: new Date().toISOString(),
-        branchIds: [],
-        branches: [],
+        criteria: [],
+        capacities: [],
+        priority: 0,
         rotationEnabled: false,
         groups: [],
       };
+
+      const criteria: Criterion[] = (input.criteria ?? target.criteria ?? []).map((c: any) => ({
+        dimension: c.dimension,
+        operator: c.operator,
+        values: c.values ?? [],
+      }));
+
       Object.assign(target, {
         name: input.name,
         description: input.description ?? null,
-        facilityId: input.facilityId ?? target.facilityId,
-        division: input.division ?? target.division,
-        encounterScope: input.encounterScope ?? target.encounterScope,
-        logicAxis: input.logicAxis ?? target.logicAxis,
         active: input.active ?? true,
-        // Round-2 knobs. Overflow defaults by division: AUTH keeps allocating,
-        // CLAIM defers, unless the team says otherwise.
-        allowExceedCapacity:
-          input.allowExceedCapacity ??
-          target.allowExceedCapacity ??
-          (input.division ?? target.division) === "AUTH",
+        criteria,
+        priority: input.priority ?? target.priority ?? 0,
         uniformCapacity: input.uniformCapacity ?? target.uniformCapacity ?? true,
-        maxAuth: input.maxAuth ?? target.maxAuth ?? USER_CAPACITY,
-        maxClaim: input.maxClaim ?? target.maxClaim ?? USER_CAPACITY,
-        highCostThreshold: input.highCostThreshold ?? target.highCostThreshold ?? 3000,
       });
-      // Keep the volume key aligned with the chosen facility.
-      const match = teams.find((x) => x.facilityId === target.facilityId && x.siteKey);
-      if (match) target.siteKey = match.siteKey;
-      target.branches = [
-        { id: target.id, name: target.facilityId, nameAr: null, healthLicense: target.facilityId },
-      ];
-      if (input.maxAuth != null || input.maxClaim != null) {
-        teamSettings.set(String(target.id), {
-          maxAuth: input.maxAuth ?? USER_CAPACITY,
-          maxClaim: input.maxClaim ?? USER_CAPACITY,
-        });
-      }
+      target.siteKeys = siteKeysOf(target);
+      // Branches are derived from the facility criterion now that it is a list.
+      target.branches = facilitiesOf(target).map((f) => ({
+        id: f,
+        name: f,
+        nameAr: null,
+        healthLicense: f,
+      }));
+      target.branchIds = facilitiesOf(target);
+
       if (input.groups) {
         let gid = Math.max(0, ...teams.flatMap((t) => t.groups.map((g) => +g.id || 0))) + 1;
         target.groups = input.groups.map((g: any, i: number) => ({
@@ -1354,27 +2262,83 @@ const resolvers = {
           rcmTeamId: target.id,
           name: g.name,
           active: g.active ?? true,
-          workItemTypes: g.workItemTypes ?? [],
-          encounterScope: g.encounterScope ?? target.encounterScope,
-          departments: g.departments ?? [],
-          payers: g.payers ?? [],
-          payerCatchAll: g.payerCatchAll ?? false,
-          claimStatuses: g.claimStatuses ?? [],
+          criteria: (g.criteria ?? []).map((c: any) => ({
+            dimension: c.dimension,
+            operator: c.operator,
+            values: c.values ?? [],
+          })),
           rotationOrder: i,
           members: (g.memberIds ?? [])
             .map((uid: string) => allUsers.find((u) => u.id === uid))
             .filter(Boolean),
         }));
       }
-      // Supervisors sit in every active group; high-cost handlers are tagged in place.
-      if (input.supervisorIds || input.highCostMemberIds) {
+
+      /*
+       * Policy settings, reconciled against what this team's work makes relevant.
+       * A team that gains claim work gains a high-cost setting; one that loses
+       * authorisation work loses its urgency setting. The admin is never asked
+       * about a policy that cannot apply, and never left without one that can.
+       */
+      {
+        const types = typesHandled(target);
+        const families = [
+          ...new Set(types.map((w) => familyOfWorkItemType(w)?.code).filter(Boolean)),
+        ] as string[];
+        const given = new Map<string, any>(
+          (input.policies ?? []).map((p: any) => [`${p.code}|${p.family ?? ""}`, p]),
+        );
+        const kept = new Map<string, any>(
+          (target.policies ?? []).map((p: any) => [`${p.code}|${p.family ?? ""}`, p]),
+        );
+        const next: any[] = [];
+        for (const pol of policiesFor(types)) {
+          const slots = pol.scope === "FAMILY" ? families : [""];
+          for (const family of slots) {
+            const from = given.get(`${pol.code}|${family}`) ?? kept.get(`${pol.code}|${family}`);
+            const famDefaults = CAPACITY_FAMILIES.find((f) => f.code === family);
+            const fallbackNumber =
+              pol.code === "DAILY_LIMIT" ? (famDefaults?.defaultLimit ?? pol.defaultValue) : pol.defaultValue;
+            const fallbackFlag =
+              pol.code === "ALLOW_EXCEED"
+                ? (famDefaults?.allowExceedByDefault ?? pol.defaultValue)
+                : pol.defaultValue;
+            next.push(
+              pol.valueType === "NUMBER"
+                ? {
+                    code: pol.code,
+                    family: family || null,
+                    number: from?.number ?? Number(fallbackNumber),
+                  }
+                : {
+                    code: pol.code,
+                    family: family || null,
+                    flag: from?.flag ?? Boolean(fallbackFlag),
+                  },
+            );
+          }
+        }
+        target.policies = next;
+      }
+
+      // Supervisors sit in every active group; policy handlers are tagged in place.
+      if (input.supervisorIds || input.handlers) {
         const sup = new Set((input.supervisorIds ?? []).map(String));
-        const high = new Set((input.highCostMemberIds ?? []).map(String));
+        const byTag = new Map<string, Set<string>>(
+          (input.handlers ?? []).map((h: any) => [h.tag, new Set(h.memberIds.map(String))]),
+        );
         const roster = new Map<string, any>();
         for (const gr of target.groups) for (const m of gr.members) roster.set(m.id, m);
         for (const m of roster.values()) {
           if (input.supervisorIds) m.isSupervisor = sup.has(String(m.id));
-          if (input.highCostMemberIds) m.handlesHighCost = high.has(String(m.id));
+          if (input.handlers) {
+            const tags = new Set<string>(m.handlerTags ?? []);
+            for (const [tag, ids] of byTag) {
+              if (ids.has(String(m.id))) tags.add(tag);
+              else tags.delete(tag);
+            }
+            m.handlerTags = [...tags];
+          }
         }
         for (const m of roster.values()) if (m.isSupervisor) syncSupervisor(target, m);
       }
@@ -1398,7 +2362,7 @@ const resolvers = {
           const items = buildItems(t, 60);
           return {
             branchId: t.id,
-            facilityId: t.facilityId,
+            facilityId: facilitiesOf(t)[0] ?? null,
             workItemType: items[0]?.workItemType ?? "CLAIM_VALIDATION",
             workItems: items.map((i) => ({
               id: i.id, priority: i.priority, encounterType: i.encounterType,
@@ -1433,11 +2397,10 @@ const resolvers = {
         nameAr: input.nameAr ?? null,
         description: input.description ?? null,
         active: input.active ?? true,
-        facilityId: "DXB",
-        siteKey: teams[0].siteKey,
-        division: "AUTH",
-        encounterScope: "OP",
-        logicAxis: "DEPARTMENT",
+        criteria: [],
+        capacities: [],
+        priority: 0,
+        siteKeys: [],
         createdDate: new Date().toISOString(),
         rotationEnabled: input.rotationEnabled ?? false,
         rotationFrequency: input.rotationFrequency ?? null,
@@ -1471,12 +2434,12 @@ const resolvers = {
       if (!g) return null;
       if (input.name != null) g.name = input.name;
       if (input.active != null) g.active = input.active;
-      if (input.workItemTypes) g.workItemTypes = input.workItemTypes;
-      if (input.encounterScope) g.encounterScope = input.encounterScope;
-      if (input.departments) g.departments = input.departments;
-      if (input.payers) g.payers = input.payers;
-      if (input.payerCatchAll != null) g.payerCatchAll = input.payerCatchAll;
-      if (input.claimStatuses) g.claimStatuses = input.claimStatuses;
+      if (input.criteria)
+        g.criteria = input.criteria.map((c: any) => ({
+          dimension: c.dimension,
+          operator: c.operator,
+          values: c.values ?? [],
+        }));
       if (input.memberIds)
         g.members = input.memberIds
           .map((id: string) => allUsers.find((u) => u.id === id))
@@ -1491,12 +2454,11 @@ const resolvers = {
         rcmTeamId: t.id,
         name: input.name ?? "New group",
         active: input.active ?? true,
-        workItemTypes: input.workItemTypes ?? [],
-        encounterScope: input.encounterScope ?? t.encounterScope,
-        departments: input.departments ?? [],
-        payers: input.payers ?? [],
-        payerCatchAll: input.payerCatchAll ?? false,
-        claimStatuses: input.claimStatuses ?? [],
+        criteria: (input.criteria ?? []).map((c: any) => ({
+          dimension: c.dimension,
+          operator: c.operator,
+          values: c.values ?? [],
+        })),
         rotationOrder: t.groups.length,
         members: (input.memberIds ?? [])
           .map((id: string) => allUsers.find((u) => u.id === id))
@@ -1514,14 +2476,12 @@ const resolvers = {
     optimaTeamV2ApplySuggestion: (_: unknown, { id }: any) => {
       const t = findTeam(id);
       if (!t) return null;
+      // Rewrite each group's criterion on whichever dimension the split used.
       for (const s of suggest(t)) {
         const g = findGroup(s.groupId);
         if (!g) continue;
-        if (t.logicAxis === "DEPARTMENT") g.departments = s.departments;
-        else {
-          g.payers = s.namedPayers;
-          g.payerCatchAll = s.catchAll;
-        }
+        const rest = g.criteria.filter((c) => c.dimension !== s.dimension);
+        g.criteria = [...rest, { dimension: s.dimension, operator: "IN", values: s.values }];
       }
       return t;
     },

@@ -1,20 +1,20 @@
 /**
- * Team wizard for the v2 allocation model, used for both create and edit.
+ * Team wizard for the criteria-based allocation model, used for create and edit.
  *
- * The v1 wizard had a team-level Members step, which contradicts v2: members belong
- * to *groups*, and the team roster is the de-duplicated union of them. So members are
- * picked inside each group, and the team header just reports the resulting roster.
+ * There is no worklist-scope step any more. A team is a name, a routing rule and
+ * the people in its groups; the rule is a list of criteria over whatever
+ * dimensions the tenant is configured with, so this wizard has no facility,
+ * division, encounter or logic-axis controls to become wrong for the next client.
  *
- *   1 Team Info , identity, and the three choices that define the container:
- *                  facility, division (AUTH|CLAIM), encounter scope, logic axis
- *   2 Groups    , the criteria and the people, per group
- *   3 Capacity  , per-person daily limits
+ *   1 Team Info , identity, and the rule that routes work to this team
+ *   2 Groups    , the narrower rules and the people, per group
+ *   3 Capacity  , daily limits per work item family, and who takes high-cost work
  *   4 Review    , summary plus a dry run of the allocation engine
  */
 import { useEffect, useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { useTranslation } from "react-i18next";
-import { Check, Users, AlertTriangle, Layers, Building2 } from "lucide-react";
+import { Check, Users, AlertTriangle, Layers, Filter } from "lucide-react";
 
 import {
   Sheet,
@@ -25,19 +25,15 @@ import {
   Input,
   Label,
   Badge,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
   Checkbox,
+  Switch,
   Alert,
   AlertDescription,
   cn,
 } from "@optima/ui";
 
 import { TeamGroups, type TeamGroup } from "./components/team-groups.js";
-import { AllocationPreview } from "./components/allocation-preview.js";
+import { CriteriaBuilder, type Criterion } from "./components/criteria-builder.js";
 
 const SAVE_TEAM = gql`
   mutation SaveTeamV2($id: ID, $input: TeamV2Input!) {
@@ -49,10 +45,27 @@ const SAVE_TEAM = gql`
 `;
 
 const OPTIONS = gql`
-  query WizardOptions($teamId: ID) {
-    facilityOptions
-    departmentOptionsFor(teamId: $teamId)
-    payerOptionsFor(teamId: $teamId)
+  query WizardOptions {
+    allocationPolicies {
+      code
+      label
+      description
+      valueType
+      scope
+      appliesToTypes
+      defaultNumber
+      defaultFlag
+      unit
+      handlerTag
+      sortOrder
+    }
+    capacityFamilies {
+      code
+      label
+      workItemTypes
+      defaultLimit
+      allowExceedByDefault
+    }
     allUsers {
       id
       firstName
@@ -65,114 +78,140 @@ const OPTIONS = gql`
 const STEPS = [
   { n: 1, label: "Team Info" },
   { n: 2, label: "Groups" },
-  { n: 3, label: "Capacity" },
+  { n: 3, label: "Rules" },
   { n: 4, label: "Review" },
 ];
 
-const DIVISIONS = ["AUTH", "CLAIM"];
-const SCOPES = ["OP", "IP", "BOTH"];
-const AXES = ["DEPARTMENT", "PAYER"];
-
-export interface TeamWizardProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  /** Null to create. */
-  team: any | null;
-  onSuccess: () => void;
+/** One policy's setting, per family where the policy is per-family. */
+interface PolicySetting {
+  code: string;
+  family?: string | null;
+  number?: number | null;
+  flag?: boolean | null;
 }
 
-export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardProps) {
+interface Policy {
+  code: string;
+  label: string;
+  description: string;
+  valueType: "NUMBER" | "FLAG";
+  scope: "TEAM" | "FAMILY";
+  appliesToTypes: string[];
+  defaultNumber: number | null;
+  defaultFlag: boolean | null;
+  unit: string | null;
+  handlerTag: string | null;
+  sortOrder: number;
+}
+
+interface TeamWizardProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  team?: any;
+  onSuccess: () => void;
+  /** Step to land on. The teams list uses it to jump straight to Groups. */
+  initialStep?: number;
+}
+
+const criterionFor = (criteria: Criterion[], code: string) =>
+  criteria.find((c) => c.dimension === code);
+
+export function TeamWizard({
+  open,
+  onOpenChange,
+  team,
+  onSuccess,
+  initialStep = 1,
+}: TeamWizardProps) {
   const { t } = useTranslation("provider");
   const creating = !team;
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(initialStep);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [facilityId, setFacilityId] = useState("");
-  const [division, setDivision] = useState("AUTH");
-  const [encounterScope, setEncounterScope] = useState("OP");
-  const [logicAxis, setLogicAxis] = useState("DEPARTMENT");
   const [active, setActive] = useState(true);
+  const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [groups, setGroups] = useState<TeamGroup[]>([]);
-  const [maxAuth, setMaxAuth] = useState(150);
-  const [maxClaim, setMaxClaim] = useState(150);
-  // Round-2: how capacity is applied, and who may take the expensive work.
+  const [policies, setPolicies] = useState<PolicySetting[]>([]);
   const [uniformCapacity, setUniformCapacity] = useState(true);
-  const [allowExceedCapacity, setAllowExceedCapacity] = useState(true);
-  const [highCostThreshold, setHighCostThreshold] = useState(3000);
   const [supervisorIds, setSupervisorIds] = useState<string[]>([]);
-  const [highCostIds, setHighCostIds] = useState<string[]>([]);
+  /** Member ids per policy handler tag, e.g. HIGH_COST -> [...]. */
+  const [handlers, setHandlers] = useState<Record<string, string[]>>({});
   const [capOverrides, setCapOverrides] = useState<Record<string, number | undefined>>({});
   const [saving, setSaving] = useState(false);
 
-  const { data: opts } = useQuery(OPTIONS, {
-    variables: { teamId: team?.id ?? null },
-    skip: !open,
-  });
+  const { data: opts } = useQuery(OPTIONS, { skip: !open });
   const [saveTeam] = useMutation(SAVE_TEAM);
 
-  // Hydrate on open. Creating starts from a sensible blank container.
+  const families = opts?.capacityFamilies ?? [];
+  const allPolicies: Policy[] = opts?.allocationPolicies ?? [];
+
+  // Hydrate on open. Creating starts from a blank rule.
   useEffect(() => {
     if (!open) return;
-    setStep(1);
+    setStep(initialStep);
     if (team) {
       setName(team.name ?? "");
       setDescription(team.description ?? "");
-      setFacilityId(team.facilityId ?? "");
-      setDivision(team.division ?? "AUTH");
-      setEncounterScope(team.encounterScope ?? "OP");
-      setLogicAxis(team.logicAxis ?? "DEPARTMENT");
       setActive(team.active ?? true);
+      setCriteria(
+        (team.criteria ?? []).map((c: any) => ({
+          dimension: c.dimension,
+          operator: c.operator,
+          values: [...(c.values ?? [])],
+        })),
+      );
+      setPolicies(
+        (team.policies ?? []).map((p: any) => ({
+          code: p.code,
+          family: p.family ?? null,
+          number: p.number ?? null,
+          flag: p.flag ?? null,
+        })),
+      );
       setUniformCapacity(team.uniformCapacity ?? true);
-      setAllowExceedCapacity(team.allowExceedCapacity ?? (team.division ?? "AUTH") === "AUTH");
-      setHighCostThreshold(team.highCostThreshold ?? 3000);
-      setMaxAuth(team.maxAuth ?? 150);
-      setMaxClaim(team.maxClaim ?? 150);
       {
         const seen = new Map<string, any>();
         for (const g of team.groups ?? []) for (const m of g.members ?? []) seen.set(m.id, m);
         const people = [...seen.values()];
         setSupervisorIds(people.filter((m) => m.isSupervisor).map((m) => m.id));
-        setHighCostIds(people.filter((m) => m.handlesHighCost).map((m) => m.id));
+        const byTag: Record<string, string[]> = {};
+        for (const m of people) {
+          for (const tag of m.handlerTags ?? []) byTag[tag] = [...(byTag[tag] ?? []), m.id];
+        }
+        setHandlers(byTag);
         setCapOverrides(
           Object.fromEntries(
-            people.filter((m) => m.capacityOverride != null).map((m) => [m.id, m.capacityOverride])
-          )
+            people.filter((m) => m.capacityOverride != null).map((m) => [m.id, m.capacityOverride]),
+          ),
         );
       }
       setGroups(
         (team.groups ?? []).map((g: any) => ({
-          ...g,
+          id: g.id,
+          name: g.name,
+          active: g.active ?? true,
+          criteria: (g.criteria ?? []).map((c: any) => ({
+            dimension: c.dimension,
+            operator: c.operator,
+            values: [...(c.values ?? [])],
+          })),
           members: g.members ?? [],
-          departments: g.departments ?? [],
-          payers: g.payers ?? [],
-          workItemTypes: g.workItemTypes ?? [],
-          claimStatuses: g.claimStatuses ?? [],
-        }))
+        })),
       );
     } else {
       setName("");
       setDescription("");
-      setFacilityId(opts?.facilityOptions?.[0] ?? "");
-      setDivision("AUTH");
-      setEncounterScope("OP");
-      setLogicAxis("DEPARTMENT");
       setActive(true);
+      setCriteria([]);
       setGroups([]);
+      setPolicies([]);
       setUniformCapacity(true);
-      setAllowExceedCapacity(true);
-      setHighCostThreshold(3000);
       setSupervisorIds([]);
-      setHighCostIds([]);
+      setHandlers({});
       setCapOverrides({});
     }
-  }, [open, team, opts]);
-
-  // The division decides the axis default: claims split by payer, auth by department.
-  useEffect(() => {
-    if (creating) setLogicAxis(division === "CLAIM" ? "PAYER" : "DEPARTMENT");
-    if (creating) setAllowExceedCapacity(division === "AUTH");
-  }, [division, creating]);
+  }, [open, team, initialStep]);
 
   /** Team roster = de-duplicated union of every group's members. */
   const roster = useMemo(() => {
@@ -184,23 +223,141 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
   const memberships = groups.reduce((n, g) => n + (g.members?.length ?? 0), 0);
   const emptyGroups = groups.filter((g) => !(g.members ?? []).length);
 
-  /** Resubmission carries the high-value work, so it is what makes the tag matter. */
-  const doesResubmission = groups.some(
-    (g) => g.active !== false && (g.workItemTypes ?? []).some((w) => w.includes("RESUBMISSION"))
+  /** Work item types the groups actually handle, inheriting the team's rule. */
+  const handledTypes = useMemo(() => {
+    const teamTypes = criterionFor(criteria, "WORK_ITEM_TYPE");
+    const universe = teamTypes?.operator === "IN" ? teamTypes.values : [];
+    const out = new Set<string>();
+    for (const g of groups) {
+      if (!g.active) continue;
+      const own = criterionFor(g.criteria, "WORK_ITEM_TYPE");
+      const admitted =
+        !own || own.operator === "ANY"
+          ? universe
+          : own.operator === "NOT_IN"
+            ? universe.filter((v) => !own.values.includes(v))
+            : own.values.filter((v) => !universe.length || universe.includes(v));
+      admitted.forEach((v) => out.add(v));
+    }
+    return [...out];
+  }, [criteria, groups]);
+
+  /** Families the team's work touches, which is what per-family policies key on. */
+  const activeFamilies = useMemo(() => {
+    const codes = new Set<string>();
+    for (const wt of handledTypes) {
+      const f = families.find((x: any) => x.workItemTypes.includes(wt));
+      if (f) codes.add(f.code);
+    }
+    return families.filter((f: any) => codes.has(f.code));
+  }, [handledTypes, families]);
+
+  /**
+   * The policies this team's work makes relevant. A claims team is asked about a
+   * high-cost threshold; an authorisation team is asked about urgency instead.
+   * Neither is asked about the other, because the registry says which work each
+   * policy applies to.
+   */
+  const applicable = useMemo(
+    () =>
+      allPolicies
+        .filter((p) => handledTypes.some((t) => p.appliesToTypes.includes(t)))
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [allPolicies, handledTypes],
   );
 
-  /** Capacity is the sum of each member's own cap, not a team-level figure. */
-  const derivedCapacity = useMemo(() => {
-    const base = division === "AUTH" ? maxAuth : maxClaim;
-    return roster.reduce(
-      (sum, m) => sum + (uniformCapacity ? base : (capOverrides[m.id] ?? base)),
-      0
+  /**
+   * Keep settings in step with what is applicable, preserving edits.
+   *
+   * Guarded on the registry having loaded. Without the guard this ran once with
+   * an empty registry, dropped every family-scoped setting the team was
+   * hydrated with, then recreated them from defaults, which silently turned off
+   * overflow on teams that had it on.
+   */
+  const registryLoaded = allPolicies.length > 0 && families.length > 0;
+  useEffect(() => {
+    if (!registryLoaded) return;
+    if (!applicable.length) {
+      setPolicies((prev) => (prev.length ? [] : prev));
+      return;
+    }
+    setPolicies((prev) => {
+      const next: PolicySetting[] = [];
+      for (const p of applicable) {
+        const slots = p.scope === "FAMILY" ? activeFamilies.map((f: any) => f.code) : [null];
+        for (const family of slots) {
+          const found = prev.find((x) => x.code === p.code && (x.family ?? null) === family);
+          if (found) {
+            next.push(found);
+            continue;
+          }
+          // A family carries its own defaults, and they differ from the policy's:
+          // authorisation overflows past the cap, claims defer.
+          const fam = families.find((f: any) => f.code === family);
+          next.push({
+            code: p.code,
+            family,
+            number:
+              p.valueType === "NUMBER"
+                ? (p.code === "DAILY_LIMIT" ? (fam?.defaultLimit ?? p.defaultNumber) : p.defaultNumber)
+                : null,
+            flag:
+              p.valueType === "FLAG"
+                ? (p.code === "ALLOW_EXCEED" ? (fam?.allowExceedByDefault ?? p.defaultFlag) : p.defaultFlag)
+                : null,
+          });
+        }
+      }
+      const same =
+        next.length === prev.length &&
+        next.every(
+          (n, i) => n.code === prev[i].code && (n.family ?? null) === (prev[i].family ?? null),
+        );
+      return same ? prev : next;
+    });
+  }, [registryLoaded, applicable, activeFamilies, families]);
+
+  const settingFor = (code: string, family?: string | null) =>
+    policies.find((p) => p.code === code && (p.family ?? null) === (family ?? null));
+
+  const setSetting = (code: string, family: string | null, patch: Partial<PolicySetting>) =>
+    setPolicies((prev) =>
+      prev.map((p) =>
+        p.code === code && (p.family ?? null) === family ? { ...p, ...patch } : p,
+      ),
     );
-  }, [roster, division, maxAuth, maxClaim, uniformCapacity, capOverrides]);
+
+  /** Handler tags in play, so the member table grows a column per policy. */
+  const handlerPolicies = useMemo(
+    () => applicable.filter((p) => p.handlerTag),
+    [applicable],
+  );
+
+  const toggleHandler = (tag: string, memberId: string, on: boolean) =>
+    setHandlers((prev) => {
+      const cur = prev[tag] ?? [];
+      return { ...prev, [tag]: on ? [...cur, memberId] : cur.filter((x) => x !== memberId) };
+    });
+
+  /** Capacity is the sum of each member's own cap, not a team-level figure. */
+  const baseCap = useMemo(() => {
+    const limits = policies
+      .filter((p) => p.code === "DAILY_LIMIT" && typeof p.number === "number")
+      .map((p) => p.number as number);
+    return limits.length ? Math.max(...limits) : 150;
+  }, [policies]);
+  const derivedCapacity = useMemo(
+    () =>
+      roster.reduce(
+        (sum, m) => sum + (uniformCapacity ? baseCap : (capOverrides[m.id] ?? baseCap)),
+        0,
+      ),
+    [roster, baseCap, uniformCapacity, capOverrides],
+  );
 
   const nameError = !name.trim();
-  const canNext =
-    step === 1 ? !nameError && !!facilityId : step === 2 ? groups.length > 0 : true;
+  const noRule = criteria.every((c) => c.operator !== "ANY" && !c.values.length);
+  const canNext = step === 1 ? !nameError : step === 2 ? groups.length > 0 : true;
 
   async function save() {
     setSaving(true);
@@ -211,28 +368,30 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
           input: {
             name: name.trim(),
             description: description.trim() || null,
-            facilityId,
-            division,
-            encounterScope,
-            logicAxis,
             active,
-            maxAuth,
-            maxClaim,
+            criteria: criteria.map((c) => ({
+              dimension: c.dimension,
+              operator: c.operator,
+              values: c.values,
+            })),
+            policies: policies.map((p) => ({
+              code: p.code,
+              family: p.family ?? null,
+              number: p.number ?? null,
+              flag: p.flag ?? null,
+            })),
             uniformCapacity,
-            allowExceedCapacity,
-            highCostThreshold,
             supervisorIds,
-            highCostMemberIds: highCostIds,
+            handlers: Object.entries(handlers).map(([tag, memberIds]) => ({ tag, memberIds })),
             groups: groups.map((g) => ({
               id: String(g.id).length > 8 ? null : g.id, // new groups have uuid ids
               name: g.name,
               active: g.active,
-              workItemTypes: g.workItemTypes,
-              encounterScope: g.encounterScope,
-              departments: g.departments,
-              payers: g.payers,
-              payerCatchAll: g.payerCatchAll,
-              claimStatuses: g.claimStatuses,
+              criteria: g.criteria.map((c) => ({
+                dimension: c.dimension,
+                operator: c.operator,
+                values: c.values,
+              })),
               memberIds: (g.members ?? []).map((m) => m.id),
             })),
           },
@@ -266,29 +425,33 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
                 <button
                   type="button"
                   onClick={() => (s.n < step || canNext) && setStep(s.n)}
-                  className={cn(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition",
-                    done
-                      ? "bg-emerald-500 text-white"
-                      : current
+                  className="flex items-center gap-2"
+                >
+                  <span
+                    className={cn(
+                      "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold",
+                      current
                         ? "bg-primary text-white"
-                        : "bg-slate-200 text-slate-500 dark:bg-dark-border dark:text-slate-400"
-                  )}
-                >
-                  {done ? <Check size={13} /> : s.n}
+                        : done
+                          ? "bg-emerald-500 text-white"
+                          : "bg-slate-200 text-slate-500 dark:bg-dark-surface dark:text-slate-400",
+                    )}
+                  >
+                    {done ? <Check size={12} /> : s.n}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-xs font-medium",
+                      current
+                        ? "text-slate-900 dark:text-dark-text"
+                        : "text-slate-500 dark:text-slate-400",
+                    )}
+                  >
+                    {s.label}
+                  </span>
                 </button>
-                <span
-                  className={cn(
-                    "whitespace-nowrap text-xs font-medium",
-                    current
-                      ? "text-primary dark:text-primary-300"
-                      : "text-slate-500 dark:text-slate-400"
-                  )}
-                >
-                  {s.label}
-                </span>
                 {i < STEPS.length - 1 && (
-                  <div className="h-px flex-1 bg-slate-200 dark:bg-dark-border" />
+                  <span className="h-px flex-1 bg-slate-200 dark:bg-dark-border" />
                 )}
               </div>
             );
@@ -299,32 +462,15 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
           {/* ── 1. Team Info ─────────────────────────────────────────── */}
           {step === 1 && (
             <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className={field}>
-                  <Label htmlFor="tw-name">Name *</Label>
-                  <Input
-                    id="tw-name"
-                    value={name}
-                    onChange={(e: any) => setName(e.target.value)}
-                    placeholder="e.g. DXB · AUTH · OP"
-                  />
-                  {nameError && <p className="text-[11px] text-red-600">Name is required.</p>}
-                </div>
-                <div className={field}>
-                  <Label htmlFor="tw-facility">Facility *</Label>
-                  <Select value={facilityId} onValueChange={setFacilityId}>
-                    <SelectTrigger id="tw-facility">
-                      <SelectValue placeholder="Select facility" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(opts?.facilityOptions ?? []).map((f: string) => (
-                        <SelectItem key={f} value={f}>
-                          {f}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className={field}>
+                <Label htmlFor="tw-name">Name *</Label>
+                <Input
+                  id="tw-name"
+                  value={name}
+                  onChange={(e: any) => setName(e.target.value)}
+                  placeholder="e.g. Dubai authorisations"
+                />
+                {nameError && <p className="text-[11px] text-red-600">Name is required.</p>}
               </div>
 
               <div className={field}>
@@ -333,87 +479,63 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
                   id="tw-desc"
                   value={description}
                   onChange={(e: any) => setDescription(e.target.value)}
+                  placeholder="What this team is for, in a line"
                 />
+                <p className="text-[11px] text-slate-500">
+                  The name and description are what the teams list shows, so make them say
+                  what this team is for.
+                </p>
               </div>
 
               <div className="rounded-lg border border-slate-200 p-4 dark:border-dark-border">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Worklist scope
+                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <Filter size={12} /> Which work reaches this team
                 </p>
                 <p className="mb-3 text-[11px] text-slate-500 dark:text-slate-400">
-                  A team is a container for one facility, one division and one encounter
-                  scope. Its groups do the matching inside that.
+                  Filters here prefilter the queue for the whole team. Its groups then narrow
+                  it further. Leave a filter off and the team accepts anything on it.
                 </p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className={field}>
-                    <Label>Division *</Label>
-                    <Select value={division} onValueChange={setDivision}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DIVISIONS.map((d) => (
-                          <SelectItem key={d} value={d}>
-                            {d}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[11px] text-slate-500">Never both.</p>
-                  </div>
-                  <div className={field}>
-                    <Label>Encounter *</Label>
-                    <Select value={encounterScope} onValueChange={setEncounterScope}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SCOPES.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[11px] text-slate-500">
-                      One team for both, or split OP/IP.
-                    </p>
-                  </div>
-                  <div className={field}>
-                    <Label>Split groups by *</Label>
-                    <Select value={logicAxis} onValueChange={setLogicAxis}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {AXES.map((a) => (
-                          <SelectItem key={a} value={a}>
-                            {a}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[11px] text-slate-500">
-                      {logicAxis === "DEPARTMENT"
-                        ? "All payers covered."
-                        : "All departments covered."}
-                    </p>
-                  </div>
-                </div>
+                <CriteriaBuilder
+                  criteria={criteria}
+                  onChange={setCriteria}
+                  level="TEAM"
+                  teamId={team?.id ?? null}
+                />
+                {noRule && criteria.length === 0 && (
+                  <Alert variant="warning" className="mt-3">
+                    <AlertTriangle size={15} />
+                    <AlertDescription>
+                      With no filters this team competes for every work item in the estate.
+                      That is allowed, but it is rarely what is meant.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
+
+              <label className="flex cursor-pointer items-center gap-2.5">
+                <Checkbox checked={active} onCheckedChange={(v: any) => setActive(!!v)} />
+                <span className="text-sm text-slate-900 dark:text-dark-text">Active</span>
+              </label>
             </>
           )}
 
           {/* ── 2. Groups ────────────────────────────────────────────── */}
           {step === 2 && (
             <>
-              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-dark-border dark:bg-dark-surface">
-                <span className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-                  <Building2 size={13} /> {facilityId || ", "}
-                </span>
-                <Badge variant="default">{division}</Badge>
-                <Badge variant="default">{encounterScope}</Badge>
-                <Badge variant="info">by {logicAxis}</Badge>
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-dark-border dark:bg-dark-surface">
+                <span className="text-xs font-medium text-slate-500">This team takes</span>
+                {criteria
+                  .filter((c) => c.operator === "ANY" || c.values.length)
+                  .map((c) => (
+                    <Badge key={c.dimension} variant="default">
+                      {c.operator === "ANY"
+                        ? `${c.dimension.toLowerCase()}: any`
+                        : `${c.values.slice(0, 2).join(", ")}${c.values.length > 2 ? ` +${c.values.length - 2}` : ""}`}
+                    </Badge>
+                  ))}
+                {criteria.length === 0 && (
+                  <span className="text-xs italic text-slate-400">everything</span>
+                )}
                 <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
                   <Users size={13} /> {roster.length} on this team
                   {memberships > roster.length && (
@@ -445,41 +567,105 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
               <TeamGroups
                 groups={groups}
                 onChange={setGroups}
-                division={division}
-                logicAxis={logicAxis}
-                departmentOptions={opts?.departmentOptionsFor ?? []}
-                payerOptions={opts?.payerOptionsFor ?? []}
+                teamCriteria={criteria}
                 memberOptions={opts?.allUsers ?? []}
                 teamId={team?.id ?? null}
               />
             </>
           )}
 
+          {/* -- 3. Policies ------------------------------------------- */}
           {step === 3 && (
             <>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Daily limit per person, and who is allowed to take the expensive work.
+                Rules for the work this team handles. Each is offered only when the team's
+                own work makes it relevant, so a claims team is asked about value and an
+                authorisation team about turnaround.
               </p>
 
-              <div className="max-w-xs space-y-1.5">
-                <Label htmlFor="tw-cap">
-                  {division === "AUTH" ? "Max authorizations / day" : "Max claims / day"}
-                </Label>
-                <Input
-                  id="tw-cap"
-                  type="number"
-                  value={division === "AUTH" ? maxAuth : maxClaim}
-                  onChange={(e: any) =>
-                    division === "AUTH"
-                      ? setMaxAuth(Number(e.target.value))
-                      : setMaxClaim(Number(e.target.value))
-                  }
-                />
-                <p className="text-[11px] text-slate-500">
-                  This is an {division} team, so only the{" "}
-                  {division === "AUTH" ? "authorization" : "claim"} limit applies.
-                </p>
-              </div>
+              {applicable.length === 0 ? (
+                <Alert variant="info">
+                  <AlertDescription>
+                    No work item types are covered by this team's groups yet, so no policy
+                    applies. Add a group on the previous step.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-3">
+                  {applicable.map((p) => {
+                    const slots =
+                      p.scope === "FAMILY" ? activeFamilies.map((f: any) => f.code) : [null];
+                    return (
+                      <div
+                        key={p.code}
+                        className="flex flex-wrap items-start gap-x-4 gap-y-2 rounded-lg border border-slate-200 px-4 py-3 dark:border-dark-border"
+                      >
+                        <div className="min-w-[15rem] flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-slate-900 dark:text-dark-text">
+                              {p.label}
+                            </span>
+                            {p.handlerTag && <Badge variant="info">routes by clearance</Badge>}
+                          </div>
+                          <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                            {p.description}
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 flex-wrap items-center gap-3">
+                          {slots.map((family) => {
+                            const setting = settingFor(p.code, family);
+                            const famLabel =
+                              families.find((f: any) => f.code === family)?.label ?? family;
+                            const id = `pol-${p.code}-${family ?? "team"}`;
+                            // With one family the label is noise: the team only
+                            // does one kind of work, so the control speaks for itself.
+                            const showFamily = family && slots.length > 1;
+                            return (
+                              <div key={id} className="flex items-center gap-2">
+                                {p.valueType === "NUMBER" ? (
+                                  <>
+                                    <Label htmlFor={id} className="whitespace-nowrap text-[11px]">
+                                      {showFamily ? `${famLabel} ` : ""}
+                                      {p.unit ?? "value"}
+                                    </Label>
+                                    <Input
+                                      id={id}
+                                      type="number"
+                                      className="w-24"
+                                      value={setting?.number ?? ""}
+                                      onChange={(e: any) =>
+                                        setSetting(p.code, family, {
+                                          number:
+                                            e.target.value === "" ? null : Number(e.target.value),
+                                        })
+                                      }
+                                    />
+                                  </>
+                                ) : (
+                                  <label className="flex cursor-pointer items-center gap-2">
+                                    <Switch
+                                      checked={!!setting?.flag}
+                                      onCheckedChange={(v: boolean) =>
+                                        setSetting(p.code, family, { flag: v })
+                                      }
+                                    />
+                                    {showFamily && (
+                                      <span className="text-xs text-slate-600 dark:text-slate-300">
+                                        {famLabel}
+                                      </span>
+                                    )}
+                                  </label>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <label className="flex cursor-pointer items-start gap-2.5">
                 <Checkbox
@@ -491,119 +677,107 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
                     Set capacity per member
                   </span>
                   <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                    Off, everyone on this team gets the figure above. On, you can override it for
-                    individuals below, and anyone left blank keeps the team figure.
+                    Off, everyone gets the daily limits above. On, you can override per
+                    person below; anyone left blank keeps the team figure.
                   </span>
                 </span>
               </label>
-
-              <label className="flex cursor-pointer items-start gap-2.5">
-                <Checkbox
-                  checked={allowExceedCapacity}
-                  onCheckedChange={(v: any) => setAllowExceedCapacity(!!v)}
-                />
-                <span>
-                  <span className="text-sm font-medium text-slate-900 dark:text-dark-text">
-                    Keep allocating past the limit
-                  </span>
-                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                    {allowExceedCapacity
-                      ? "Work above the limit is still assigned, to the least-loaded person. Nothing waits."
-                      : "Work above the limit is held back and deferred to the next run rather than assigned."}{" "}
-                    Authorizations are time-critical, so AUTH teams normally allow this; claims
-                    normally defer.
-                  </span>
-                </span>
-              </label>
-
-              <div className="max-w-xs space-y-1.5">
-                <Label htmlFor="tw-highcost">High-cost threshold (AED)</Label>
-                <Input
-                  id="tw-highcost"
-                  type="number"
-                  value={highCostThreshold}
-                  onChange={(e: any) => setHighCostThreshold(Number(e.target.value))}
-                />
-                <p className="text-[11px] text-slate-500">
-                  Items worth more than this are flagged high-cost, and go only to the members
-                  tagged for them below.
-                </p>
-              </div>
 
               {roster.length > 0 && (
-                <div className="rounded-lg border border-slate-200 dark:border-dark-border">
-                  <div className="grid grid-cols-[1fr_5rem_5rem_6rem] items-center gap-3 border-b border-slate-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:border-dark-border dark:text-slate-400">
-                    <span>Member</span>
-                    <span className="text-center">Supervisor</span>
-                    <span className="text-center">High cost</span>
-                    <span className="text-end">Cap / day</span>
-                  </div>
-                  {roster.map((m) => {
-                    const label =
-                      [m.firstName, m.lastName].filter(Boolean).join(" ") || m.email || m.id;
-                    return (
-                      <div
-                        key={m.id}
-                        className="grid grid-cols-[1fr_5rem_5rem_6rem] items-center gap-3 border-b border-slate-100 px-4 py-2 last:border-0 dark:border-dark-border/50"
-                      >
-                        <span className="truncate text-sm text-slate-700 dark:text-slate-300">
-                          {label}
-                        </span>
-                        <span className="flex justify-center">
-                          <Checkbox
-                            checked={supervisorIds.includes(m.id)}
-                            onCheckedChange={(v: any) =>
-                              setSupervisorIds((prev) =>
-                                v ? [...prev, m.id] : prev.filter((x) => x !== m.id)
-                              )
-                            }
-                          />
-                        </span>
-                        <span className="flex justify-center">
-                          <Checkbox
-                            checked={highCostIds.includes(m.id)}
-                            onCheckedChange={(v: any) =>
-                              setHighCostIds((prev) =>
-                                v ? [...prev, m.id] : prev.filter((x) => x !== m.id)
-                              )
-                            }
-                          />
-                        </span>
-                        <Input
-                          type="number"
-                          disabled={uniformCapacity}
-                          placeholder={String(division === "AUTH" ? maxAuth : maxClaim)}
-                          value={capOverrides[m.id] ?? ""}
-                          onChange={(e: any) =>
-                            setCapOverrides((prev) => ({
-                              ...prev,
-                              [m.id]: e.target.value === "" ? undefined : Number(e.target.value),
-                            }))
-                          }
-                        />
-                      </div>
-                    );
-                  })}
+                <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-dark-border">
+                  <table className="w-full min-w-[32rem] text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:border-dark-border dark:text-slate-400">
+                        <th className="px-4 py-2 text-start">Member</th>
+                        <th className="w-24 px-2 py-2 text-center">Supervisor</th>
+                        {/* A column per policy that routes by clearance. Nothing here
+                            names high cost; the registry decides what appears. */}
+                        {handlerPolicies.map((p) => (
+                          <th key={p.code} className="w-28 px-2 py-2 text-center">
+                            {p.label}
+                          </th>
+                        ))}
+                        <th className="w-28 px-4 py-2 text-end">Cap / day</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {roster.map((m) => {
+                        const label =
+                          [m.firstName, m.lastName].filter(Boolean).join(" ") || m.email || m.id;
+                        return (
+                          <tr
+                            key={m.id}
+                            className="border-b border-slate-100 last:border-0 dark:border-dark-border/50"
+                          >
+                            <td className="truncate px-4 py-2 text-slate-700 dark:text-slate-300">
+                              {label}
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <Checkbox
+                                checked={supervisorIds.includes(m.id)}
+                                onCheckedChange={(v: any) =>
+                                  setSupervisorIds((prev) =>
+                                    v ? [...prev, m.id] : prev.filter((x) => x !== m.id),
+                                  )
+                                }
+                              />
+                            </td>
+                            {handlerPolicies.map((p) => (
+                              <td key={p.code} className="px-2 py-2 text-center">
+                                <Checkbox
+                                  checked={(handlers[p.handlerTag!] ?? []).includes(m.id)}
+                                  onCheckedChange={(v: any) =>
+                                    toggleHandler(p.handlerTag!, m.id, !!v)
+                                  }
+                                />
+                              </td>
+                            ))}
+                            <td className="px-4 py-2">
+                              <Input
+                                type="number"
+                                disabled={uniformCapacity}
+                                placeholder={String(baseCap)}
+                                value={capOverrides[m.id] ?? ""}
+                                onChange={(e: any) =>
+                                  setCapOverrides((prev) => ({
+                                    ...prev,
+                                    [m.id]:
+                                      e.target.value === "" ? undefined : Number(e.target.value),
+                                  }))
+                                }
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
-              {supervisorIds.length > 0 && (
-                <Alert variant="info">
+              {supervisorIds.length === 0 && roster.length > 0 && (
+                <Alert variant="warning">
+                  <AlertTriangle size={15} />
                   <AlertDescription>
-                    {supervisorIds.length === 1 ? "A supervisor is" : "Supervisors are"} added to
-                    every active group on save, and allocated work like anyone else.
+                    No supervisor is set, so nobody is told when this team's work goes
+                    unallocated. Tag at least one.
                   </AlertDescription>
                 </Alert>
               )}
 
-              {highCostIds.length === 0 && doesResubmission && (
-                <Alert variant="warning">
-                  <AlertDescription>
-                    This team handles resubmission but nobody is tagged for high-cost work, so
-                    items over AED {highCostThreshold.toLocaleString()} will not be assigned.
-                  </AlertDescription>
-                </Alert>
-              )}
+              {/* One warning per clearance policy with nobody cleared for it. */}
+              {handlerPolicies
+                .filter((p) => !(handlers[p.handlerTag!] ?? []).length)
+                .map((p) => (
+                  <Alert key={p.code} variant="warning">
+                    <AlertTriangle size={15} />
+                    <AlertDescription>
+                      Nobody is cleared for {p.label.toLowerCase()}, so items over{" "}
+                      {(settingFor(p.code)?.number ?? p.defaultNumber ?? 0).toLocaleString()}
+                      {p.unit ? ` ${p.unit}` : ""} will not be assigned.
+                    </AlertDescription>
+                  </Alert>
+                ))}
 
               <div className="rounded-lg border border-slate-200 p-4 dark:border-dark-border">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -627,25 +801,52 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
           {step === 4 && (
             <>
               <div className="rounded-lg border border-slate-200 p-4 dark:border-dark-border">
-                <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-dark-text">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-dark-text">
                   {name || "Untitled team"}
                 </h3>
-                <dl className="grid grid-cols-2 gap-y-2 text-xs">
+                {description && (
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {description}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {criteria
+                    .filter((c) => c.operator === "ANY" || c.values.length)
+                    .map((c) => (
+                      <Badge key={c.dimension} variant="default">
+                        {c.operator === "NOT_IN" ? "Not " : ""}
+                        {c.operator === "ANY"
+                          ? "any"
+                          : `${c.values.slice(0, 3).join(", ")}${c.values.length > 3 ? ` +${c.values.length - 3}` : ""}`}
+                      </Badge>
+                    ))}
+                  {criteria.length === 0 && (
+                    <span className="text-xs italic text-slate-400">No filters, takes everything</span>
+                  )}
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-y-2 text-xs">
                   {[
-                    ["Facility", facilityId || ", "],
-                    ["Division", division],
-                    ["Encounter", encounterScope],
-                    ["Split by", logicAxis],
                     ["Groups", String(groups.length)],
                     ["Members", `${roster.length} (${memberships} memberships)`],
                     [
-                      "Capacity",
-                      `${(roster.length * (division === "AUTH" ? maxAuth : maxClaim)).toLocaleString()} / day`,
+                      "Policies",
+                      applicable.length
+                        ? applicable
+                            .map((p) => {
+                              const v = settingFor(p.code, p.scope === "FAMILY" ? activeFamilies[0]?.code : null);
+                              return p.valueType === "NUMBER"
+                                ? `${p.label} ${v?.number ?? p.defaultNumber}${p.unit ? ` ${p.unit}` : ""}`
+                                : `${p.label} ${v?.flag ? "on" : "off"}`;
+                            })
+                            .join(", ")
+                        : "none apply",
                     ],
+                    ["Capacity total", `${derivedCapacity.toLocaleString()} / day`],
+                    ["Supervisors", supervisorIds.length ? String(supervisorIds.length) : "none"],
                     ["Status", active ? "Active" : "Inactive"],
                   ].map(([k, v]) => (
                     <div key={k as string} className="flex gap-2">
-                      <dt className="w-24 shrink-0 text-slate-500">{k}</dt>
+                      <dt className="w-28 shrink-0 text-slate-500">{k}</dt>
                       <dd className="font-medium text-slate-900 dark:text-dark-text">{v}</dd>
                     </div>
                   ))}
@@ -662,10 +863,15 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
                       <span className="w-48 truncate font-medium text-slate-900 dark:text-dark-text">
                         {g.name}
                       </span>
-                      <span className="text-slate-500">
-                        {(logicAxis === "DEPARTMENT" ? g.departments : g.payers).length}{" "}
-                        {logicAxis === "DEPARTMENT" ? "depts" : "payers"}
-                        {g.payerCatchAll && " + catch-all"}
+                      <span className="flex-1 truncate text-slate-500">
+                        {g.criteria
+                          .filter((c) => c.operator === "ANY" || c.values.length)
+                          .map((c) =>
+                            c.operator === "ANY"
+                              ? `${c.dimension.toLowerCase()}: any`
+                              : `${c.values.length} ${c.dimension.toLowerCase()}`,
+                          )
+                          .join(" · ") || "no filters"}
                       </span>
                       <Badge variant={g.members.length ? "success" : "error"}>
                         {g.members.length} members
@@ -676,11 +882,15 @@ export function TeamWizard({ open, onOpenChange, team, onSuccess }: TeamWizardPr
                 </div>
               </div>
 
-              {team?.id && (
-                <div className="rounded-lg border border-slate-200 p-4 dark:border-dark-border">
-                  <AllocationPreview teamId={String(team.id)} />
-                </div>
-              )}
+              {/*
+               * No dry run here. Reviewing an allocation is a supervisor's daily
+               * question, so it lives on the dashboard; this step is only "what
+               * am I about to save".
+               */}
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Saving changes what tonight's run will do. To dry-run it against a
+                day's arrivals, open Review allocation on the Dashboard tab.
+              </p>
             </>
           )}
         </div>

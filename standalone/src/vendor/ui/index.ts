@@ -5,6 +5,7 @@ export { cn } from "./utils.js";
 export { AppShell } from "./app-shell.js";
 export { PageHeader } from "./page-header.js";
 export { SectionHeader } from "./section-header.js";
+export { PageTabs, PageTabsList, PageTabsTrigger, PageTabsContent } from "./page-tabs.js";
 export { EmptyState } from "./empty-state.js";
 
 // Basic Components
@@ -72,7 +73,6 @@ export {
 } from "./breadcrumbs.js";
 export { Stepper, type StepItem, type StepperProps, type StepStatus } from "./stepper.js";
 export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs.js";
-export { PageTabs, PageTabsList, PageTabsTrigger, PageTabsContent } from "./page-tabs.js";
 
 // List Components
 export { ListPanel, type ListPanelProps } from "./list-panel.js";

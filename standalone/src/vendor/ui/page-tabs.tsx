@@ -8,6 +8,8 @@ import { cn } from "./utils.js";
  *
  * Unlike the DS Tabs (which use flex-1 + overflow-y-auto for panel layouts),
  * these render as normal block-flow elements so content scrolls with the page.
+ *
+ * Ported from `provider-app/packages/ui/src/page-tabs.tsx`.
  */
 
 export const PageTabs = React.forwardRef<
@@ -25,10 +27,10 @@ export const PageTabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "flex w-full h-[55px] items-center justify-center gap-2 shrink-0",
+      "flex h-[55px] w-full shrink-0 items-center justify-center gap-2",
       "bg-white dark:bg-dark-surface",
-      "border-b border-slate-200 dark:border-dark-border relative z-10",
-      className
+      "relative z-10 border-b border-slate-200 dark:border-dark-border",
+      className,
     )}
     {...props}
   />
@@ -58,18 +60,18 @@ export const PageTabsTrigger = React.forwardRef<
       ref={(node: HTMLButtonElement | null) => {
         triggerRef.current = node;
         if (typeof ref === "function") ref(node);
-        else if (ref) ref.current = node;
+        else if (ref) (ref as React.MutableRefObject<HTMLButtonElement | null>).current = node;
       }}
       className={cn(
-        "inline-flex items-center justify-center gap-2 whitespace-nowrap px-5 h-full",
+        "inline-flex h-full items-center justify-center gap-2 whitespace-nowrap px-5",
         "text-[10px] font-bold uppercase tracking-widest",
-        "transition-colors duration-200 relative",
+        "relative transition-colors duration-200",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
         "disabled:pointer-events-none disabled:opacity-50",
         "text-slate-400 dark:text-slate-500",
         "hover:text-slate-600 dark:hover:text-slate-300",
         "data-[state=active]:text-primary dark:data-[state=active]:text-primary-300",
-        className
+        className,
       )}
       {...props}
     >
@@ -77,7 +79,7 @@ export const PageTabsTrigger = React.forwardRef<
       {isActive && (
         <motion.div
           layoutId="page-tab-underline"
-          className="absolute bottom-0 left-2 right-2 h-0.5 bg-primary dark:bg-primary-300 rounded-full"
+          className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-primary dark:bg-primary-300"
           transition={{ type: "spring", stiffness: 400, damping: 30 }}
         />
       )}
@@ -94,7 +96,7 @@ export const PageTabsContent = React.forwardRef<
     ref={ref}
     className={cn(
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-      className
+      className,
     )}
     {...props}
   />

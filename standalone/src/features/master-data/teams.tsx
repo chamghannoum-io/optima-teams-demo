@@ -14,52 +14,74 @@ import {
   TooltipTrigger,
   TooltipContent,
   TooltipProvider,
+  PageTabs,
+  PageTabsList,
+  PageTabsTrigger,
+  PageTabsContent,
+  cn,
 } from "@/components/enhanced";
 import type { FilterFieldConfig } from "@/components/enhanced";
-import { Pencil, Users, Trash2 } from "lucide-react";
+import { Pencil, Users, Trash2, ChevronDown, LayoutDashboard, List } from "lucide-react";
 import { Permission, usePermission, useAuth, isRcmSupervisor } from "@optima/auth";
 import {
   useBranchesAutocompleteQuery,
   useGetOptimaTeamsQuery,
   useUpdateOptimaTeamMutation,
   type GetOptimaTeamsQuery,
-  CodeSystemCode,
 } from "@/__generated__/graphql";
-import { ApiAutocomplete } from "@/shared/autocomplete/index.js";
-import { autocompleteQueriesMapper } from "@/autocompletes/index.js";
-import { isBaseOption, type IBaseOption } from "@optima/shared";
 import { toast } from "@optima/ui";
 import { isApolloGraphqlErrorAlreadyToastedGlobally, logApiError } from "@optima/shared";
 import { useTranslation } from "react-i18next";
 import { TeamWizard } from "./team-wizard.js";
 import { gql, useQuery } from "@apollo/client";
-import { AllocationReadinessPanel } from "./components/allocation-readiness.js";
+import { ReadinessBanner } from "./components/allocation-readiness.js";
+import { AllocationDashboard } from "./allocation-dashboard.js";
 import { DeleteTeamDialog } from "./components/delete-team-dialog.js";
 
 type OptimaTeam = NonNullable<GetOptimaTeamsQuery["optimaTeams"]>[number];
 
-/** Everything the supervisor filters by, in one round trip. */
+/**
+ * The filter bar is generated from the dimension registry, so it carries exactly
+ * the axes this tenant routes on. Adding a dimension adds a filter; there is no
+ * hand-written list of facility / encounter / department / payer fields to keep
+ * in step with the model.
+ */
 const FILTER_OPTIONS = gql`
   query TeamFilterOptions {
-    facilityOptions
-    departmentOptionsFor
-    payerOptionsFor
+    allocationDimensions {
+      code
+      label
+      itemField
+      sortOrder
+      values {
+        value
+        label
+      }
+    }
   }
 `;
 
-const WORK_ITEM_TYPES = [
-  "AUTHORIZATION_SUBMISSION",
-  "AUTHORIZATION_RESUBMISSION",
-  "CLAIM_VALIDATION",
-  "CLAIM_SUBMISSION",
-  "CLAIM_RESUBMISSION",
-  "RECONCILIATION",
-];
+type Criterion = { dimension: string; operator: "IN" | "NOT_IN" | "ANY"; values: string[] };
 
-/** AUTHORIZATION_RESUBMISSION -> Auth resubmission. */
-const prettyWorkItem = (w: string) =>
-  w.replace("AUTHORIZATION_", "Auth ").replace("CLAIM_", "Claim ").replace("_", " ")
-    .toLowerCase().replace(/^./, (c) => c.toUpperCase());
+/** A group inherits its team's rule; same dimension on both, the group wins. */
+const mergeRules = (team: Criterion[] = [], group: Criterion[] = []): Criterion[] => {
+  const out = new Map<string, Criterion>();
+  for (const c of team) out.set(c.dimension, c);
+  for (const c of group) out.set(c.dimension, c);
+  return [...out.values()];
+};
+
+/** Departments arrive spelled many ways; compare on a normalised key. */
+const normKey = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** Does a rule admit this value on this dimension? An absent clause admits all. */
+const admitsValue = (criteria: Criterion[], dimension: string, value: string): boolean => {
+  const c = criteria.find((x) => x.dimension === dimension);
+  if (!c || c.operator === "ANY") return true;
+  const hit = c.values.some((v) => normKey(v) === normKey(value));
+  return c.operator === "NOT_IN" ? !hit : hit;
+};
+
 
 const columnHelper = createColumnHelper<OptimaTeam>();
 
@@ -79,6 +101,10 @@ export default function TeamsPage() {
     normalizedAppRole === "rcmsupervisor";
   const canManageTeams = hasManageTeamsPermission || isRcmSupervisorUser;
   const [editTeam, setEditTeam] = useState<OptimaTeam | null>(null);
+  /** Which rows have their routing rule expanded. */
+  const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
+  /** Two views: the supervisor dashboard, and the teams list itself. */
+  const [view, setView] = useState<"dashboard" | "teams">("dashboard");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [deleteTeam, setDeleteTeam] = useState<{ id: string; name: string } | null>(null);
   // 1 = Team Info (edit pencil); 2 = Members (manage-members shortcut)
@@ -117,13 +143,10 @@ export default function TeamsPage() {
     const f: Record<string, unknown> = {};
     const name = table.filterValues.name as string | undefined;
     const status = table.filterValues.status as string | undefined;
-    const tagValue = table.filterValues.tag;
-    const tag = isBaseOption(tagValue) ? tagValue.key : undefined;
 
     if (name?.trim()) f.name = name.trim();
     if (status === "true") f.active = true;
     if (status === "false") f.active = false;
-    if (tag) f.tag = tag;
     if (providerBranchIds.length > 0) f.branchIds = providerBranchIds;
     if (user?.vendorId) f.vendorId = String(user.vendorId);
 
@@ -168,55 +191,22 @@ export default function TeamsPage() {
           { value: "false", label: t("userManagement.inactive") },
         ],
       },
-      {
-        name: "tag",
-        label: t("masterData.teams.tag", "Tag"),
-        type: "autocomplete",
-        render: (value, onChange) => (
-          <ApiAutocomplete
-            config={autocompleteQueriesMapper.systemCodeDisplayOnly.queryConfig}
-            filter={{ codeSystemCode: CodeSystemCode.RcmTeamTag }}
-            value={value as never}
-            onChange={(val) => onChange((val ?? null) as IBaseOption | null)}
-            placeholder={t("masterData.teams.tagsPlaceholder", "Search by tag")}
-          />
-        ),
-      },
-      {
-        name: "branchId",
-        label: t("masterData.teams.branch", "Branch"),
-        type: "select",
-        options: (filterOpts?.facilityOptions ?? []).map((f: string) => ({ value: f, label: f })),
-      },
-      {
-        name: "encounterScope",
-        label: t("masterData.teams.encounter", "Encounter"),
-        type: "select",
-        options: [
-          { value: "OP", label: "Outpatient" },
-          { value: "IP", label: "Inpatient" },
-        ],
-      },
-      {
-        name: "workItemType",
-        label: t("masterData.teams.workItemType", "Work item type"),
-        type: "select",
-        options: WORK_ITEM_TYPES.map((w) => ({ value: w, label: prettyWorkItem(w) })),
-      },
-      {
-        name: "departments",
-        label: t("masterData.teams.departments", "Departments"),
-        type: "multiselect",
-        multiple: true,
-        options: (filterOpts?.departmentOptionsFor ?? []).map((d: string) => ({ value: d, label: d })),
-      },
-      {
-        name: "payers",
-        label: t("masterData.teams.payers", "Insurance"),
-        type: "multiselect",
-        multiple: true,
-        options: (filterOpts?.payerOptionsFor ?? []).map((x: string) => ({ value: x, label: x })),
-      },
+      // One filter per routing dimension. This list is the registry, not a
+      // hand-written set of fields, so it follows whatever the tenant routes on.
+      ...[...(filterOpts?.allocationDimensions ?? [])]
+        .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
+        .map((d: any) => ({
+          name: `dim:${d.code}`,
+          label: d.label,
+          type: "multiselect" as const,
+          multiple: true,
+          group: "Routing",
+          // Labels arrive formatted per the dimension's valueStyle.
+          options: (d.values ?? []).map((v: any) => ({
+            value: v.value,
+            label: v.label,
+          })),
+        })),
     ],
     [t, filterOpts]
   );
@@ -246,50 +236,28 @@ export default function TeamsPage() {
       });
     }
 
-    // The structural filters, matching optimaTeamsFiltered on the server: a team
-    // qualifies when one of its active groups does.
-    const branchId = table.filterValues.branchId as string | undefined;
-    const encounter = table.filterValues.encounterScope as string | undefined;
-    const workItemType = table.filterValues.workItemType as string | undefined;
-    const departments = (table.filterValues.departments as string[] | undefined) ?? [];
-    const payers = (table.filterValues.payers as string[] | undefined) ?? [];
-
-    if (branchId) base = base.filter((x: any) => x.facilityId === branchId);
-
-    // A BOTH team serves either encounter, so it matches every scope.
-    if (encounter) {
-      base = base.filter((x: any) => x.encounterScope === encounter || x.encounterScope === "BOTH");
-    }
-
-    if (workItemType) {
-      base = base.filter((x: any) =>
-        (x.groups ?? []).some((g: any) => g.active && (g.workItemTypes ?? []).includes(workItemType))
-      );
-    }
-
-    if (departments.length) {
-      const want = new Set(departments.map((d) => d.toLowerCase()));
-      base = base.filter((x: any) =>
-        (x.groups ?? []).some(
-          (g: any) => g.active && (g.departments ?? []).some((d: string) => want.has(d.toLowerCase()))
-        )
-      );
-    }
-
-    // A catch-all group covers any payer, so it matches whatever is asked for.
-    if (payers.length) {
-      const want = new Set(payers.map(String));
-      base = base.filter((x: any) =>
-        (x.groups ?? []).some(
-          (g: any) =>
-            g.active &&
-            (g.payerCatchAll || (g.payers ?? []).some((y: any) => want.has(String(y))))
+    /*
+     * Routing filters, matching optimaTeamsFiltered on the server: a team
+     * qualifies when one of its active groups admits the value. The predicate is
+     * the same one the matcher uses, evaluated over the group's effective rule,
+     * so what the filter finds and what the engine routes cannot disagree.
+     */
+    const dims = filterOpts?.allocationDimensions ?? [];
+    for (const d of dims) {
+      const wanted = (table.filterValues[`dim:${d.code}`] as string[] | undefined) ?? [];
+      if (!wanted.length) continue;
+      base = base.filter((team: any) =>
+        wanted.some((value) =>
+          (team.groups ?? []).some(
+            (g: any) =>
+              g.active && admitsValue(mergeRules(team.criteria, g.criteria), d.code, value)
+          )
         )
       );
     }
 
     return base;
-  }, [data, table.filterValues]);
+  }, [data, table.filterValues, filterOpts]);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -308,7 +276,7 @@ export default function TeamsPage() {
         cell: (info) => {
           const team = info.row.original;
           return (
-            <div>
+            <div className="min-w-[13rem]">
               <p className="font-medium text-slate-900 dark:text-dark-text">{team.name}</p>
               {team.nameAr && (
                 <p className="text-xs text-slate-500 dark:text-slate-400" dir="rtl">
@@ -319,21 +287,59 @@ export default function TeamsPage() {
           );
         },
       }),
+      /*
+       * Description, with the routing rule behind a chevron.
+       *
+       * The list deliberately shows what the admin wrote, not the scope the
+       * system derives: a team is identified by its name and purpose now that
+       * facility, division and encounter are just filters like any other.
+       */
       columnHelper.display({
-        id: "scope",
-        header: t("masterData.teams.scope", "Worklist"),
+        id: "description",
+        header: t("common.description", "Description"),
         cell: (info) => {
-          const team = info.row.original as never as {
-            division?: string; encounterScope?: string; logicAxis?: string; facilityId?: string;
-          };
-          if (!team.division) {
-            return <span className="text-sm text-slate-400">, </span>;
-          }
+          const team = info.row.original as any;
+          const rule: string[] = team.criteriaSummary ?? [];
+          const isOpen = expandedRules.has(team.id);
           return (
-            <div className="flex flex-wrap items-center gap-1">
-              <Badge variant="default">{team.division}</Badge>
-              <Badge variant="default">{team.encounterScope}</Badge>
-              <Badge variant="info">by {team.logicAxis}</Badge>
+            <div className="min-w-[16rem] space-y-1">
+              <div className="flex items-start gap-1.5">
+                <p className="flex-1 text-sm text-slate-700 dark:text-slate-300">
+                  {team.description || (
+                    <span className="text-slate-400">No description</span>
+                  )}
+                </p>
+                {rule.length > 0 && (
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    aria-label={isOpen ? "Hide routing rule" : "Show routing rule"}
+                    onClick={() =>
+                      setExpandedRules((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(team.id)) next.delete(team.id);
+                        else next.add(team.id);
+                        return next;
+                      })
+                    }
+                    className="mt-0.5 shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-dark-hover dark:hover:text-slate-200"
+                  >
+                    <ChevronDown
+                      size={14}
+                      className={cn("transition-transform", isOpen && "rotate-180")}
+                    />
+                  </button>
+                )}
+              </div>
+              {isOpen && (
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {rule.map((chip) => (
+                    <Badge key={chip} variant="default">
+                      {chip}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
           );
         },
@@ -364,19 +370,6 @@ export default function TeamsPage() {
                 </p>
               )}
             </div>
-          );
-        },
-      }),
-      columnHelper.display({
-        id: "created",
-        header: t("common.createdAt"),
-        cell: (info) => {
-          const date = info.row.original.createdDate;
-          if (!date) return <span className="text-sm text-slate-400">, </span>;
-          return (
-            <span className="text-sm text-slate-700 dark:text-slate-300">
-              {new Date(date).toLocaleDateString()}
-            </span>
           );
         },
       }),
@@ -561,16 +554,39 @@ export default function TeamsPage() {
     );
   }
 
+  /** Opening a team from anywhere lands in the wizard on the team it names. */
+  const openTeam = useCallback(
+    (id: string) => {
+      const found = (data?.optimaTeams ?? []).find((x: any) => String(x.id) === String(id));
+      if (!found) return;
+      setEditTeam(found);
+      setEditInitialStep(1);
+      setWizardOpen(true);
+    },
+    [data]
+  );
+
   return (
     <>
       <PageHeader
         title={t("masterData.teams.title")}
-        subtitle={t("common.team", { count: teams.length })}
+        subtitle={
+          view === "dashboard"
+            ? t("masterData.teams.dashboardSubtitle", "Allocation readiness and review")
+            : t("common.team", { count: teams.length })
+        }
         actions={
           <div className="flex items-center gap-2">
-            <TableFilters {...table.getFilterProps(filterFields)} />
+            {/* Filters belong to the list, not the dashboard. */}
+            {view === "teams" && <TableFilters {...table.getFilterProps(filterFields)} />}
             {canManageTeams && (
-              <Button onClick={() => { setEditTeam(null); setWizardOpen(true); }}>
+              <Button
+                onClick={() => {
+                  setEditTeam(null);
+                  setEditInitialStep(1);
+                  setWizardOpen(true);
+                }}
+              >
                 {t("masterData.teams.addTeam", "Add Team")}
               </Button>
             )}
@@ -578,44 +594,59 @@ export default function TeamsPage() {
         }
       />
 
-      <PageContent>
-        <TableFilterChips {...table.getChipProps(filterFields)} />
+      <PageTabs value={view} onValueChange={(v: string) => setView(v as "dashboard" | "teams")}>
+        <PageTabsList className="justify-start px-6">
+          <PageTabsTrigger value="dashboard">
+            <LayoutDashboard size={13} /> Dashboard
+          </PageTabsTrigger>
+          <PageTabsTrigger value="teams">
+            <List size={13} /> Teams
+            <Badge variant="default">{teams.length}</Badge>
+          </PageTabsTrigger>
+        </PageTabsList>
 
-        <AllocationReadinessPanel
-          onOpenTeam={(id) => {
-            const found = (data?.optimaTeams ?? []).find((x: any) => String(x.id) === String(id));
-            if (found) {
-              setEditTeam(found);
-              setWizardOpen(true);
-            }
-          }}
-        />
+        <PageTabsContent value="dashboard">
+          <PageContent>
+            <AllocationDashboard onOpenTeam={openTeam} />
+          </PageContent>
+        </PageTabsContent>
 
-        <DataTable
-          columns={columns}
-          data={paginatedTeams}
-          isLoading={isLoading}
-          emptyMessage={t("masterData.teams.noResults")}
-          pagination={
-            <TablePagination
-              currentPage={page}
-              pageSize={pageSize}
-              pageSizeOptions={[10, 25, 50]}
-              totalCount={totalCount}
-              hasNextPage={page < totalPages}
-              hasPreviousPage={page > 1}
-              onNextPage={() => setPage((p) => p + 1)}
-              onPreviousPage={() => setPage((p) => p - 1)}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
-              }}
-              onFirstPage={() => setPage(1)}
-              onLastPage={() => setPage(totalPages)}
+        <PageTabsContent value="teams">
+          <PageContent>
+            {/* One line, not a wall of cards. The detail is a tab away. */}
+            <ReadinessBanner onOpenDashboard={() => setView("dashboard")} />
+
+            <TableFilterChips {...table.getChipProps(filterFields)} />
+
+            <DataTable
+              columns={columns}
+              data={paginatedTeams}
+              isLoading={isLoading}
+              emptyMessage={t("masterData.teams.noResults")}
+              pagination={
+                <TablePagination
+                  currentPage={page}
+                  pageSize={pageSize}
+                  pageSizeOptions={[10, 25, 50]}
+                  totalCount={totalCount}
+                  hasNextPage={page < totalPages}
+                  hasPreviousPage={page > 1}
+                  onNextPage={() => setPage((p) => p + 1)}
+                  onPreviousPage={() => setPage((p) => p - 1)}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setPage(1);
+                  }}
+                  onFirstPage={() => setPage(1)}
+                  onLastPage={() => setPage(totalPages)}
+                />
+              }
             />
-          }
-        />
+          </PageContent>
+        </PageTabsContent>
+      </PageTabs>
 
+      <>
         <DeleteTeamDialog
           team={deleteTeam}
           onOpenChange={(o) => { if (!o) setDeleteTeam(null); }}
@@ -629,9 +660,10 @@ export default function TeamsPage() {
             if (!o) setEditTeam(null);
           }}
           team={editTeam}
+          initialStep={editInitialStep}
           onSuccess={() => void refetchTeams()}
         />
-      </PageContent>
+      </>
     </>
   );
 }

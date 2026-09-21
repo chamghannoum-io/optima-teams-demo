@@ -9,12 +9,15 @@ const PREVIEW = gql`
   query AllocationPreview($teamId: ID!, $itemCount: Int) {
     optimaAllocationPreview(teamId: $teamId, itemCount: $itemCount) {
       teamName
-      facilityId
-      division
-      encounterScope
-      highCostThreshold
-      highCostCount
-      highCostUnassigned
+      scope
+      policyImpact {
+        code
+        label
+        unit
+        threshold
+        flagged
+        unassigned
+      }
       totalItems
       assignedCount
       unassignedCount
@@ -46,7 +49,7 @@ const PREVIEW = gql`
         groupName
         assigneeName
         net
-        highCost
+        flaggedBy
       }
       unmatched {
         id
@@ -72,9 +75,21 @@ const shortType = (t: string) =>
  *
  * @example <AllocationPreview teamId={team.id} />
  */
-export function AllocationPreview({ teamId, className }: { teamId: string; className?: string }) {
+export function AllocationPreview({
+  teamId,
+  className,
+  /** Skip the run gate. The dashboard panel exists to show this. */
+  autoRun = false,
+  /** Drop the built-in heading when the caller already has one. */
+  hideHeading = false,
+}: {
+  teamId: string;
+  className?: string;
+  autoRun?: boolean;
+  hideHeading?: boolean;
+}) {
   const { t } = useTranslation("provider");
-  const [run, setRun] = useState(false);
+  const [run, setRun] = useState(autoRun);
   const [tab, setTab] = useState<"groups" | "people" | "items" | "unmatched">("groups");
 
   const { data, loading } = useQuery(PREVIEW, {
@@ -114,29 +129,37 @@ export function AllocationPreview({ teamId, className }: { teamId: string; class
 
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="flex items-center justify-between gap-2">
-        <Label>{t("masterData.teams.allocationPreview", "Allocation preview")}</Label>
-        <span className="text-[11px] text-slate-500 dark:text-slate-400">
-          {p.facilityId} · {p.division} · {p.encounterScope} · high cost over AED{" "}
-          {(p.highCostThreshold ?? 0).toLocaleString()}
-        </span>
-        <Button type="button" variant="link" size="sm" onClick={() => setRun(false)}>
-          Reset
-        </Button>
-      </div>
+      {!hideHeading && (
+        <div className="flex items-center justify-between gap-2">
+          <Label>{t("masterData.teams.allocationPreview", "Allocation preview")}</Label>
+          <Button type="button" variant="link" size="sm" onClick={() => setRun(false)}>
+            Reset
+          </Button>
+        </div>
+      )}
+      {/* Round 2 asked the preview to state its scope. That scope is the team's
+          own rule now, so it is listed rather than assumed. */}
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+        {(p.scope ?? []).join(" · ") || "no filters, takes everything"}
+      </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
           ["Arrivals", p.totalItems, "default"],
           ["Allocated", `${p.assignedCount} (${pct}%)`, p.assignedCount ? "success" : "error"],
           ["Unallocated", p.unassignedCount, p.unassignedCount ? "warning" : "success"],
-          [
-            "High cost",
-            p.highCostUnassigned
-              ? `${p.highCostCount} (${p.highCostUnassigned} unplaced)`
-              : p.highCostCount,
-            p.highCostUnassigned ? "warning" : "default",
-          ],
+          /*
+           * One tile per policy that flagged anything, rather than a fixed
+           * high-cost tile. An authorisation team shows its urgency policy here;
+           * a claims team shows high cost. Neither is named in this file.
+           */
+          ...(p.policyImpact ?? [])
+            .filter((x: any) => x.flagged > 0)
+            .map((x: any) => [
+              x.label,
+              x.unassigned ? `${x.flagged} (${x.unassigned} unplaced)` : x.flagged,
+              x.unassigned ? "warning" : "default",
+            ]),
         ].map(([label, value, variant]) => (
           <div
             key={label as string}

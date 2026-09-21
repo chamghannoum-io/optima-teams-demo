@@ -51,15 +51,26 @@ const TEAM_FIELDS = gql`
     active
     tag
     createdDate
-    division
-    encounterScope
-    logicAxis
-    facilityId
-    allowExceedCapacity
+    criteria {
+      dimension
+      operator
+      values
+    }
+    criteriaSummary
+    capacities {
+      family
+      label
+      limit
+      allowExceed
+    }
+    priority
     uniformCapacity
-    maxAuth
-    maxClaim
-    highCostThreshold
+    policies {
+      code
+      family
+      number
+      flag
+    }
     rotationEnabled
     rotationFrequency
     nextRotationDate
@@ -77,19 +88,19 @@ const TEAM_FIELDS = gql`
       appRole
       isActive
       isSupervisor
-      handlesHighCost
+      handlerTags
       capacityOverride
     }
     groups {
       id
       name
       active
-      workItemTypes
-      encounterScope
-      departments
-      payers
-      payerCatchAll
-      claimStatuses
+      criteria {
+        dimension
+        operator
+        values
+      }
+      criteriaSummary
       specificity
       members {
         id
@@ -97,7 +108,7 @@ const TEAM_FIELDS = gql`
         lastName
         email
         isSupervisor
-        handlesHighCost
+        handlerTags
         capacityOverride
       }
       capacity {
@@ -277,3 +288,46 @@ export const useGetUsersLazyQuery = (opts?: any) => useLazyQuery(GetUsersDocumen
 export type GetOptimaTeamsQuery = {
   optimaTeams: Array<Record<string, any>> | null;
 };
+
+/** Relay-shaped dimension values: one source, every routing dimension. */
+export const DimensionOptionsDocument = gql`
+  query DimensionOptions($first: Int, $after: String, $filter: DimensionOptionFilter!) {
+    dimensionOptions(first: $first, after: $after, filter: $filter) {
+      edges {
+        node {
+          id
+          name
+          perDay
+        }
+        cursor
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
+    }
+  }
+`;
+
+/** Staff picker, relay-shaped like the rest. */
+export const RcmUsersDocument = gql`
+  query RcmUsers($first: Int, $after: String, $filter: UserFilterInput) {
+    rcmUsers(first: $first, after: $after, filter: $filter) {
+      edges {
+        node {
+          id
+          firstName
+          lastName
+          email
+        }
+        cursor
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
+    }
+  }
+`;
