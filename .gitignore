@@ -46,7 +46,10 @@ docs/RCM Auto Assign - Midnight Trigger.json
 
 # Local scratch / build artifacts
 q.json
+standalone/.shots/
 standalone/.schema-bundle.mjs
+standalone/.smoke-bundle.mjs
+standalone/.validate-bundle.mjs
 
 # Real staff identities: never commit. The committed *.json are pseudonymized;
 # these hold the originals for local work.
@@ -54,3 +57,6 @@ standalone/src/mocks/*.local.json
 
 # The v1 workflow export embeds a live organization API key.
 docs/RCM Auto-Assignment (1).json
+
+# n8n execution traces pulled from prod: real staff names and emails.
+standalone/docs/

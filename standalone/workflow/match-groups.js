@@ -1,0 +1,261 @@
+// v3 matching: routing rules are criteria, not hardcoded axes.
+//
+// A group accepts an item when every criterion on its effective rule admits it.
+// When several accept, the NARROWEST wins, scored by how few values each
+// dimension admits. See CRITERIA-CONTRACT.md for the normative semantics; the
+// functions below mirror allocation-model.ts and must agree with it row for row.
+//
+// Dual input by design. Groups carrying `criteria` use them directly; groups
+// still in the v2 shape (workItemTypes/departments/payers/...) are adapted into
+// criteria first, so this node runs against today's T-0002 and against the
+// updated gateway component without a flag day.
+
+/* ── registry ──────────────────────────────────────────────────────────────
+   Defaults mirror DIMENSIONS in allocation-model.ts. When T-0002 starts
+   returning allocationDimensions, the payload wins and this becomes a
+   fallback, which is what makes a new axis a row rather than an edit. */
+/**
+ * Aliases, normalised on both sides, carried by the dimension rather than by
+ * the matcher. Derived from v1's 42-entry deptTagMap: 30 of those entries are
+ * pure punctuation and case, which normalisation already handles, leaving
+ * these 12 genuine synonyms. Dropping them was a silent regression from v1,
+ * because normalisation cannot unify a misspelling with its correct spelling.
+ *
+ * "dermatology" maps to the misspelled "dermatalogy" deliberately: that is the
+ * spelling the production team tags use, so it is the canonical one.
+ */
+const DEPARTMENT_ALIASES = {
+  cardiologyservices: 'cardiology',
+  dermatology: 'dermatalogy',
+  nutrition: 'dieticiannutrition',
+  dietician: 'dieticiannutrition',
+  gihconcology: 'oncology',
+  hematology: 'oncology',
+  intensivecareuniticu: 'icu',
+  dramrelshawarbineurosurgerycenter: 'neurosurgery',
+  obstetricsgynaeivf: 'obstetricsgyneivf',
+  optics: 'optimetry',
+  pediatrics: 'pediatricsneonatology',
+  podiatrics: 'podiatry',
+};
+
+const DEFAULT_DIMENSIONS = [
+  { code: 'FACILITY',       itemField: 'facilityId',     matchMode: 'EXACT',      sortOrder: 10 },
+  { code: 'WORK_ITEM_TYPE', itemField: 'workItemType',   matchMode: 'EXACT',      sortOrder: 20 },
+  { code: 'ENCOUNTER_TYPE', itemField: 'encounterType',  matchMode: 'EXACT',      sortOrder: 30 },
+  { code: 'DEPARTMENT',     itemField: 'department',     matchMode: 'NORMALISED', sortOrder: 40,
+    aliases: DEPARTMENT_ALIASES },
+  { code: 'PAYER',          itemField: 'payer',          matchMode: 'EXACT',      sortOrder: 50 },
+  { code: 'CLAIM_STATUS',   itemField: 'claimStatus',    matchMode: 'EXACT',      sortOrder: 60 },
+];
+
+const ranked = $('Rank Items').first().json.items;
+const raw = $('Step 1 - Get Teams').first().json;
+const teams = raw.data?.optimaTeams ?? raw.optimaTeams ?? [];
+const servedDimensions = raw.data?.allocationDimensions ?? raw.allocationDimensions;
+
+/** GraphQL serves aliases as {from,to} rows; the matcher indexes a map. */
+const asAliasMap = (a) =>
+  Array.isArray(a) ? Object.fromEntries(a.map((r) => [r.from, r.to])) : (a ?? {});
+
+const dimensions = (servedDimensions ?? DEFAULT_DIMENSIONS).map((d) => ({
+  ...d,
+  aliases: asAliasMap(d.aliases),
+}));
+const dimByCode = Object.fromEntries(dimensions.map((d) => [d.code, d]));
+
+/* ── matcher, ported from allocation-model.ts ──────────────────────────── */
+
+/** Lowercase alphanumerics. "E. N. T.", "e.n.t" and "ENT" all agree. */
+const normKey = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Normalised comparison also drops a leading dimension-code prefix, because
+ * three spellings of the same department are all live right now: v1 team tags
+ * say "department-emergency", the v2 fixtures say "dental-and-maxillofacial",
+ * and the work queue says "Emergency". Stripping the prefix makes all three
+ * agree instead of forcing a data migration before anything matches.
+ * Only stripped when something is left over, so a department actually named
+ * after its dimension does not normalise away to nothing.
+ */
+function normValue(dim, v) {
+  const k = normKey(v);
+  const prefix = normKey(dim?.code);
+  const stripped = prefix && k.startsWith(prefix) && k.length > prefix.length ? k.slice(prefix.length) : k;
+  // Synonyms last, so an alias written either with or without the prefix
+  // resolves the same way.
+  return dim?.aliases?.[stripped] ?? stripped;
+}
+
+const keyFor = (dim, v) => (dim?.matchMode === 'NORMALISED' ? normValue(dim, v) : String(v ?? ''));
+
+/**
+ * Does one criterion admit this item?
+ *
+ * The asymmetry on a missing value is deliberate and is the one place this
+ * differs from the v2 node: IN is a positive claim and needs evidence, so a
+ * missing value rejects; NOT_IN is an exclusion and absence cannot prove
+ * membership, so a missing value passes.
+ */
+function criterionAccepts(c, item) {
+  if (c.operator === 'ANY') return true;
+  const dim = dimByCode[c.dimension];
+  if (!dim) return true;
+  const rawVal = item[dim.itemField];
+  const present = rawVal != null && String(rawVal) !== '';
+  const set = new Set((c.values ?? []).map((v) => keyFor(dim, v)));
+
+  if (c.operator === 'NOT_IN') return !present || !set.has(keyFor(dim, rawVal));
+  if (!present) return false;
+  return set.has(keyFor(dim, rawVal));
+}
+
+const criteriaAccept = (criteria, item) => (criteria ?? []).every((c) => criterionAccepts(c, item));
+
+/** The first criterion that rejects, so "why was this not allocated" is answerable. */
+function rejectingCriterion(criteria, item) {
+  for (const c of criteria ?? []) if (!criterionAccepts(c, item)) return c;
+  return null;
+}
+
+/**
+ * How narrow a rule is. Constraining more dimensions always beats constraining
+ * fewer, so the count leads; within that, naming one value beats naming six.
+ */
+function specificityOf(criteria) {
+  let constrained = 0;
+  let narrowness = 0;
+  for (const c of criteria ?? []) {
+    if (c.operator === 'ANY' || !(c.values ?? []).length) continue;
+    constrained += 1;
+    narrowness += c.operator === 'NOT_IN' ? 1 : Math.floor(100 / c.values.length);
+  }
+  return constrained * 1000 + narrowness;
+}
+
+/** A group inherits its team's rule and narrows it. Same dimension, group wins. */
+function mergeCriteria(team = [], group = []) {
+  const out = new Map();
+  for (const c of team) out.set(c.dimension, c);
+  for (const c of group) out.set(c.dimension, c);
+  return [...out.values()];
+}
+
+/* ── v2 shape adapter ──────────────────────────────────────────────────────
+   Turns the legacy named fields into criteria so there is exactly one matcher
+   rather than two code paths. Drops out entirely once T-0002 returns criteria. */
+function criteriaFromLegacy(team, g) {
+  const out = [];
+  const push = (dimension, operator, values) => out.push({ dimension, operator, values });
+
+  if ((g.workItemTypes ?? []).length) push('WORK_ITEM_TYPE', 'IN', g.workItemTypes);
+
+  const scope = g.encounterScope ?? team.encounterScope;
+  if (scope && scope !== 'BOTH') push('ENCOUNTER_TYPE', 'IN', [scope]);
+
+  if (team.logicAxis === 'PAYER') {
+    if (g.payerCatchAll) push('PAYER', 'ANY', []);
+    else if ((g.payers ?? []).length) push('PAYER', 'IN', g.payers.map(String));
+  } else if ((g.departments ?? []).length) {
+    push('DEPARTMENT', 'IN', g.departments);
+  }
+
+  if ((g.claimStatuses ?? []).length) push('CLAIM_STATUS', 'IN', g.claimStatuses);
+  return out;
+}
+
+/** The rule the matcher actually runs for this group. */
+function effectiveCriteriaOf(team, g) {
+  if ((g.effectiveCriteria ?? []).length) return g.effectiveCriteria;
+  if ((g.criteria ?? []).length || (team.criteria ?? []).length) {
+    return mergeCriteria(team.criteria, g.criteria);
+  }
+  return criteriaFromLegacy(team, g);
+}
+
+/**
+ * Facility gate. A branch may carry several health licences since OPTIMA-4657,
+ * so this is a membership test over a list, not an equality check.
+ */
+function servesFacility(team, item) {
+  const branches = team.branches ?? [];
+  if (!branches.length) return true;
+  return branches.some((b) => {
+    const licences = b.healthLicenses ?? (b.healthLicense != null ? [b.healthLicense] : []);
+    return licences.some((l) => String(l) === String(item.facilityId));
+  }) || String(team.branchId ?? '') === String(item.branchId);
+}
+
+/* ── match ─────────────────────────────────────────────────────────────── */
+
+const assignments = [];
+const unmatched = [];
+const memberIds = new Set();
+
+for (const item of ranked) {
+  const candidates = [];
+  let nearest = null;
+
+  for (const t of teams) {
+    if (!servesFacility(t, item)) continue;
+    for (const g of t.groups ?? []) {
+      if (g.active === false) continue;
+      const eff = effectiveCriteriaOf(t, g);
+      if (criteriaAccept(eff, item)) {
+        candidates.push({ team: t, group: g, eff, spec: specificityOf(eff) });
+      } else if (!nearest) {
+        const c = rejectingCriterion(eff, item);
+        nearest = { group: g.name, dimension: c?.dimension ?? null };
+      }
+    }
+  }
+
+  if (!candidates.length) {
+    unmatched.push({
+      id: item.id,
+      workItemType: item.workItemType,
+      department: item.department,
+      payer: item.payer,
+      reason: nearest
+        ? `No group accepts this item (nearest '${nearest.group}' rejected on ${nearest.dimension})`
+        : 'No group accepts this item',
+      rejectedOn: nearest?.dimension ?? null,
+    });
+    continue;
+  }
+
+  // Narrowest wins. Ties resolve on group id so a rerun of the same input
+  // allocates the same way; array order is insertion order and is not stable.
+  candidates.sort((a, b) => b.spec - a.spec || String(a.group.id).localeCompare(String(b.group.id)));
+  const best = candidates[0];
+  const members = (best.group.members ?? []).map((m) => String(m.id ?? m.userId));
+  members.forEach((m) => memberIds.add(m));
+
+  assignments.push({
+    ...item,
+    teamId: best.team.id,
+    teamName: best.team.name,
+    groupId: best.group.id,
+    groupName: best.group.name,
+    groupMembers: members,
+    // Every group that accepted, narrowest first, so Distribute can fall
+    // through to the next one when the winner has no capacity left.
+    groupFallbacks: candidates.slice(1).map((c) => {
+      const ids = (c.group.members ?? []).map((m) => String(m.id ?? m.userId));
+      // Fallback members need capacity fetched too, or Distribute reads them
+      // as zero and the fallback can never fire.
+      ids.forEach((m) => memberIds.add(m));
+      return { groupId: c.group.id, groupName: c.group.name, teamId: c.team.id, members: ids };
+    }),
+  });
+}
+
+return [{
+  json: {
+    assignments,
+    unmatched,
+    userIds: [...memberIds],
+    teamId: assignments[0]?.teamId ?? null,
+    workItemTypes: [...new Set(assignments.map((a) => a.workItemType))],
+  },
+}];

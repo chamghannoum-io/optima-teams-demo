@@ -47,17 +47,29 @@ const TOOLS = {
       }
     }`,
   },
+  // Phase 2 shape: criteria plus the dimension registry, which is what the
+  // updated gateway component has to return. The v2 fields are still selected
+  // so the workflow's legacy adapter stays exercised and a rollback is a query
+  // change, not a code change. See CRITERIA-CONTRACT.md.
   "T-0002": {
     name: "optimaTeams",
     query: `query ($filter: OptimaTeamFilterInput) {
       optimaTeams(filter: $filter) {
         id name active division encounterScope logicAxis facilityId
+        criteria { dimension operator values }
         branches { id name healthLicense }
         groups {
-          id name active workItemTypes encounterScope
+          id name active specificity
+          criteria { dimension operator values }
+          effectiveCriteria { dimension operator values }
+          workItemTypes encounterScope
           departments payers payerCatchAll claimStatuses
           members { id firstName lastName }
         }
+      }
+      allocationDimensions {
+        code itemField matchMode coverageChecked sortOrder
+        aliases { from to }
       }
     }`,
   },
