@@ -39,8 +39,40 @@ const DEPARTMENT_ALIASES = {
   podiatrics: 'podiatry',
 };
 
+/**
+ * Facility aliases. A work item carries a health licence and one facility can
+ * hold several, so every licence resolves onto the facility's name, which is
+ * what a team's rule stores. The old three-letter site codes are here too, so
+ * a team configured before the real list landed still matches.
+ *
+ * Generated from src/mocks/facilities.ts; registry-parity.test.mjs fails if
+ * the two drift.
+ */
+const FACILITY_ALIASES = {
+  '6927': 'sghsharjah',
+  '7510': 'sghajman',
+  dhaf0046775: 'saudigermanhospital',
+  dxb: 'saudigermanhospital',
+  mohf1000464: 'sghajman',
+  ajm: 'sghajman',
+  hf2026000943: 'sghsharjah',
+  mohf1000150: 'sghsharjah',
+  shj: 'sghsharjah',
+  dhaf3518383: 'saudigermanclinicsjumeirah',
+  dhaf7809244: 'saudigermanclinicsdamachills',
+  dhaf0101003: 'saudigermanclinicsakoya',
+  dhaf1988803: 'saudigermanclinicssouthvillage',
+  dhaf7137145: 'saudigermanclinicssportscity',
+  hf2026001388: 'alsuyoh',
+  mohf1000908: 'alsuyoh',
+  mohap1001672025: 'rakclinic',
+  mohf1000945: 'rakclinic',
+  rak: 'rakclinic',
+};
+
 const DEFAULT_DIMENSIONS = [
-  { code: 'FACILITY',       itemField: 'facilityId',     matchMode: 'EXACT',      sortOrder: 10 },
+  { code: 'FACILITY',       itemField: 'facilityId',     matchMode: 'NORMALISED', sortOrder: 10,
+    aliases: FACILITY_ALIASES },
   { code: 'WORK_ITEM_TYPE', itemField: 'workItemType',   matchMode: 'EXACT',      sortOrder: 20 },
   { code: 'ENCOUNTER_TYPE', itemField: 'encounterType',  matchMode: 'EXACT',      sortOrder: 30 },
   { code: 'DEPARTMENT',     itemField: 'department',     matchMode: 'NORMALISED', sortOrder: 40,

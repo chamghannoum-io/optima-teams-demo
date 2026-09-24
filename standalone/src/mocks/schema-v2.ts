@@ -10,6 +10,7 @@
  */
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { queueDashboardTypeDefs, queueDashboardResolvers } from "./queue-dashboard.js";
+import { FACILITY_NAMES, siteKeyOf, facilityOfLicence } from "./facilities.js";
 import seed from "./teams-v2-real.json";
 import peopleSeed from "./people.json";
 import volumes from "./volumes.json";
@@ -894,7 +895,10 @@ const IN = (dimension: string, values: string[]): Criterion => ({
  * once, on load, so nothing downstream knows those columns ever existed.
  */
 function migrateSeedTeam(raw: any): Team {
-  const teamCriteria: Criterion[] = [IN("FACILITY", [raw.facilityId])];
+  // The seed stores a site code. Resolve it to the facility it names, so a
+  // stored criterion reads the same as what the picker offers.
+  const seedFacility = facilityOfLicence(raw.facilityId) ?? raw.facilityId;
+  const teamCriteria: Criterion[] = [IN("FACILITY", [seedFacility])];
   if (raw.encounterScope && raw.encounterScope !== "BOTH") {
     teamCriteria.push(IN("ENCOUNTER_TYPE", [raw.encounterScope]));
   }
@@ -971,7 +975,11 @@ let nextGroupId = Math.max(0, ...teams.flatMap((t) => t.groups.map((g) => +g.id)
 
 /** Observed daily volume, per facility, falling back to the global mix. */
 const V: any = volumes;
-const ALL_FACILITIES = [...SITE_KEY.keys()].sort();
+/**
+ * The facility list is the real one now, not the site codes the seed carries.
+ * Seed teams keep matching because their codes alias onto the same names.
+ */
+const ALL_FACILITIES = FACILITY_NAMES;
 const WORK_ITEM_TYPES = CAPACITY_FAMILIES.flatMap((f) => f.workItemTypes);
 const ENCOUNTER_TYPES = ["OP", "IP"];
 const CLAIM_STATUSES = ["OPEN", "CHECKED", "VALIDATED"];
@@ -998,7 +1006,7 @@ const facilitiesOf = (t: Team): string[] =>
   admittedValues(t.criteria, "FACILITY", ALL_FACILITIES);
 const siteKeysOf = (t: Team): string[] =>
   facilitiesOf(t)
-    .map((f) => SITE_KEY.get(f))
+    .map((f) => siteKeyOf(f))
     .filter(Boolean) as string[];
 
 const deptVolumes = (t: Team): Record<string, number> =>

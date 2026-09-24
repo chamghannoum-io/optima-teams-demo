@@ -98,6 +98,38 @@ export function CriteriaBuilder({
   const allDims: Dimension[] = data?.allocationDimensions ?? [];
   const dims = useMemo(() => dimensionsFor(allDims, level), [allDims, level]);
 
+  /** What the team already decided on this dimension, when editing a group. */
+  const inheritedOn = (code: string) => (inherited ?? []).find((c) => c.dimension === code);
+
+  /**
+   * Dimensions worth offering on a group.
+   *
+   * A group can only narrow its team, so a dimension the team pinned to a
+   * single value has nothing left to choose: repeating it just invites someone
+   * to set it to something that can never match. Those are dropped, and the
+   * inherited row above already says what they are.
+   */
+  const offerable = useMemo(
+    () =>
+      dims.filter((d) => {
+        if (level !== "GROUP") return true;
+        const t = inheritedOn(d.code);
+        return !(t && t.operator === "IN" && t.values.length === 1);
+      }),
+    [dims, level, inherited],
+  );
+
+  /**
+   * Values a group may pick on a dimension. When the team constrained it, the
+   * group chooses from that set and no wider, so the picker cannot offer a
+   * value the team already excluded.
+   */
+  const allowedValues = (code: string): string[] | undefined => {
+    if (level !== "GROUP") return undefined;
+    const t = inheritedOn(code);
+    return t && t.operator === "IN" && t.values.length ? t.values : undefined;
+  };
+
   const find = (code: string) => criteria.find((c) => c.dimension === code);
 
   const put = (code: string, patch: Partial<Criterion>) => {
@@ -113,8 +145,8 @@ export function CriteriaBuilder({
 
   const drop = (code: string) => onChange(criteria.filter((c) => c.dimension !== code));
 
-  const shown = dims.filter((d) => find(d.code));
-  const addable = dims.filter((d) => !find(d.code));
+  const shown = offerable.filter((d) => find(d.code));
+  const addable = offerable.filter((d) => !find(d.code));
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -159,6 +191,7 @@ export function CriteriaBuilder({
                 teamId={teamId}
                 values={c.values}
                 onChange={(values) => put(d.code, { values })}
+                allowed={allowedValues(d.code)}
               />
             </div>
 
@@ -222,11 +255,19 @@ function DimensionPicker({
   teamId,
   values,
   onChange,
+  allowed,
 }: {
   dimension: Dimension;
   teamId?: string | null;
   values: string[];
   onChange: (values: string[]) => void;
+  /**
+   * When the team constrained this dimension, the only values a group may
+   * choose. Given a single-value team rule the builder drops the field
+   * entirely, so this is for the several-values case: the team allows OP and
+   * IP, and the group picks one of those two rather than anything at all.
+   */
+  allowed?: string[];
 }) {
   const labelOf = useMemo(() => {
     const map = new Map((dimension.values ?? []).map((v) => [v.value, v.label]));
@@ -243,6 +284,39 @@ function DimensionPicker({
     () => ({ dimension: dimension.code, teamId: teamId ?? null }),
     [dimension.code, teamId],
   );
+
+  /*
+   * A short allowed set is a plain choice, not a search problem. Rendering it
+   * as toggles means the group's options are visible without opening anything,
+   * which is the point: the team already narrowed this to two or three values.
+   */
+  if (allowed && allowed.length && allowed.length <= 6) {
+    const toggle = (v: string) =>
+      onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v]);
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {allowed.map((v) => {
+          const on = values.includes(v);
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => toggle(v)}
+              aria-pressed={on}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs transition",
+                on
+                  ? "border-primary bg-primary text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-dark-border dark:bg-dark-card dark:text-slate-300",
+              )}
+            >
+              {pretty(v)}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <ApiAutocomplete
@@ -261,8 +335,8 @@ function DimensionPicker({
 }
 
 /**
- * SCREAMING_CASE reads as prose. A business code like SHJ or INS012 is left
- * alone, because nobody calls it anything else.
+ * SCREAMING_CASE reads as prose. A business code like INS012 is left alone,
+ * because nobody calls it anything else.
  */
 const pretty = (v: string) =>
   /^[A-Z0-9_]+$/.test(v) && v.includes("_")

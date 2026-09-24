@@ -13,6 +13,8 @@
  * admin-editable later is a CRUD screen over rows that already exist, not a rewrite.
  */
 
+import { FACILITY_ALIASES } from "./facilities.js";
+
 export type CriterionOperator = "IN" | "NOT_IN" | "ANY";
 export type CriterionLevel = "TEAM" | "GROUP" | "BOTH";
 
@@ -90,8 +92,13 @@ export const DIMENSIONS: AllocationDimension[] = [
     valueSource: "facilityOptions",
     itemField: "facilityId",
     coverageChecked: false,
-    matchMode: "EXACT",
-    valueStyle: "CODE",
+    // A work item carries a health licence, and one facility can hold several,
+    // so the licences alias onto the facility's name. That way the picker
+    // offers one row per place rather than one per regulatory number, and
+    // picking SGH-Sharjah matches all three of its licences.
+    matchMode: "NORMALISED",
+    aliases: FACILITY_ALIASES,
+    valueStyle: "NAME",
     sortOrder: 10,
   },
   {

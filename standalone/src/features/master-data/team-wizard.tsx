@@ -86,6 +86,59 @@ const pretty = (v: string) =>
     ? v.replace(/_/g, " ").toLowerCase().replace(/^./, (ch) => ch.toUpperCase())
     : v;
 
+
+/**
+ * A name and description read off the team's own rule.
+ *
+ * The rule already says what the team is for, so making someone retype it as
+ * prose is busywork and the two drift apart the moment one is edited. These
+ * are suggestions: typing over either stops them updating.
+ */
+function describeTeam(criteria: Criterion[]): { name: string; description: string } {
+  const valuesOf = (code: string) =>
+    criteria.find((c) => c.dimension === code && c.operator === "IN")?.values ?? [];
+
+  const types = valuesOf("WORK_ITEM_TYPE");
+  const facilities = valuesOf("FACILITY");
+  const encounters = valuesOf("ENCOUNTER_TYPE");
+
+  const isAuth = types.length && types.every((t) => t.startsWith("AUTHORIZATION"));
+  const isClaim = types.length && types.every((t) => t.startsWith("CLAIM") || t === "RECONCILIATION");
+  const family = isAuth ? "Authorization" : isClaim ? "Claims" : "Allocation";
+
+  const scope = encounters.length === 1 ? ` ${encounters[0]}` : "";
+  const where = facilities.length === 1 ? ` (${facilities[0]})` : facilities.length > 1 ? ` (${facilities.length} facilities)` : "";
+  const name = `${family} Team${scope}${where}`;
+
+  const work = types.length
+    ? types.map((t) => pretty(t).toLowerCase()).join(", ")
+    : "all work";
+  const at = facilities.length ? facilities.join(", ") : "every facility";
+  const enc = encounters.length ? `${encounters.join(" and ")} encounters` : "all encounters";
+  const description = `${work.charAt(0).toUpperCase()}${work.slice(1)} for ${at}, ${enc}.`;
+
+  return { name, description };
+}
+
+/**
+ * Groups worth starting from, read off the team's work item types.
+ *
+ * A team that handles submissions and resubmissions almost always splits on
+ * exactly that, which is what every team in the seed does. Offering it beats
+ * an empty step and a "Group 1" nobody renames.
+ */
+function suggestedGroups(criteria: Criterion[]): { name: string; criteria: Criterion[] }[] {
+  const types =
+    criteria.find((c) => c.dimension === "WORK_ITEM_TYPE" && c.operator === "IN")?.values ?? [];
+  if (types.length < 2) return [];
+  return types.map((t) => ({
+    // "AUTHORIZATION_RESUBMISSION" reads as "Resubmission": the family is
+    // already the team's name, so repeating it in every group is noise.
+    name: pretty(t).replace(/^(Authorization|Claim)\s+/i, "").replace(/^./, (c) => c.toUpperCase()),
+    criteria: [{ dimension: "WORK_ITEM_TYPE", operator: "IN" as const, values: [t] }],
+  }));
+}
+
 const STEPS = [
   { n: 1, label: "Team Info" },
   { n: 2, label: "Groups" },
@@ -140,6 +193,9 @@ export function TeamWizard({
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  /** Once either is typed into, it stops following the rule. */
+  const [nameTouched, setNameTouched] = useState(false);
+  const [descTouched, setDescTouched] = useState(false);
   const [active, setActive] = useState(true);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [groups, setGroups] = useState<TeamGroup[]>([]);
@@ -154,6 +210,17 @@ export function TeamWizard({
   const { data: opts } = useQuery(OPTIONS, { skip: !open });
   const { data: dimData } = useQuery(DIMENSIONS_QUERY, { skip: !open });
   const dims: Dimension[] = dimData?.allocationDimensions ?? [];
+
+  /**
+   * Keep the name and description following the rule until someone edits them.
+   * Only for a new team: an existing one already has a name people refer to.
+   */
+  useEffect(() => {
+    if (team) return;
+    const { name: n, description: d } = describeTeam(criteria);
+    if (!nameTouched) setName(n);
+    if (!descTouched) setDescription(d);
+  }, [criteria, team, nameTouched, descTouched]);
 
   /** A group may only narrow its team. Widening means it can never match. */
   const widenedGroups = useMemo(() => {
@@ -503,7 +570,10 @@ export function TeamWizard({
                 <Input
                   id="tw-name"
                   value={name}
-                  onChange={(e: any) => setName(e.target.value)}
+                  onChange={(e: any) => {
+                    setNameTouched(true);
+                    setName(e.target.value);
+                  }}
                   placeholder="e.g. Dubai authorisations"
                 />
                 {nameError && <p className="text-[11px] text-red-600">Name is required.</p>}
@@ -514,7 +584,10 @@ export function TeamWizard({
                 <Input
                   id="tw-desc"
                   value={description}
-                  onChange={(e: any) => setDescription(e.target.value)}
+                  onChange={(e: any) => {
+                    setDescTouched(true);
+                    setDescription(e.target.value);
+                  }}
                   placeholder="What this team is for, in a line"
                 />
                 <p className="text-[11px] text-slate-500">
@@ -587,8 +660,33 @@ export function TeamWizard({
               {groups.length === 0 && (
                 <Alert variant="warning">
                   <AlertTriangle size={15} />
-                  <AlertDescription>
-                    A team with no groups cannot receive work. Add at least one.
+                  <AlertDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span>A team with no groups cannot receive work.</span>
+                    {/*
+                      * The team's work item types are almost always the split,
+                      * which is what every team in the seed does. Offering it
+                      * beats an empty step and a "Group 1" nobody renames.
+                      */}
+                    {suggestedGroups(criteria).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setGroups(
+                            suggestedGroups(criteria).map((g) => ({
+                              id: crypto.randomUUID(),
+                              name: g.name,
+                              active: true,
+                              criteria: g.criteria,
+                              members: [],
+                            })),
+                          )
+                        }
+                        className="font-medium text-primary underline underline-offset-2 dark:text-primary-300"
+                      >
+                        Split by work item type (
+                        {suggestedGroups(criteria).map((g) => g.name).join(", ")})
+                      </button>
+                    )}
                   </AlertDescription>
                 </Alert>
               )}
