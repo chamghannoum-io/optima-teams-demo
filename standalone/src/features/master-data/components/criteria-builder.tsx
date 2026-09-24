@@ -17,7 +17,7 @@
  * which is what lets one picker serve every dimension the registry declares.
  */
 import { useMemo, useState } from "react";
-import { gql, useQuery } from "@apollo/client";
+import { gql, useApolloClient, useQuery } from "@apollo/client";
 import { Lock, Plus, X } from "lucide-react";
 
 import { Badge, Button, Label, cn } from "@optima/ui";
@@ -40,6 +40,22 @@ export const DIMENSIONS_QUERY = gql`
         value
         label
       }
+    }
+  }
+`;
+
+/**
+ * Every value a dimension admits for this team.
+ *
+ * Deliberately not `allocationDimensions.values`, which is estate-wide: a team
+ * at one facility should not be able to select departments that facility does
+ * not run. This is the same source and scoping the picker itself uses.
+ */
+const DIMENSION_VALUES = gql`
+  query CriteriaDimensionValues($dimension: String!, $teamId: ID) {
+    dimensionValues(dimension: $dimension, teamId: $teamId) {
+      value
+      label
     }
   }
 `;
@@ -94,6 +110,9 @@ export function CriteriaBuilder({
 }: CriteriaBuilderProps) {
   const { data } = useQuery(DIMENSIONS_QUERY);
   const [adding, setAdding] = useState(false);
+  const client = useApolloClient();
+  /** Dimensions whose select-all is in flight, so the control can say so. */
+  const [loadingAll, setLoadingAll] = useState<string | null>(null);
 
   const allDims: Dimension[] = data?.allocationDimensions ?? [];
   const dims = useMemo(() => dimensionsFor(allDims, level), [allDims, level]);
@@ -145,6 +164,34 @@ export function CriteriaBuilder({
 
   const drop = (code: string) => onChange(criteria.filter((c) => c.dimension !== code));
 
+  /**
+   * Select everything this dimension admits.
+   *
+   * Departments and payers run to dozens of values, and picking them one at a
+   * time through a search box to say "all of them" is the kind of thing that
+   * makes people give up and leave the filter off, which means the team
+   * silently takes everything anyway. Narrowed to the team's own set when
+   * editing a group, so this can never widen past what the team allows.
+   */
+  const selectAll = async (code: string) => {
+    const narrowed = allowedValues(code);
+    if (narrowed) {
+      put(code, { values: narrowed });
+      return;
+    }
+    setLoadingAll(code);
+    try {
+      const { data } = await client.query({
+        query: DIMENSION_VALUES,
+        variables: { dimension: code, teamId: teamId ?? null },
+        fetchPolicy: "cache-first",
+      });
+      put(code, { values: (data?.dimensionValues ?? []).map((v: any) => String(v.value)) });
+    } finally {
+      setLoadingAll(null);
+    }
+  };
+
   const shown = offerable.filter((d) => find(d.code));
   const addable = offerable.filter((d) => !find(d.code));
 
@@ -174,14 +221,37 @@ export function CriteriaBuilder({
           <div key={d.code} className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <Label>{d.label}</Label>
-              <button
-                type="button"
-                aria-label={`Remove the ${d.label} filter`}
-                onClick={() => drop(d.code)}
-                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-dark-hover dark:hover:text-slate-200"
-              >
-                <X size={14} />
-              </button>
+              <div className="flex items-center gap-2">
+                {/*
+                  * Only where there is a list worth selecting. A dimension the
+                  * team narrowed to two values already renders as toggles, so
+                  * "select all" there would be a link next to two buttons.
+                  */}
+                {(allowedValues(d.code)?.length ?? d.values?.length ?? 0) > 6 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      c.values.length ? put(d.code, { values: [] }) : selectAll(d.code)
+                    }
+                    disabled={loadingAll === d.code}
+                    className="text-[11px] font-medium text-primary underline underline-offset-2 disabled:opacity-50 dark:text-primary-300"
+                  >
+                    {loadingAll === d.code
+                      ? "Selecting…"
+                      : c.values.length
+                        ? "Clear"
+                        : "Select all"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  aria-label={`Remove the ${d.label} filter`}
+                  onClick={() => drop(d.code)}
+                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-dark-hover dark:hover:text-slate-200"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
 
             {/* Ring on a wrapper, so ApiAutocomplete stays the upstream one. */}
