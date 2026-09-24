@@ -2,7 +2,7 @@
  * App chrome around the Teams page: the real AppShell (icon rail + flyout submenu)
  * plus the header row with breadcrumbs, matching the live app.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Sparkles,
@@ -15,8 +15,35 @@ import {
   UserPlus,
   Building2,
   Bell,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { AppShell as UiAppShell, Breadcrumbs } from "../ui/index.js";
+
+/**
+ * Theme, copied from apps/taskboard/src/app/app.tsx.
+ *
+ * Tailwind is configured here with a class-based dark variant and the dark
+ * tokens are already in cortex.css, but nothing ever set the class, so every
+ * `dark:` utility in the app was dead. The ported dashboard's charts watch the
+ * same class, which is why they pick this up with no extra wiring.
+ */
+function useTheme() {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document === "undefined") return "light";
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark" || saved === "light") return saved;
+    // Fall back to the OS preference the first time, rather than assuming light.
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+  return { theme, toggle: () => setTheme((t) => (t === "dark" ? "light" : "dark")) };
+}
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
@@ -63,6 +90,7 @@ export function AppShell({
   initialPath?: string;
 }) {
   const [path, setPath] = useState(initialPath);
+  const { theme, toggle } = useTheme();
   const go = (p: string) => {
     setPath(p);
     onNavigate?.(p);
@@ -73,6 +101,15 @@ export function AppShell({
         <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 py-3 dark:border-dark-border dark:bg-dark-surface">
           <Breadcrumbs items={CRUMBS[path] ?? CRUMBS["/master-data/teams"]} />
           <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              title={theme === "dark" ? "Light theme" : "Dark theme"}
+              className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-dark-hover dark:hover:text-slate-200"
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
             <span className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
               <Building2 size={15} /> ASH Hospital HQ
             </span>
