@@ -79,6 +79,9 @@ const DEFAULT_DIMENSIONS = [
     aliases: DEPARTMENT_ALIASES },
   { code: 'PAYER',          itemField: 'payer',          matchMode: 'EXACT',      sortOrder: 50 },
   { code: 'CLAIM_STATUS',   itemField: 'claimStatus',    matchMode: 'EXACT',      sortOrder: 60 },
+  // High cost. A group with this clause takes only the claims above its
+  // amount, which is why it needs no handler tag and no second mechanism.
+  { code: 'CLAIM_VALUE',    itemField: 'net',            matchMode: 'EXACT',      sortOrder: 70 },
 ];
 
 /**
@@ -155,6 +158,18 @@ function criterionAccepts(c, item) {
   if (!dim) return true;
   const rawVal = item[dim.itemField];
   const present = rawVal != null && String(rawVal) !== '';
+
+  // GREATER_THAN is a positive claim about a number, so it follows IN: no
+  // number on the item means it cannot be shown to be over the threshold.
+  // That is what keeps authorisation work, which carries no net value, out
+  // of a high-cost group instead of flooding it.
+  if (c.operator === 'GREATER_THAN') {
+    const n = Number(rawVal);
+    const threshold = Number((c.values ?? [])[0]);
+    if (!present || !Number.isFinite(n) || !Number.isFinite(threshold)) return false;
+    return n > threshold;
+  }
+
   const set = new Set((c.values ?? []).map((v) => keyFor(dim, v)));
 
   if (c.operator === 'NOT_IN') return !present || !set.has(keyFor(dim, rawVal));
@@ -180,16 +195,27 @@ function specificityOf(criteria) {
   for (const c of criteria ?? []) {
     if (c.operator === 'ANY' || !(c.values ?? []).length) continue;
     constrained += 1;
+    // GREATER_THAN carries one value and so scores a full 100, which is what
+    // sends an expensive claim to the high-cost group over the general one.
     narrowness += c.operator === 'NOT_IN' ? 1 : Math.floor(100 / c.values.length);
   }
   return constrained * 1000 + narrowness;
 }
 
-/** A group inherits its team's rule and narrows it. Same dimension, group wins. */
+/**
+ * A group inherits its team's rule and narrows it. Same dimension, group wins,
+ * unless the team locked that dimension: a locked criterion applies to every
+ * group as written and the group's own clause on it is ignored.
+ *
+ * Ignored rather than treated as a non-match, so locking a dimension on a team
+ * whose groups were already configured on it narrows the run instead of
+ * emptying it.
+ */
 function mergeCriteria(team = [], group = []) {
+  const locked = new Set(team.filter((c) => c.locked).map((c) => c.dimension));
   const out = new Map();
   for (const c of team) out.set(c.dimension, c);
-  for (const c of group) out.set(c.dimension, c);
+  for (const c of group) if (!locked.has(c.dimension)) out.set(c.dimension, c);
   return [...out.values()];
 }
 

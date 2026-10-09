@@ -50,6 +50,10 @@ standalone/.shots/
 standalone/.schema-bundle.mjs
 standalone/.smoke-bundle.mjs
 standalone/.validate-bundle.mjs
+# Test bundles. Both runs delete these on the way out, so these two lines only
+# matter when a test fails partway and leaves one behind.
+standalone/.matcher-parity-bundle.mjs
+standalone/.model-test-bundle.mjs
 
 # Real staff identities: never commit. The committed *.json are pseudonymized;
 # these hold the originals for local work.

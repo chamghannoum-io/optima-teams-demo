@@ -92,6 +92,7 @@ const KIND_LABEL: Record<string, string> = {
   NO_SUPERVISOR: "Teams with no supervisor",
   UNHANDLED_TYPE: "Work item types nobody handles",
   OVERLAPPING_TEAMS: "Teams competing for the same work",
+  DUPLICATE_GROUP_RULE: "Identical groups sharing a member",
 };
 
 /** Falls back to a readable label for a dimension or policy added later. */

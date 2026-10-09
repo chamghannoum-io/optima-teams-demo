@@ -5,6 +5,260 @@ is still open. Newest session first.
 
 ---
 
+## 2026-10-09, high cost on the group, supervisors on step 1
+
+### The ask
+
+The business approved the end-to-end system and signed off on the three filter
+modes. Four things followed:
+
+1. Apply locked / unlocked / no filter to the rest of the teams, not only the
+   three demo ones.
+2. Put high cost on the **group**: a toggle, then an amount from a dropdown.
+   The amount is set by a supervisor, so there need to be two logins, and it
+   must not be free text.
+3. Take supervisors off the last wizard step and put them on the first.
+4. Differentiate groups by at least one filter. Flag a group as duplicate only
+   when the filters are exactly the same **and** a member is in both, and name
+   the member being repeated.
+
+### Decisions taken
+
+1. **The estate's lock state is derived, not authored.** `migrateSeedTeam`
+   reads the mode off what the v1 data already says: one facility nobody
+   varies is Locked, an encounter scope no group overrides is Locked, a work
+   item type list every group takes a slice of is Choice. Sharjah is scoped
+   `BOTH`, so it gets no encounter clause at all, which is the third mode.
+   Nothing is invented for the demo, and the eleven real teams now demonstrate
+   the model as honestly as the three written for it.
+
+2. **High cost is a criterion, not a policy.** The toggle writes
+   `{CLAIM_VALUE, GREATER_THAN, ["10000"]}` onto the group's rule.
+
+   The alternative was a pair of fields on the group plus a branch in the
+   matcher. As a criterion it needs neither: a high-cost group constrains one
+   dimension more than the plain group beside it, so `specificityOf` already
+   sends the expensive claim one way and the cheap one the other, and
+   `rejectingCriterion` already explains it. The only new code in the matcher
+   is one operator, and `GREATER_THAN` follows `IN` on a missing value , a
+   positive claim needs evidence , which is what keeps authorisation work,
+   which carries no money, out of a high-cost group rather than flooding it.
+
+   **Removed with it:** the team-level `HIGH_COST` policy and the per-member
+   high-cost clearance column. Cham chose "remove both" over keeping the
+   clearance: being in the high-cost group IS the clearance now, and two
+   mechanisms for one rule is how a configuration nobody can explain gets
+   made. `handlerTag` and `User.handlerTags` stay in the contract, unused;
+   `handlesHighCost` is now derived from group membership, which is the only
+   honest answer left.
+
+3. **Two logins, for one reason.** A dropdown only means something if somebody
+   owns the list. With a single admin account that rule is invisible, because
+   the person demonstrating it can always do both halves. So `auth.tsx` serves
+   an RCM supervisor and a team lead, switchable from the header, and the
+   amounts dialog is editable for one and read-only for the other. Nothing
+   else is role-gated , making the team lead unable to edit teams would turn
+   the demo into a tour of an access-control matrix.
+
+4. **Duplicate means identical AND shared, and the person is the finding.**
+   The old flag fired on partial overlap, which is what narrowest-wins is for,
+   and so lit up nearly every card in the estate. The new one needs the
+   effective rules to match exactly (order-independent, after merging the
+   team's locked clauses) and somebody to be in both. The message names them,
+   because they are what has to change: the same work reaches them twice and
+   their share silently doubles. Raised in readiness too, as
+   `DUPLICATE_GROUP_RULE`.
+
+### Two bugs the move to step 1 exposed
+
+Neither was introduced this session; both were invisible while the supervisor
+tick-box lived in a per-team member table.
+
+**One person was several objects.** The captured seed embeds a copy of each
+member inside every team that holds them. Any per-person flag added since ,
+supervisor, handler tags, a capacity override, an unavailability window , was
+set on whichever copy the code reached and invisible through the others. The
+UI normalises users by id, so whichever copy serialised last won: on the demo
+claims desk the supervisor rendered as an ordinary member and a colleague who
+supervises a Ras Al Khaimah team rendered as its supervisor. Every seed member
+exists in `people.json` with identical fields, so re-pointing memberships at
+the shared record is lossless.
+
+**Supervising was a property of the person.** `User.isSupervisor` is one
+boolean, and the screen read it as "supervises this team". Those differ the
+moment anyone works on two teams, which in the live estate they do. Two
+consequences, both reproduced: a supervisor of team A showed as a supervisor
+of team B, and **saving team B set the flag false and silently removed them
+from team A**, where the only visible effect is that A's readiness issues stop
+reaching anybody. The team now holds `supervisorIds`; the user flag is derived
+across every team after a save and means only "supervises something".
+
+This also fixed the supervisor picker's real problem: it is on step 1 now, so
+there is no roster to pick from on a team being created. It resolves from the
+staff list, and the save adds them to every group , which is what the title
+means.
+
+### Also changed
+
+- **Claim values are skewed, not uniform.** `rand() * 8000` says every value
+  between nothing and eight thousand is equally likely and caps the estate at
+  AED 8,000, so a high-cost group set at 10,000 received literally nothing and
+  the preview showed it working. Now roughly 150 to 22,000 with a median near
+  1,800, which is the long tail that makes a high-cost group worth having.
+- The preview's policy tiles read high cost off the groups, one row per
+  distinct amount, since there is no team setting left to read.
+- The criteria builder skips numeric dimensions (it is a value picker and has
+  nothing to draw for one) and no longer claims a group "takes everything"
+  when its own high-cost switch is on.
+- The teams filter bar skips them too.
+- `smoke-v3.mjs` section 9 restores the group it mutates. That override
+  narrowed Medical from eight departments to one, which made it exactly as
+  specific as the high-cost group three sections later and turned that
+  section's routing into a coin toss.
+
+### Verified
+
+| | |
+|---|---|
+| `npm test` | 59 matcher, 28 distribute, 52 parity, 29 registry, 28 model, 19 availability, smoke all green, 59 documents valid, workflow in sync |
+| `npm run build` | clean |
+| screenshots | 1440px, 1280px, 900px and dark; no console errors |
+
+Checked by hand in the running app: locked/unlocked chips on a real migrated
+team, the high-cost switch on and off, the amounts dialog as both logins, and
+the duplicate flag naming the right person while skipping the supervisor.
+
+### Known, not fixed
+
+- A group naming exactly one value on some dimension ties with a high-cost
+  group naming only the amount, and the tie falls to group id. Scoring money
+  specially is the special case this design exists to avoid, so it is left
+  alone; it only bites a team that has both shapes on the same work.
+- `GREATER_THAN` is the one part of this that is not backward compatible with
+  the gateway: a T-0002 that does not know the enum value cannot serialise the
+  clause. It has to land before any production team is configured with it.
+  `BACKEND-CHANGES.md` item 2.
+- The per-team supervisor list is `BACKEND-CHANGES.md` item 3, new this
+  session.
+
+### Next
+
+1. **T-0002**, now gating two things: `GREATER_THAN` and the registry's numeric
+   fields, plus the per-team supervisor list.
+2. **Department on resubmissions and claim submissions**, 32.5% of the queue,
+   still the largest coverage blocker. Backend, item 1.
+3. The bundle is 2.7 MB / 826 KB gzipped, up from the 1.87 MB recorded two
+   sessions ago. Not investigated; worth a look before this deploys publicly.
+
+---
+
+## 2026-10-06, locking a team filter
+
+### The ask
+
+A team filter should be one of three things, not one thing. Lock it and it
+applies to every group automatically; leave it unlocked and it becomes a menu
+the groups choose from; leave it off and the groups route however they like.
+Three demo teams to show each.
+
+### Decisions taken
+
+1. **One flag, not a new concept.** `Criterion` gains `locked`, on team criteria
+   only. The three modes fall out of `locked` plus the clause being absent, so
+   nothing new is stored and `criterionAccepts` is untouched. Locking decides
+   *which* clause applies; matching semantics are the same either way.
+2. **A locked dimension wins in `mergeCriteria`**, rather than making the group a
+   non-match. Locking a dimension on a team whose groups already constrain it
+   has to narrow the night's run, not empty it. The backend also strips such
+   clauses on write, so a stored rule always reads as what it does.
+3. **Unlocking widens what a group may edit.** `AllocationDimension.level` is now
+   the floor, not the ceiling: a dimension the team filtered and left unlocked is
+   group-editable whatever `level` says. This is load-bearing for the headline
+   case, since `FACILITY` is `TEAM`-level and "Ajman, Sharjah, RAK, one per
+   group" is precisely a group editing facility. `groupEditableDimensions` is
+   the rule, mirrored in the UI as `groupDimensions`.
+4. **`widensBeyond` ignores locked dimensions.** A group has no say there, so
+   there is nothing to widen; the clause is stale rather than wrong.
+5. **Demo teams are code, not seed JSON.** `src/mocks/demo-teams.ts`, written
+   natively in the v3 shape and appended to the store. The seed is the real
+   captured estate in the v1 shape and has no idea a filter can be locked;
+   retrofitting a flag onto eleven real teams would have made the capture
+   fiction. Three teams: `d1` locked, `d2` unlocked, `d3` no filter. `d3` picks
+   up `RECONCILIATION`, which no real team handles, so it fills a gap rather
+   than competing for work the estate already routes.
+
+### Changed
+
+- `allocation-model.ts`: `Criterion.locked`, `filterModeOf`, `lockedDimensions`,
+  `groupEditableDimensions`; `mergeCriteria` and `widensBeyond` respect the lock.
+- `workflow/match-groups.js`: the same `mergeCriteria` rule, so the nightly run
+  and the Review screen cannot disagree.
+- `schema-v2.ts`: `Criterion.locked` / `CriterionInput.locked`; the team save
+  carries it; all three group-writing paths drop clauses on locked dimensions.
+- `criteria-builder.tsx`: a Locked / Groups choose segmented control per team
+  filter, per-mode helper text, and the inherited row split into "Locked by the
+  team" and "Choose from", because those two mean opposite things to whoever is
+  editing the group.
+- `team-wizard.tsx`: locking a dimension drops it from every group there and
+  then; group splits are suggested on an unlocked dimension, not a locked one.
+- `CRITERIA-CONTRACT.md`: "The lock, and what a team leaves to its groups",
+  normative, with the three-mode table.
+
+### Also removed
+
+The per-work-item-type coverage strip above the groups, on every team, not only
+on payer splits. On a claims team it read "Insurance payer coverage, checked per
+work item type" and showed 90 / 90 complete on every row, because the catch-all
+groups admit every payer, so the three green bars could not say anything else.
+`perType`, `totalGaps`, `fillGaps` and `shortType` went with it; `claimedBy` and
+`memberIn` stay, since the overlap and duplicate-membership warnings on each
+group card still use them. Uncovered values are still reported estate-wide and
+per team on the readiness dashboard, which is where someone goes to be told what
+is wrong rather than mid-edit.
+
+### Corrected after review
+
+`groupEditableDimensions` first fell back to the registry's `level` when the team
+had no filter on a dimension, so a TEAM-level dimension stayed hidden on a group
+even then. The Reconciliation Floaters team showed it: the team filters nothing,
+and its groups still could not route by facility, which made facility
+unreachable from both ends.
+
+The rule is now simply **every dimension the team has not locked**. `level`
+governs the team side only , it is what keeps department, payer and claim status
+off a team. New `allocation-model.test.mjs` covers this and the filter modes,
+since these decide what can be configured at all and so are invisible to every
+matcher test: a rule that was never expressible never shows up as a bad match.
+
+### Found on the way
+
+`put` in the criteria builder hardcoded `operator: "IN"`, so editing the values
+of a `NOT_IN` or `ANY` clause silently flipped it to its opposite. Fixed to
+preserve the existing operator. Not reachable from the wizard before, because
+nothing in the seed carried a `NOT_IN` clause a user could then edit.
+
+### Verified
+
+`npm test` green: 52 matcher rows, 42 parity rows (the parity suite now covers
+`mergeCriteria`, where locking lives on both sides), 28 distribute, 25 registry,
+19 availability, smoke-v3 all checks, 59 documents valid, workflow in sync.
+
+Smoke-v3 section 9 asserts each of the three modes end to end, including that a
+group's clause on a locked dimension is dropped on write and that the team's
+values are what that group actually runs.
+
+Screenshotted all three demo teams at both wizard steps, plus the live
+transition: locking facility on `d2` moved both chips into "Locked by the team"
+and cleared the per-group facility choice in the same render.
+
+### Still open
+
+Unchanged from the previous session, plus: the `locked` field needs to reach
+T-0002 (noted in `BACKEND-CHANGES.md` item 2). Absent, it reads as `false`
+everywhere, which is the behaviour before locking existed.
+
+---
+
 ## 2026-09-21, Track A step 1: registry-driven matcher
 
 ### Decisions taken

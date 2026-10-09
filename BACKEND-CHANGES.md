@@ -109,7 +109,7 @@ schema. The gateway's stored operation for T-0002 should match it:
 query ($filter: OptimaTeamFilterInput) {
   optimaTeams(filter: $filter) {
     id name active division encounterScope logicAxis facilityId
-    criteria { dimension operator values }
+    criteria { dimension operator values locked }
     branches { id name healthLicense }
     uniformCapacity
     capacities { family limit allowExceed }
@@ -124,6 +124,7 @@ query ($filter: OptimaTeamFilterInput) {
   }
   allocationDimensions {
     code itemField matchMode coverageChecked sortOrder
+    numeric unit numericOptions appliesToTypes
     aliases { from to }
   }
 }
@@ -131,12 +132,30 @@ query ($filter: OptimaTeamFilterInput) {
 
 ### Notes on it
 
+- `locked` is selected on the **team's** criteria only. It says whether a group
+  may restate that dimension, and `mergeCriteria` takes the team's clause over
+  the group's where it is set. A group's criteria never carry it. An older
+  gateway that does not return the field reads as `false` everywhere, which is
+  the behaviour before locking existed, so this too needs no flag day.
 - The v2 fields (`workItemTypes`, `departments`, `payers`, `payerCatchAll`,
   `claimStatuses`) are deliberately still selected. The workflow prefers
   `effectiveCriteria` and falls back to them, so the change needs no flag day
   and a rollback is a query edit rather than a deploy.
 - `allocationDimensions` is a second root field on the same document, fetched
   once per run.
+- **`GREATER_THAN` is a new operator** on `CriterionOperator`, and it is how a
+  group says "high cost". A group's criteria may now include
+  `{dimension: "CLAIM_VALUE", operator: "GREATER_THAN", values: ["10000"]}`,
+  which admits an item only when its `net` is a number above that. The
+  workflow's matcher already implements it; a gateway that does not know the
+  enum value will fail to serialise the clause, which is the one part of this
+  that is NOT backward compatible and has to land before any team is
+  configured with it in production.
+- `numeric`, `unit`, `numericOptions` and `appliesToTypes` on the registry row
+  are for the UI, not the matcher: they say the dimension is edited by a
+  switch and a dropdown rather than a value picker, what the dropdown offers,
+  and which work it is offered on. An older gateway omitting them degrades to
+  the dimension simply not being offered in the editor.
 - `unavailableToday` matters for correctness, not display: the matcher drops
   those members before building the pool, so T-0003 and T-004 are not asked
   about people who are away. An absent field reads as available, so an older
@@ -156,3 +175,45 @@ phase-2 shape without touching the gateway, point it at the local server:
 ```bash
 cd standalone && node server.mjs      # serves exactly the operation above
 ```
+
+## 3. Supervising is per team, not a flag on the person
+
+**Owner:** Optima backend
+**Impact:** correctness. A save on one team can currently demote a supervisor
+on another.
+
+### What is wrong
+
+`User.isSupervisor` is a single boolean on the person, and the Teams screen
+reads it as "supervises this team". Those are different statements the moment
+anybody works on two teams, which in the live estate they do: the same coder
+appears on a Dubai claims team and a Sharjah one.
+
+Two things follow, both observed locally against the captured estate:
+
+1. Somebody who supervises team A shows as a supervisor of team B, where they
+   are an ordinary member.
+2. Saving team B writes `isSupervisor = (is in B's supervisor list)` over the
+   person, which sets it to **false** and silently removes them as supervisor
+   of team A. Nothing in the UI says so, and the only visible effect is that
+   A's readiness issues stop reaching anybody.
+
+A second, quieter version of (1): the captured seed embeds a copy of each
+member inside every team that holds them, so one person is several objects and
+a flag set on one is invisible through the others. Any client that normalises
+by id then shows whichever copy was serialised last.
+
+### The change
+
+1. Store the relationship on the team: `RcmTeamV2.supervisorIds: [ID!]!` and
+   `supervisors: [User!]!`. `TeamV2Input.supervisorIds` already exists and is
+   already what the wizard sends, so the write path needs no new input.
+2. Keep `User.isSupervisor` as a property of the **person**, meaning "supervises
+   something". Derive it; never write it from a single team's save.
+3. Return one user record per person, not a copy per membership.
+
+### How to confirm it worked
+
+Put the same person on two teams, make them supervisor of one, save the other,
+and re-read the first: they are still its supervisor. `smoke-v3.mjs` section 12
+asserts exactly this against the local schema.

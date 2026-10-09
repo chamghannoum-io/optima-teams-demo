@@ -6,15 +6,32 @@
  * dimensions the tenant is configured with, so this wizard has no facility,
  * division, encounter or logic-axis controls to become wrong for the next client.
  *
- *   1 Team Info , identity, and the rule that routes work to this team
+ *   1 Team Info , identity, who supervises it, and the rule that routes work here
  *   2 Groups    , the narrower rules and the people, per group
- *   3 Capacity  , daily limits per work item family, and who takes high-cost work
- *   4 Review    , summary plus a dry run of the allocation engine
+ *   3 Capacity  , daily limits per work item family
+ *   4 Review    , summary of what is about to be saved
+ *
+ * The supervisor used to be a column in the member table on step 3, which put
+ * it after the groups and made it read as a property of a membership. It is
+ * not: it is who owns this team, it is asked for on every readiness issue the
+ * team produces, and a team without one is a team nobody is told about. So it
+ * is on step 1, beside the name, and picked from the whole staff list , the
+ * save puts them into every group, which is what being the supervisor means.
  */
 import { useEffect, useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { useTranslation } from "react-i18next";
-import { Check, Users, AlertTriangle, Layers, Filter } from "lucide-react";
+import {
+  Check,
+  Users,
+  AlertTriangle,
+  Layers,
+  Filter,
+  Lock,
+  Unlock,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 
 import {
   Sheet,
@@ -121,21 +138,33 @@ function describeTeam(criteria: Criterion[]): { name: string; description: strin
 }
 
 /**
- * Groups worth starting from, read off the team's work item types.
+ * Groups worth starting from, read off whichever filter the team left for its
+ * groups to split.
  *
  * A team that handles submissions and resubmissions almost always splits on
- * exactly that, which is what every team in the seed does. Offering it beats
- * an empty step and a "Group 1" nobody renames.
+ * exactly that, which is what every team in the seed does, so work item type
+ * is tried first. But a team that locked its work item types and left three
+ * facilities unlocked is just as plainly asking for a group per facility, and
+ * suggesting a split on something the groups cannot edit would be worse than
+ * suggesting nothing. Locked dimensions are therefore skipped, and the widest
+ * remaining menu is the fallback.
  */
 function suggestedGroups(criteria: Criterion[]): { name: string; criteria: Criterion[] }[] {
-  const types =
-    criteria.find((c) => c.dimension === "WORK_ITEM_TYPE" && c.operator === "IN")?.values ?? [];
-  if (types.length < 2) return [];
-  return types.map((t) => ({
+  const splittable = criteria.filter(
+    (c) => !c.locked && c.operator === "IN" && c.values.length >= 2,
+  );
+  const on =
+    splittable.find((c) => c.dimension === "WORK_ITEM_TYPE") ??
+    [...splittable].sort((a, b) => b.values.length - a.values.length)[0];
+  if (!on) return [];
+  return on.values.map((v) => ({
     // "AUTHORIZATION_RESUBMISSION" reads as "Resubmission": the family is
     // already the team's name, so repeating it in every group is noise.
-    name: pretty(t).replace(/^(Authorization|Claim)\s+/i, "").replace(/^./, (c) => c.toUpperCase()),
-    criteria: [{ dimension: "WORK_ITEM_TYPE", operator: "IN" as const, values: [t] }],
+    name:
+      on.dimension === "WORK_ITEM_TYPE"
+        ? pretty(v).replace(/^(Authorization|Claim)\s+/i, "").replace(/^./, (c) => c.toUpperCase())
+        : pretty(v),
+    criteria: [{ dimension: on.dimension, operator: "IN" as const, values: [v] }],
   }));
 }
 
@@ -202,8 +231,7 @@ export function TeamWizard({
   const [policies, setPolicies] = useState<PolicySetting[]>([]);
   const [uniformCapacity, setUniformCapacity] = useState(true);
   const [supervisorIds, setSupervisorIds] = useState<string[]>([]);
-  /** Member ids per policy handler tag, e.g. HIGH_COST -> [...]. */
-  const [handlers, setHandlers] = useState<Record<string, string[]>>({});
+  const [supervisorFilter, setSupervisorFilter] = useState("");
   const [capOverrides, setCapOverrides] = useState<Record<string, number | undefined>>({});
   const [saving, setSaving] = useState(false);
 
@@ -222,13 +250,18 @@ export function TeamWizard({
     if (!descTouched) setDescription(d);
   }, [criteria, team, nameTouched, descTouched]);
 
-  /** A group may only narrow its team. Widening means it can never match. */
+  /**
+   * A group may only narrow its team. Widening means it can never match.
+   *
+   * Locked dimensions are not checked: a group has no clause on one, because
+   * `applyTeamCriteria` drops it the moment the lock goes on.
+   */
   const widenedGroups = useMemo(() => {
     const out: string[] = [];
     for (const g of groups) {
       for (const c of (g.criteria ?? []) as Criterion[]) {
         const t = criteria.find((x) => x.dimension === c.dimension);
-        if (!t || t.operator !== "IN" || !t.values.length) continue;
+        if (!t || t.locked || t.operator !== "IN" || !t.values.length) continue;
         const allowed = new Set(t.values);
         if (c.operator === "ANY" || c.values.some((v) => !allowed.has(v))) {
           out.push(g.name || "Untitled group");
@@ -239,6 +272,27 @@ export function TeamWizard({
     return out;
   }, [groups, criteria]);
   const [saveTeam] = useMutation(SAVE_TEAM);
+
+  /**
+   * Setting the team's rule, and keeping the groups honest about it.
+   *
+   * Locking a dimension means the team decides it for every group, so any
+   * clause a group already had on it is now dead text: the matcher would take
+   * the team's and the group would read as doing something it is not. Dropping
+   * it here is the only moment anyone is looking at both, and the alternative,
+   * storing it and ignoring it, is how a rule nobody can explain gets made.
+   */
+  const applyTeamCriteria = (next: Criterion[]) => {
+    setCriteria(next);
+    const locked = new Set(next.filter((c) => c.locked).map((c) => c.dimension));
+    if (!locked.size) return;
+    setGroups((gs) =>
+      gs.map((g) => {
+        const kept = (g.criteria ?? []).filter((c) => !locked.has(c.dimension));
+        return kept.length === (g.criteria ?? []).length ? g : { ...g, criteria: kept };
+      }),
+    );
+  };
 
   const families = opts?.capacityFamilies ?? [];
   const allPolicies: Policy[] = opts?.allocationPolicies ?? [];
@@ -256,6 +310,7 @@ export function TeamWizard({
           dimension: c.dimension,
           operator: c.operator,
           values: [...(c.values ?? [])],
+          locked: c.locked === true,
         })),
       );
       setPolicies(
@@ -271,12 +326,10 @@ export function TeamWizard({
         const seen = new Map<string, any>();
         for (const g of team.groups ?? []) for (const m of g.members ?? []) seen.set(m.id, m);
         const people = [...seen.values()];
-        setSupervisorIds(people.filter((m) => m.isSupervisor).map((m) => m.id));
-        const byTag: Record<string, string[]> = {};
-        for (const m of people) {
-          for (const tag of m.handlerTags ?? []) byTag[tag] = [...(byTag[tag] ?? []), m.id];
-        }
-        setHandlers(byTag);
+        // The team's own list, not `isSupervisor` on each member: that flag
+        // says the person supervises something somewhere, which on a team they
+        // merely work on is the wrong answer.
+        setSupervisorIds((team.supervisorIds ?? []).map(String));
         setCapOverrides(
           Object.fromEntries(
             people.filter((m) => m.capacityOverride != null).map((m) => [m.id, m.capacityOverride]),
@@ -305,7 +358,6 @@ export function TeamWizard({
       setPolicies([]);
       setUniformCapacity(true);
       setSupervisorIds([]);
-      setHandlers({});
       setCapOverrides({});
     }
   }, [open, team, initialStep]);
@@ -424,18 +476,6 @@ export function TeamWizard({
       ),
     );
 
-  /** Handler tags in play, so the member table grows a column per policy. */
-  const handlerPolicies = useMemo(
-    () => applicable.filter((p) => p.handlerTag),
-    [applicable],
-  );
-
-  const toggleHandler = (tag: string, memberId: string, on: boolean) =>
-    setHandlers((prev) => {
-      const cur = prev[tag] ?? [];
-      return { ...prev, [tag]: on ? [...cur, memberId] : cur.filter((x) => x !== memberId) };
-    });
-
   /** Capacity is the sum of each member's own cap, not a team-level figure. */
   const baseCap = useMemo(() => {
     const limits = policies
@@ -476,6 +516,7 @@ export function TeamWizard({
               dimension: c.dimension,
               operator: c.operator,
               values: c.values,
+              locked: c.locked === true,
             })),
             policies: policies.map((p) => ({
               code: p.code,
@@ -485,7 +526,6 @@ export function TeamWizard({
             })),
             uniformCapacity,
             supervisorIds,
-            handlers: Object.entries(handlers).map(([tag, memberIds]) => ({ tag, memberIds })),
             groups: groups.map((g) => ({
               id: String(g.id).length > 8 ? null : g.id, // new groups have uuid ids
               name: g.name,
@@ -601,12 +641,15 @@ export function TeamWizard({
                   <Filter size={12} /> Which work reaches this team
                 </p>
                 <p className="mb-3 text-[11px] text-slate-500 dark:text-slate-400">
-                  Filters here prefilter the queue for the whole team. Its groups then narrow
-                  it further. Leave a filter off and the team accepts anything on it.
+                  Filters here prefilter the queue for the whole team, and each one says how
+                  much of a say its groups get. <strong>Locked</strong>, every group gets the
+                  filter exactly as it stands. <strong>Groups choose</strong>, the values are a
+                  menu each group picks from. Leave the filter off and the team takes anything
+                  on it, and its groups filter however they like.
                 </p>
                 <CriteriaBuilder
                   criteria={criteria}
-                  onChange={setCriteria}
+                  onChange={applyTeamCriteria}
                   level="TEAM"
                   teamId={team?.id ?? null}
                 />
@@ -616,6 +659,106 @@ export function TeamWizard({
                     <AlertDescription>
                       With no filters this team competes for every work item in the estate.
                       That is allowed, but it is rarely what is meant.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+
+              {/*
+                * Supervisors, beside the name rather than buried in the member
+                * table three steps later.
+                *
+                * Picked from the whole staff list, not from the roster: on a
+                * team being created there is no roster yet, and the supervisor
+                * is usually the first person named. The save adds them to every
+                * group, which is what supervising the team means , they take
+                * work like anyone else and they are who every readiness issue
+                * on this team is addressed to.
+                */}
+              <div className="rounded-lg border border-slate-200 p-4 dark:border-dark-border">
+                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <ShieldCheck size={12} /> Who supervises this team
+                </p>
+                <p className="mb-3 text-[11px] text-slate-500 dark:text-slate-400">
+                  A supervisor is told when this team's work goes unallocated, and is added
+                  to every group, including ones created later.
+                </p>
+
+                {supervisorIds.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-1">
+                    {supervisorIds.map((id) => {
+                      const u = (opts?.allUsers ?? []).find((x: any) => x.id === id);
+                      const label = u
+                        ? [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email
+                        : id;
+                      return (
+                        <span
+                          key={id}
+                          className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-0.5 pl-2.5 pr-1.5 text-xs text-primary dark:text-primary-300"
+                        >
+                          {label}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${label}`}
+                            onClick={() =>
+                              setSupervisorIds((prev) => prev.filter((x) => x !== id))
+                            }
+                          >
+                            <X size={11} />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <Input
+                  value={supervisorFilter}
+                  onChange={(e: any) => setSupervisorFilter(e.target.value)}
+                  placeholder="Search staff by name"
+                />
+                {supervisorFilter.trim().length > 1 && (
+                  <div className="mt-1 max-h-44 overflow-y-auto rounded-md border border-slate-200 dark:border-dark-border">
+                    {(opts?.allUsers ?? [])
+                      .filter((u: any) => {
+                        const label = [u.firstName, u.lastName].filter(Boolean).join(" ");
+                        return (
+                          !supervisorIds.includes(u.id) &&
+                          `${label} ${u.email ?? ""}`
+                            .toLowerCase()
+                            .includes(supervisorFilter.trim().toLowerCase())
+                        );
+                      })
+                      .slice(0, 25)
+                      .map((u: any) => {
+                        const label =
+                          [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || u.id;
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => {
+                              setSupervisorIds((prev) => [...prev, u.id]);
+                              setSupervisorFilter("");
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50 dark:hover:bg-dark-hover"
+                          >
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-white">
+                              {label.split(/\s+/).map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+                            </span>
+                            <span className="truncate">{label}</span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+
+                {supervisorIds.length === 0 && (
+                  <Alert variant="warning" className="mt-3">
+                    <AlertTriangle size={15} />
+                    <AlertDescription>
+                      With no supervisor, nobody is told when this team's work goes
+                      unallocated. Name at least one.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -637,6 +780,16 @@ export function TeamWizard({
                   .filter((c) => c.operator === "ANY" || c.values.length)
                   .map((c) => (
                     <Badge key={c.dimension} variant="default">
+                      {/*
+                        * Which of these the groups below can still touch is the
+                        * question anyone reads this row to answer, so the lock
+                        * state rides on the chip rather than being somewhere else.
+                        */}
+                      {c.locked ? (
+                        <Lock size={10} className="mr-1 inline" />
+                      ) : (
+                        <Unlock size={10} className="mr-1 inline" />
+                      )}
                       {c.operator === "ANY"
                         ? `${c.dimension.toLowerCase()}: any`
                         : // Enum values are ours, so they read as prose rather
@@ -719,6 +872,7 @@ export function TeamWizard({
                 teamCriteria={criteria}
                 memberOptions={opts?.allUsers ?? []}
                 teamId={team?.id ?? null}
+                supervisorIds={supervisorIds}
               />
             </>
           )}
@@ -837,15 +991,14 @@ export function TeamWizard({
                   <table className="w-full min-w-[32rem] text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:border-dark-border dark:text-slate-400">
+                        {/*
+                          * Member and capacity, and nothing else. The supervisor
+                          * tick-box moved to step 1, where it is a property of
+                          * the team rather than of a membership; the high-cost
+                          * clearance column is gone with the policy it belonged
+                          * to, which is a filter on a group now.
+                          */}
                         <th className="px-4 py-2 text-start">Member</th>
-                        <th className="w-24 px-2 py-2 text-center">Supervisor</th>
-                        {/* A column per policy that routes by clearance. Nothing here
-                            names high cost; the registry decides what appears. */}
-                        {handlerPolicies.map((p) => (
-                          <th key={p.code} className="w-28 px-2 py-2 text-center">
-                            {p.label}
-                          </th>
-                        ))}
                         <th className="w-28 px-4 py-2 text-end">Cap / day</th>
                       </tr>
                     </thead>
@@ -861,26 +1014,6 @@ export function TeamWizard({
                             <td className="truncate px-4 py-2 text-slate-700 dark:text-slate-300">
                               {label}
                             </td>
-                            <td className="px-2 py-2 text-center">
-                              <Checkbox
-                                checked={supervisorIds.includes(m.id)}
-                                onCheckedChange={(v: any) =>
-                                  setSupervisorIds((prev) =>
-                                    v ? [...prev, m.id] : prev.filter((x) => x !== m.id),
-                                  )
-                                }
-                              />
-                            </td>
-                            {handlerPolicies.map((p) => (
-                              <td key={p.code} className="px-2 py-2 text-center">
-                                <Checkbox
-                                  checked={(handlers[p.handlerTag!] ?? []).includes(m.id)}
-                                  onCheckedChange={(v: any) =>
-                                    toggleHandler(p.handlerTag!, m.id, !!v)
-                                  }
-                                />
-                              </td>
-                            ))}
                             <td className="px-4 py-2">
                               <Input
                                 type="number"
@@ -903,30 +1036,6 @@ export function TeamWizard({
                   </table>
                 </div>
               )}
-
-              {supervisorIds.length === 0 && roster.length > 0 && (
-                <Alert variant="warning">
-                  <AlertTriangle size={15} />
-                  <AlertDescription>
-                    No supervisor is set, so nobody is told when this team's work goes
-                    unallocated. Tag at least one.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* One warning per clearance policy with nobody cleared for it. */}
-              {handlerPolicies
-                .filter((p) => !(handlers[p.handlerTag!] ?? []).length)
-                .map((p) => (
-                  <Alert key={p.code} variant="warning">
-                    <AlertTriangle size={15} />
-                    <AlertDescription>
-                      Nobody is cleared for {p.label.toLowerCase()}, so items over{" "}
-                      {(settingFor(p.code)?.number ?? p.defaultNumber ?? 0).toLocaleString()}
-                      {p.unit ? ` ${p.unit}` : ""} will not be assigned.
-                    </AlertDescription>
-                  </Alert>
-                ))}
 
               <div className="rounded-lg border border-slate-200 p-4 dark:border-dark-border">
                 <p className="text-xs text-slate-500 dark:text-slate-400">

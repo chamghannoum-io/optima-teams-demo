@@ -15,14 +15,53 @@
 
 import { FACILITY_ALIASES } from "./facilities.js";
 
-export type CriterionOperator = "IN" | "NOT_IN" | "ANY";
+export type CriterionOperator = "IN" | "NOT_IN" | "ANY" | "GREATER_THAN";
 export type CriterionLevel = "TEAM" | "GROUP" | "BOTH";
 
 export interface Criterion {
   dimension: string;
   operator: CriterionOperator;
   values: string[];
+  /**
+   * Team criteria only. Locked means the team decided this dimension for every
+   * group and no group may restate it; unlocked means the team's values are a
+   * menu its groups choose from. See `filterModeOf`.
+   */
+  locked?: boolean;
 }
+
+/**
+ * What a team's filter on one dimension does to its groups. Three states, and
+ * they are the whole of the team/group relationship on that dimension:
+ *
+ *   LOCKED  the team filtered and locked it. Every group inherits it exactly
+ *           and cannot edit it. "All our groups do claim validation and claim
+ *           submission, and that is not negotiable."
+ *   CHOICE  the team filtered but left it open. The team's values are the menu;
+ *           each group picks a subset of them, and a group that picks nothing
+ *           inherits the lot. "We cover Ajman, Sharjah and RAK; group 1 takes
+ *           Ajman, group 2 Sharjah, group 3 RAK."
+ *   OPEN    the team did not filter. Groups may filter on anything the estate
+ *           offers, or not at all.
+ *
+ * OPEN and CHOICE were already the behaviour; LOCKED is what is new, and it is
+ * the only state where a group criterion on the dimension is ignored rather
+ * than honoured.
+ */
+export type TeamFilterMode = "LOCKED" | "CHOICE" | "OPEN";
+
+export function filterModeOf(
+  teamCriteria: Criterion[] | undefined,
+  code: string,
+): TeamFilterMode {
+  const c = criterionFor(teamCriteria, code);
+  if (!c) return "OPEN";
+  return c.locked ? "LOCKED" : "CHOICE";
+}
+
+/** Dimensions the team locked, so no group may restate them. */
+export const lockedDimensions = (teamCriteria: Criterion[] | undefined): string[] =>
+  (teamCriteria ?? []).filter((c) => c.locked).map((c) => c.dimension);
 
 export interface AllocationDimension {
   code: string;
@@ -50,6 +89,31 @@ export interface AllocationDimension {
    * ("Claim validation"); NAME values are already human.
    */
   valueStyle: "CODE" | "ENUM" | "NAME";
+  /**
+   * A number compared with an operator, not a value picked from a list.
+   *
+   * The generic criteria builder is a value picker, so it cannot edit one of
+   * these and skips it; the dimension brings its own control instead. This is
+   * what lets "claims over AED 5,000" be an ordinary criterion, matched,
+   * scored and explained by the same code as every other clause, while still
+   * being a switch and a dropdown on screen.
+   */
+  numeric?: boolean;
+  /** What the number is denominated in, for labels. */
+  unit?: string;
+  /**
+   * The amounts a numeric dimension may be set to. A dropdown, never free
+   * text: the figure is a business decision a supervisor owns, and typing
+   * 500 where 5,000 was meant silently reroutes a day's expensive claims.
+   * Mutable at runtime, which is the supervisor's half of that.
+   */
+  numericOptions?: number[];
+  /**
+   * Work item types this dimension can say anything about. Absent means all.
+   * Authorisation work carries no money, so claim value is not offered on it,
+   * the same way the high-cost policy was not before it moved here.
+   */
+  appliesToTypes?: string[];
   sortOrder: number;
 }
 
@@ -162,7 +226,47 @@ export const DIMENSIONS: AllocationDimension[] = [
     valueStyle: "ENUM",
     sortOrder: 60,
   },
+  /**
+   * High cost, as a dimension rather than a policy.
+   *
+   * It used to be a team policy: one threshold for the team, plus a tick-box
+   * per member saying who was cleared for the work it flagged. That answered
+   * "who may touch an expensive claim" but not "which group does expensive
+   * claims go to", and the second is the question the business actually asks.
+   *
+   * As a criterion it is the first answer, for free. A group with it on reads
+   * "cardiology AND over AED 10,000", which constrains one dimension more than
+   * the plain cardiology group, so `specificityOf` already sends the expensive
+   * claim to it and the cheap one to the other. No new routing concept, no
+   * second matcher, and "why did this go here" explains itself through
+   * `rejectingCriterion` like every other clause.
+   */
+  {
+    code: "CLAIM_VALUE",
+    label: "Claim value",
+    level: "GROUP",
+    operators: ["GREATER_THAN"],
+    valueSource: "claimValueOptions",
+    itemField: "net",
+    coverageChecked: false,
+    matchMode: "EXACT",
+    valueStyle: "CODE",
+    numeric: true,
+    unit: "AED",
+    numericOptions: [1000, 3000, 5000, 10000, 25000, 50000, 100000],
+    // Authorisation work carries no money, so it is never offered there.
+    appliesToTypes: [
+      "CLAIM_VALIDATION",
+      "CLAIM_SUBMISSION",
+      "CLAIM_RESUBMISSION",
+      "RECONCILIATION",
+    ],
+    sortOrder: 70,
+  },
 ];
+
+/** The numeric dimension a group's high-cost switch writes to. */
+export const HIGH_COST_DIMENSION = "CLAIM_VALUE";
 
 /**
  * What replaces `division`. A family groups work item types that share a daily
@@ -276,23 +380,15 @@ export const POLICIES: AllocationPolicy[] = [
     defaultValue: false,
     sortOrder: 20,
   },
-  {
-    code: "HIGH_COST",
-    label: "High-cost threshold",
-    description:
-      "Claims worth more than this go only to members cleared for high-cost work, where a mistake is expensive.",
-    valueType: "NUMBER",
-    scope: "TEAM",
-    // Claim work carries a net value; authorisation work does not. That is the
-    // whole reason this policy can apply to one and not the other.
-    appliesToTypes: CLAIM_TYPES,
-    defaultValue: 3000,
-    unit: "AED",
-    handlerTag: "HIGH_COST",
-    itemField: "net",
-    test: "GREATER_THAN",
-    sortOrder: 30,
-  },
+  /*
+   * High cost used to be the third row here, as a team-wide threshold plus a
+   * per-member clearance tick-box. It is a group criterion now , the
+   * CLAIM_VALUE dimension above , because the business decides high cost per
+   * group ("this group does the expensive resubmissions"), not per team, and
+   * routing it is the matcher's job rather than a second mechanism bolted
+   * beside it. `handlerTag` and the clearance plumbing stay in the contract
+   * below because they are part of the published shape, but no row uses them.
+   */
 ];
 
 export const policyByCode = (code: string): AllocationPolicy | undefined =>
@@ -304,19 +400,35 @@ export const policiesFor = (types: string[]): AllocationPolicy[] =>
     (a, b) => a.sortOrder - b.sortOrder,
   );
 
-/** Does this policy flag this item at this setting? */
-export function policyFlags(
-  policy: AllocationPolicy,
-  value: number | boolean | undefined,
-  item: Record<string, unknown>,
-): boolean {
-  if (policy.valueType !== "NUMBER" || !policy.itemField) return false;
-  if (!policy.appliesToTypes.includes(String(item.workItemType))) return false;
-  const threshold = typeof value === "number" ? value : Number(policy.defaultValue);
-  const raw = item[policy.itemField];
-  if (typeof raw !== "number") return false;
-  return raw > threshold;
+/**
+ * The high-cost threshold on a rule, or null when it has none.
+ *
+ * One accessor for both halves of the switch, so nothing else has to know the
+ * toggle is stored as a criterion rather than as a pair of fields.
+ */
+export function highCostOf(criteria: Criterion[] | undefined): number | null {
+  const c = criterionFor(criteria, HIGH_COST_DIMENSION);
+  if (!c || c.operator !== "GREATER_THAN") return null;
+  const n = Number((c.values ?? [])[0]);
+  return Number.isFinite(n) ? n : null;
 }
+
+/** Turn the switch on at an amount, or off with null. Order is preserved. */
+export function withHighCost(
+  criteria: Criterion[] | undefined,
+  threshold: number | null,
+): Criterion[] {
+  const rest = (criteria ?? []).filter((c) => c.dimension !== HIGH_COST_DIMENSION);
+  if (threshold == null) return rest;
+  return [
+    ...rest,
+    { dimension: HIGH_COST_DIMENSION, operator: "GREATER_THAN", values: [String(threshold)] },
+  ];
+}
+
+/** Amounts the switch may be set to, as the supervisor currently has them. */
+export const highCostAmounts = (): number[] =>
+  dimensionByCode(HIGH_COST_DIMENSION)?.numericOptions ?? [];
 
 export const dimensionByCode = (code: string): AllocationDimension | undefined =>
   DIMENSIONS.find((d) => d.code === code);
@@ -362,6 +474,19 @@ export function criterionAccepts(c: Criterion, item: Record<string, unknown>): b
   if (!dim) return true;
   const raw = item[dim.itemField];
   const present = raw != null && String(raw) !== "";
+
+  if (c.operator === "GREATER_THAN") {
+    // A positive claim about a number, so it needs a number: an item with no
+    // value on the field cannot be shown to be over the threshold and is
+    // rejected, the same asymmetry IN has against a missing value. This is
+    // what keeps authorisation work, which carries no money, out of a
+    // high-cost group rather than flooding it.
+    const n = Number(raw);
+    const threshold = Number((c.values ?? [])[0]);
+    if (!present || !Number.isFinite(n) || !Number.isFinite(threshold)) return false;
+    return n > threshold;
+  }
+
   const set = new Set((c.values ?? []).map((v) => keyFor(dim, v)));
 
   if (c.operator === "NOT_IN") {
@@ -399,29 +524,138 @@ export function specificityOf(criteria: Criterion[] | undefined): number {
   for (const c of criteria ?? []) {
     if (c.operator === "ANY" || !(c.values ?? []).length) continue;
     constrained += 1;
+    // GREATER_THAN carries one value and so scores a full 100, which is the
+    // answer we want anyway: a group that is "cardiology and over AED 10,000"
+    // must beat the plain cardiology group for the expensive claim.
     narrowness += c.operator === "NOT_IN" ? 1 : Math.floor(100 / c.values.length);
   }
   return constrained * 1000 + narrowness;
 }
 
 /**
+ * A rule's identity, independent of the order its clauses were written in.
+ *
+ * Two groups with the same signature route identically, which on its own is
+ * allowed , two shifts covering the same work is a normal thing to configure.
+ * It only becomes a fault when the same PERSON sits in both, because then the
+ * narrowest-wins tie-break is picking between two pools that are partly the
+ * same pool, and that person's share of the work doubles for no stated reason.
+ * See `duplicateRuleConflicts`.
+ */
+export function criteriaSignature(criteria: Criterion[] | undefined): string {
+  return [...(criteria ?? [])]
+    .filter((c) => c.operator === "ANY" || (c.values ?? []).length)
+    .map((c) => {
+      const dim = dimensionByCode(c.dimension);
+      const vals = [...(c.values ?? [])].map((v) => keyFor(dim, v)).sort();
+      return `${c.dimension}:${c.operator}:${vals.join(",")}`;
+    })
+    .sort()
+    .join("|");
+}
+
+/** One group whose rule is identical to another's, and the people in both. */
+export interface DuplicateRuleConflict {
+  signature: string;
+  /** Ids of every group sharing the rule, in the order given. */
+  groupIds: string[];
+  groupNames: string[];
+  /** The people who are in more than one of them. This is the actual fault. */
+  members: { id: string; name: string; groupNames: string[] }[];
+}
+
+/**
+ * Groups that route identically AND share a member.
+ *
+ * Deliberately narrower than "these two overlap". Partial overlap is how
+ * narrowest-wins is meant to be used, and flagging it put an amber line on
+ * most cards in the estate, which is the same as flagging nothing. An exact
+ * duplicate with a shared member is specific, rare, and always a mistake
+ * worth naming the person for.
+ */
+export function duplicateRuleConflicts(
+  groups: {
+    id: string;
+    name: string;
+    active?: boolean;
+    criteria?: Criterion[];
+    members?: { id: string; firstName?: string | null; lastName?: string | null }[];
+  }[],
+  teamCriteria?: Criterion[],
+  /**
+   * Who supervises this team. They sit in every group deliberately, so
+   * counting them would fire this on every team that has one. A list rather
+   * than a flag on the person, because supervising is per team.
+   */
+  supervisorIds: string[] = [],
+): DuplicateRuleConflict[] {
+  const supervises = new Set(supervisorIds.map(String));
+  const bySignature = new Map<string, typeof groups>();
+  for (const g of groups) {
+    if (g.active === false) continue;
+    const sig = criteriaSignature(mergeCriteria(teamCriteria ?? [], g.criteria ?? []));
+    bySignature.set(sig, [...(bySignature.get(sig) ?? []), g]);
+  }
+
+  const out: DuplicateRuleConflict[] = [];
+  for (const [signature, sharing] of bySignature) {
+    if (sharing.length < 2) continue;
+    const seen = new Map<string, { id: string; name: string; groupNames: string[] }>();
+    for (const g of sharing) {
+      for (const m of g.members ?? []) {
+        // A supervisor is added to every group on purpose, so they are in both
+        // of any pair by construction. Naming them here would fire on every
+        // team that has one and say nothing about the duplicate.
+        if (supervises.has(String(m.id))) continue;
+        const name = [m.firstName, m.lastName].filter(Boolean).join(" ") || String(m.id);
+        const cur = seen.get(String(m.id)) ?? { id: String(m.id), name, groupNames: [] };
+        cur.groupNames.push(g.name);
+        seen.set(String(m.id), cur);
+      }
+    }
+    const members = [...seen.values()].filter((m) => m.groupNames.length > 1);
+    if (!members.length) continue;
+    out.push({
+      signature,
+      groupIds: sharing.map((g) => g.id),
+      groupNames: sharing.map((g) => g.name),
+      members,
+    });
+  }
+  return out;
+}
+
+/**
  * A group inherits its team's rule and narrows it. Same dimension on both, the
- * group wins, which is what lets a team say "OP" and a group say nothing.
+ * group wins , which is what lets a team say "OP" and a group say nothing ,
+ * unless the team locked that dimension, in which case the team wins and the
+ * group's clause is ignored.
+ *
+ * Ignoring rather than erroring is deliberate: locking a dimension after groups
+ * were already configured on it must not leave a team that allocates nothing
+ * until someone goes and clears every group by hand. `overridesLocked` reports
+ * the stale clauses so the UI can offer to drop them.
  */
 export function mergeCriteria(team: Criterion[] = [], group: Criterion[] = []): Criterion[] {
+  const locked = new Set(lockedDimensions(team));
   const out = new Map<string, Criterion>();
   for (const c of team) out.set(c.dimension, c);
-  for (const c of group) out.set(c.dimension, c);
+  for (const c of group) if (!locked.has(c.dimension)) out.set(c.dimension, c);
   return [...out.values()];
 }
 
 /**
  * Does the group stay inside its team's rule? A group may only narrow, which is
  * the invariant that replaces the old fixed team/group hierarchy.
+ *
+ * Locked dimensions are not checked here. The group has no say on those, so a
+ * clause left over on one is stale rather than wrong; `overridesLocked` has it.
  */
 export function widensBeyond(team: Criterion[] = [], group: Criterion[] = []): string[] {
+  const locked = new Set(lockedDimensions(team));
   const broken: string[] = [];
   for (const g of group) {
+    if (locked.has(g.dimension)) continue;
     const t = team.find((c) => c.dimension === g.dimension);
     if (!t || t.operator !== "IN") continue;
     const dim = dimensionByCode(g.dimension);
@@ -436,6 +670,29 @@ export function widensBeyond(team: Criterion[] = [], group: Criterion[] = []): s
   return broken;
 }
 
+/**
+ * Dimensions a group may constrain, given its team's rule: everything its team
+ * has not locked.
+ *
+ * The registry's `level` deliberately plays no part. It governs what a TEAM may
+ * filter on and nothing else; on the group side the only thing that withholds a
+ * dimension is the team having locked it. Anything weaker reintroduces the
+ * problem locking exists to solve , a team that says nothing about facility and
+ * whose groups then cannot route by facility either, so the dimension is simply
+ * unreachable and the work goes wherever.
+ *
+ * So: locked, the team decided it. Unlocked, the group picks from the team's
+ * values. Absent, the group picks from everything.
+ */
+export function groupEditableDimensions(
+  dims: { code: string; level: CriterionLevel }[],
+  teamCriteria: Criterion[] | undefined,
+): string[] {
+  return dims
+    .filter((d) => filterModeOf(teamCriteria, d.code) !== "LOCKED")
+    .map((d) => d.code);
+}
+
 /** Values of a dimension a rule admits, given the universe available. */
 export function admittedValues(
   criteria: Criterion[] | undefined,
@@ -443,7 +700,9 @@ export function admittedValues(
   universe: string[],
 ): string[] {
   const c = criterionFor(criteria, code);
-  if (!c || c.operator === "ANY") return [...universe];
+  // A numeric clause narrows the items, not the value list, so it leaves the
+  // universe whole. Coverage over a dimension nobody enumerates is meaningless.
+  if (!c || c.operator === "ANY" || c.operator === "GREATER_THAN") return [...universe];
   const dim = dimensionByCode(code);
   const set = new Set(c.values.map((v) => keyFor(dim, v)));
   return c.operator === "NOT_IN"
@@ -473,6 +732,9 @@ export function describeCriteria(criteria: Criterion[] | undefined): string[] {
       const label = dimensionByCode(c.dimension)?.label ?? c.dimension;
       if (c.operator === "ANY") return `${label}: any`;
       const dim = dimensionByCode(c.dimension);
+      if (c.operator === "GREATER_THAN") {
+        return `${label}: over ${Number(c.values[0]).toLocaleString()}${dim?.unit ? ` ${dim.unit}` : ""}`;
+      }
       const head = c.values.slice(0, 2).map((v) => prettyValue(v, dim)).join(", ");
       const rest = c.values.length > 2 ? ` +${c.values.length - 2}` : "";
       return `${c.operator === "NOT_IN" ? "Not " : ""}${label}: ${head}${rest}`;

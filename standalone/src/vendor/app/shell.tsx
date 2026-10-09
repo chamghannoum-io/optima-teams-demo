@@ -16,9 +16,11 @@ import {
   Building2,
   Bell,
   Moon,
+  Repeat,
   Sun,
 } from "lucide-react";
 import { AppShell as UiAppShell, Breadcrumbs } from "../ui/index.js";
+import { ACCOUNTS, setAccount, useAuth } from "./auth.js";
 
 /**
  * Theme, copied from apps/taskboard/src/app/app.tsx.
@@ -79,6 +81,53 @@ const CRUMBS: Record<string, { label: string; to?: string }[]> = {
   ],
 };
 
+/**
+ * Who is signed in, and the only control in the demo that changes what you
+ * are allowed to do.
+ *
+ * It exists for the high-cost amounts. The supervisor decides what is on that
+ * list; everyone else picks from it. That rule is invisible with one login,
+ * because the person showing it can always do both halves. Signing in as the
+ * team lead and finding the amounts read-only is the demonstration.
+ */
+function AccountSwitcher() {
+  const { user } = useAuth();
+  const initials = `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase();
+  const supervisor = String(user.vendorUserType).toUpperCase().includes("SUPERVISOR");
+  const other = ACCOUNTS.find((a) => a.id !== user.id);
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        className={cx(
+          "flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold text-white",
+          supervisor ? "bg-primary" : "bg-slate-500",
+        )}
+      >
+        {initials}
+      </div>
+      <div className="leading-tight">
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          {user.firstName} {user.lastName}
+        </div>
+        <div className="text-[10px] uppercase tracking-wide text-slate-400">{user.role}</div>
+      </div>
+      {other && (
+        <button
+          type="button"
+          onClick={() => setAccount(other.id)}
+          title={other.blurb}
+          className="ml-1 flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:border-dark-border dark:text-slate-400 dark:hover:bg-dark-hover dark:hover:text-slate-200"
+        >
+          <Repeat size={11} /> Sign in as {other.role.toLowerCase()}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Local join, so the shell does not reach into the UI package for one helper. */
+const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");
+
 export function AppShell({
   children,
   onNavigate,
@@ -114,14 +163,7 @@ export function AppShell({
               <Building2 size={15} /> ASH Hospital HQ
             </span>
             <Bell size={17} className="text-slate-400" />
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-white">
-                MP
-              </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                Manager Provider
-              </span>
-            </div>
+            <AccountSwitcher />
           </div>
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>

@@ -38,32 +38,35 @@ const check = (label, ok, detail = "") => {
 
 console.log("\n1. Dimension registry");
 const reg = await run(`{
-  allocationDimensions { code label level operators valueSource itemField coverageChecked }
+  allocationDimensions {
+    code label level operators valueSource itemField coverageChecked
+    numeric unit numericOptions appliesToTypes
+  }
   allocationPolicies { code label scope valueType appliesToTypes handlerTag unit defaultNumber }
   capacityFamilies { code label workItemTypes defaultLimit allowExceedByDefault }
 }`);
-check("dimensions served as data", reg.allocationDimensions.length === 6,
+check("dimensions served as data", reg.allocationDimensions.length === 7,
   reg.allocationDimensions.map((d) => d.code).join(", "));
-check("policies served as data", reg.allocationPolicies.length >= 3,
+check("policies served as data", reg.allocationPolicies.length >= 2,
   reg.allocationPolicies.map((p) => p.code).join(", "));
 check("capacity families replace division", reg.capacityFamilies.length === 2,
   reg.capacityFamilies.map((f) => `${f.code}(exceed=${f.allowExceedByDefault})`).join(", "));
 
-console.log("\n1b. Policies declare which work they apply to");
-for (const pol of reg.allocationPolicies.filter((x) => x.handlerTag)) {
-  console.log(`       ${pol.label.padEnd(22)} -> ${pol.appliesToTypes.length} types, clearance "${pol.handlerTag}"`);
-}
-const hc = reg.allocationPolicies.find((p) => p.code === "HIGH_COST");
+console.log("\n1b. High cost is a dimension now, and it says which work it applies to");
+const hc = reg.allocationDimensions.find((d) => d.code === "CLAIM_VALUE");
+check("high cost is a group-level numeric dimension",
+  hc.level === "GROUP" && hc.numeric && hc.operators.join() === "GREATER_THAN",
+  `${hc.operators.join(", ")} on ${hc.itemField}, in ${hc.unit}`);
+// A dropdown, not free text: the amount is a decision about money that a
+// supervisor owns, and 500 typed where 5,000 was meant reroutes a day silently.
+check("the amounts are a list, not free text", hc.numericOptions.length > 0,
+  hc.numericOptions.map((n) => n.toLocaleString()).join(", "));
+// Authorisation work carries no money, so it is never offered there. That is
+// the property the old team-level HIGH_COST policy used to carry.
 check("high cost applies to claim work only",
-  hc.appliesToTypes.every((t) => t.startsWith("CLAIM") || t === "RECONCILIATION"));
-// The point of appliesToTypes is that a team is only asked about policies its
-// own work makes relevant, so an authorisation team should see fewer.
-check("an authorisation team is offered fewer policies than a claims team",
-  reg.allocationPolicies.filter((p) =>
-    p.appliesToTypes.some((t) => t.startsWith("AUTHORIZATION"))).length <
-  reg.allocationPolicies.filter((p) =>
-    p.appliesToTypes.some((t) => t.startsWith("CLAIM"))).length,
-  reg.allocationPolicies.map((p) => p.code).join(", "));
+  hc.appliesToTypes.length > 0 &&
+  hc.appliesToTypes.every((t) => t.startsWith("CLAIM") || t === "RECONCILIATION"),
+  hc.appliesToTypes.join(", "));
 
 console.log("\n2. Generic value source, one query for every dimension");
 for (const code of ["FACILITY", "DEPARTMENT", "PAYER", "WORK_ITEM_TYPE"]) {
@@ -76,18 +79,26 @@ console.log("\n3. Seed migrated to criteria");
 const t1 = await run(`{
   optimaTeamsV2 {
     id name criteriaSummary priority
-    criteria { dimension operator values }
+    criteria { dimension operator values locked }
     capacities { family limit allowExceed }
     facilityIds division encounterScope logicAxis
     policies { code family number flag }
     applicablePolicies { code label scope handlerTag }
-    groups { id name criteriaSummary criteria { dimension operator values } }
+    groups {
+      id name criteriaSummary workItemTypes highCostThreshold
+      criteria { dimension operator values }
+      effectiveCriteria { dimension operator values }
+    }
   }
 }`);
 const teams = t1.optimaTeamsV2;
-check("every team carries a rule", teams.every((t) => t.criteria.length > 0));
+// Only the migrated seed. The demo teams in section 9 include one that
+// deliberately filters on nothing, which is a mode, not a missing rule.
+const migrated = teams.filter((t) => /^[0-9]+$/.test(t.id));
+check("every migrated team carries a rule", migrated.every((t) => t.criteria.length > 0),
+  `${migrated.length} teams`);
 check("legacy fields still derive", teams.every((t) => t.facilityIds.length > 0));
-const sample = teams[0];
+const sample = migrated[0];
 console.log(`       ${sample.name}`);
 console.log(`       team rule : ${sample.criteriaSummary.join(" · ")}`);
 console.log(`       capacities: ${sample.capacities.map((c) => `${c.family} ${c.limit} exceed=${c.allowExceed}`).join(", ")}`);
@@ -99,18 +110,20 @@ const anyPayer = teams.flatMap((t) => t.groups).filter((g) =>
   g.criteria.some((c) => c.dimension === "PAYER" && c.operator === "ANY"));
 check("former catch-all groups now carry PAYER ANY", true, `${anyPayer.length} groups`);
 
-console.log("\n4b. An AUTH team and a CLAIM team get different policies");
+console.log("\n4b. An AUTH team and a CLAIM team are offered different things");
 const authTeam = teams.find((t) => t.division === "AUTH");
 const claimTeam = teams.find((t) => t.division === "CLAIM");
 console.log(`       ${authTeam.name}: ${authTeam.applicablePolicies.map((p) => p.label).join(", ")}`);
 console.log(`       ${claimTeam.name}: ${claimTeam.applicablePolicies.map((p) => p.label).join(", ")}`);
-check("auth team is not asked about high cost",
-  !authTeam.applicablePolicies.some((p) => p.code === "HIGH_COST"));
+// `appliesToTypes` is what gates the high-cost switch on a group now, exactly
+// as it gated the high-cost policy on a team before.
+const offersHighCost = (t) =>
+  t.groups.some((g) => g.workItemTypes.some((w) => hc.appliesToTypes.includes(w)));
+check("no group on an auth team is offered high cost", !offersHighCost(authTeam));
+check("groups on a claims team are", offersHighCost(claimTeam));
 check("auth team still gets the policies that apply to all work",
   authTeam.applicablePolicies.some((p) => p.code === "DAILY_LIMIT"),
   authTeam.applicablePolicies.map((p) => p.code).join(", "));
-check("claim team is asked about high cost",
-  claimTeam.applicablePolicies.some((p) => p.code === "HIGH_COST"));
 check("claim team is asked about nothing auth-only",
   !claimTeam.applicablePolicies.some((p) => p.code === "URGENT_TAT"));
 
@@ -165,7 +178,7 @@ const saved = await run(`mutation($input: TeamV2Input!){
     capacities { family limit allowExceed }
     policies { code family number flag }
     applicablePolicies { code label }
-    groups { name criteriaSummary }
+    groups { name criteriaSummary workItemTypes highCostThreshold }
   }
 }`, {
   input: {
@@ -201,9 +214,9 @@ check("team spans several facilities", s.facilityIds.length > 1, s.facilityIds.j
 check("mixed families allowed, division no longer single-valued", s.division === null,
   `capacities: ${s.capacities.map((c) => `${c.family} exceed=${c.allowExceed}`).join(", ")}`);
 check("capacity declared per family it touches", s.capacities.length === 2);
-check("a mixed team gets the claim-side policy its work earns",
-  s.applicablePolicies.some((p) => p.code === "HIGH_COST"),
-  s.applicablePolicies.map((p) => p.code).join(", "));
+check("a mixed team's claim-side groups can still be made high cost",
+  s.groups.some((g) => g.workItemTypes.some((w) => hc.appliesToTypes.includes(w))),
+  s.groups.map((g) => g.workItemTypes.join("+")).join(" / "));
 console.log(`       rule: ${s.criteriaSummary.join(" · ")}`);
 
 console.log("\n8. Generic filter over the same dimensions");
@@ -217,6 +230,242 @@ const f2 = await run(`query($f: TeamQueryFilter){ optimaTeamsFiltered(filter:$f)
 });
 check("filter by facility", f2.optimaTeamsFiltered.length > 0,
   `${f2.optimaTeamsFiltered.length} teams at DXB`);
+
+console.log("\n9. Three ways a team hands a filter to its groups");
+const byId = Object.fromEntries(teams.map((t) => [t.id, t]));
+
+/* Locked. The team decides it, every group inherits it, no group restates it. */
+const locked = byId.d1;
+const lockedWit = locked.criteria.find((c) => c.dimension === "WORK_ITEM_TYPE");
+check("locked, the team's filter is marked as such", lockedWit?.locked === true,
+  lockedWit?.values.join(", "));
+check("locked, no group carries a clause on it",
+  locked.groups.every((g) => !g.criteria.some((c) => c.dimension === "WORK_ITEM_TYPE")),
+  `${locked.groups.length} groups`);
+check("locked, every group still routes on it",
+  locked.groups.every((g) => {
+    const eff = g.effectiveCriteria.find((c) => c.dimension === "WORK_ITEM_TYPE");
+    return eff && eff.values.join() === lockedWit.values.join();
+  }));
+
+/* Unlocked. The team's values are a menu and each group takes a slice of it. */
+const choice = byId.d2;
+const menu = choice.criteria.find((c) => c.dimension === "FACILITY");
+check("unlocked, the team's filter is not locked", menu?.locked === false,
+  `${menu?.values.length} facilities on the menu`);
+check("unlocked, each group picks one of them",
+  choice.groups.every((g) => {
+    const own = g.criteria.find((c) => c.dimension === "FACILITY");
+    return own?.values.length === 1 && menu.values.includes(own.values[0]);
+  }),
+  choice.groups
+    .map((g) => g.criteria.find((c) => c.dimension === "FACILITY")?.values[0])
+    .join(" | "));
+check("unlocked, the group's choice is what actually runs",
+  choice.groups.every((g) => {
+    const eff = g.effectiveCriteria.find((c) => c.dimension === "FACILITY");
+    const own = g.criteria.find((c) => c.dimension === "FACILITY");
+    return eff.values.join() === own.values.join();
+  }));
+check("unlocked, the group still inherits what the team did lock",
+  choice.groups.every((g) =>
+    g.effectiveCriteria.some(
+      (c) => c.dimension === "WORK_ITEM_TYPE" && c.values.includes("CLAIM_RESUBMISSION"),
+    )));
+
+/* No filter. The team says nothing, so the groups route on what they like. */
+const open = byId.d3;
+check("no filter, the team constrains nothing", open.criteria.length === 0);
+check("no filter, the groups route on dimensions the team never mentioned",
+  open.groups.every(
+    (g) => g.criteria.length > 0 && g.effectiveCriteria.length === g.criteria.length,
+  ),
+  open.groups.map((g) => g.criteriaSummary.join(" + ")).join(" | "));
+
+/* A group cannot speak for a locked dimension, even asking for it directly. */
+const tryOverride = await run(`mutation($id:ID!,$in:RcmTeamGroupInput!){
+  optimaTeamV2GroupUpdate(groupId:$id, input:$in){
+    criteria { dimension values }
+    effectiveCriteria { dimension values }
+  }
+}`, {
+  id: locked.groups[0].id,
+  in: {
+    criteria: [
+      { dimension: "WORK_ITEM_TYPE", operator: "IN", values: ["CLAIM_RESUBMISSION"] },
+      { dimension: "DEPARTMENT", operator: "IN", values: ["Internal Medicine"] },
+    ],
+  },
+});
+const after = tryOverride.optimaTeamV2GroupUpdate;
+check("a group's clause on a locked dimension is dropped, not stored",
+  !after.criteria.some((c) => c.dimension === "WORK_ITEM_TYPE"),
+  after.criteria.map((c) => c.dimension).join(", "));
+check("and the team's locked values are what that group runs",
+  after.effectiveCriteria.find((c) => c.dimension === "WORK_ITEM_TYPE")?.values.join() ===
+    lockedWit.values.join());
+
+// Put the group back. That override narrowed Medical from eight departments to
+// one, which makes it exactly as specific as the high-cost group two sections
+// below and turns that section's routing into a coin toss. A check that edits
+// the demo estate has to leave it as it found it.
+await run(`mutation($id:ID!,$in:RcmTeamGroupInput!){
+  optimaTeamV2GroupUpdate(groupId:$id, input:$in){ id }
+}`, { id: locked.groups[0].id, in: { criteria: locked.groups[0].criteria } });
+
+console.log("\n9b. The real estate carries lock state too, derived from the v1 data");
+// Asked for once the business approved the three modes on the demo teams:
+// apply them to the rest. Nothing here is invented, it is read off what the
+// migrated teams already say about themselves.
+check("every migrated team locks its facility",
+  migrated.every((t) => t.criteria.find((c) => c.dimension === "FACILITY")?.locked === true),
+  `${migrated.length} teams`);
+check("none of them locks work item type, because the groups split on it",
+  migrated.every((t) => t.criteria.find((c) => c.dimension === "WORK_ITEM_TYPE")?.locked !== true));
+// Sharjah is scoped BOTH in the seed, so it gets no encounter clause at all,
+// which is the third mode: its groups are free to split IP from OP.
+const scoped = migrated.filter((t) => t.criteria.some((c) => c.dimension === "ENCOUNTER_TYPE"));
+check("an encounter scope nobody varies is locked",
+  scoped.every((t) => t.criteria.find((c) => c.dimension === "ENCOUNTER_TYPE").locked === true),
+  `${scoped.length} of ${migrated.length} teams scope encounter; the rest leave it open`);
+check("a locked facility leaves nothing on the groups to contradict it",
+  migrated.every((t) => t.groups.every((g) => !g.criteria.some((c) => c.dimension === "FACILITY"))));
+
+console.log("\n10. High cost, as a group criterion");
+const hcTeam = byId.d1;
+const hcGroup = hcTeam.groups.find((g) => g.highCostThreshold != null);
+check("a group carries the amount, not the team", hcGroup != null,
+  `${hcGroup?.name} over ${hcGroup?.highCostThreshold?.toLocaleString()} AED`);
+check("it reads as money, not as a raw criterion",
+  hcGroup.criteriaSummary.some((line) => line.includes("over 10,000 AED")),
+  hcGroup.criteriaSummary.join(" . "));
+
+const hcPrev = await run(`query($id:ID!){
+  optimaAllocationPreview(teamId:$id, itemCount:400){
+    policyImpact { code label unit threshold flagged unassigned }
+    items { groupName net }
+  }
+}`, { id: hcTeam.id });
+const hcp = hcPrev.optimaAllocationPreview;
+const intoHighCost = hcp.items.filter((a) => a.groupName === hcGroup.name);
+const intoOthers = hcp.items.filter((a) => a.groupName !== hcGroup.name);
+// The one property that matters: narrowest-wins already routes on money, so
+// the expensive claim lands here and nothing cheap does.
+check("only items over the amount reach the high-cost group",
+  intoHighCost.length > 0 && intoHighCost.every((a) => a.net > hcGroup.highCostThreshold),
+  `${intoHighCost.length} items, cheapest ${Math.min(...intoHighCost.map((a) => a.net)).toLocaleString()} AED`);
+check("the department groups keep everything below it",
+  intoOthers.every((a) => a.net <= hcGroup.highCostThreshold),
+  `${intoOthers.length} items elsewhere`);
+check("the preview reports high cost off the groups, with no team policy left",
+  hcp.policyImpact.length === 1 && hcp.policyImpact[0].threshold === hcGroup.highCostThreshold,
+  hcp.policyImpact.map((r) => `${r.flagged} over ${r.threshold.toLocaleString()} ${r.unit}, ${r.unassigned} unassigned`).join("; "));
+
+console.log("\n10b. The amounts are a list a supervisor owns");
+const widened = await run(`mutation($d:String!,$n:[Float!]!){
+  allocationDimensionOptionsSet(dimension:$d, numericOptions:$n){ code numericOptions }
+}`, { d: "CLAIM_VALUE", n: [2500, 7500, 2500, 0, 15000] });
+check("the list is de-duplicated and sorted, and junk is dropped",
+  widened.allocationDimensionOptionsSet.numericOptions.join() === "2500,7500,15000",
+  widened.allocationDimensionOptionsSet.numericOptions.join(", "));
+// A group already filtering at an amount the supervisor removed keeps working:
+// the criterion holds the number, the list only governs what is chosen next.
+const stillThere = await run(`query($id:ID!){ optimaTeamV2(id:$id){ groups { name highCostThreshold } } }`,
+  { id: hcTeam.id });
+check("a group already set to a removed amount keeps it",
+  stillThere.optimaTeamV2.groups.some((g) => g.highCostThreshold === 10000));
+await run(`mutation($d:String!,$n:[Float!]!){
+  allocationDimensionOptionsSet(dimension:$d, numericOptions:$n){ code }
+}`, { d: "CLAIM_VALUE", n: [1000, 3000, 5000, 10000, 25000, 50000, 100000] });
+
+console.log("\n11. Duplicate groups are flagged only when a person is in both");
+const dupPeople = await run(`{ allUsers { id firstName lastName } }`);
+const [p1, p2, p3] = dupPeople.allUsers;
+const makeDup = (name, members2) => run(`mutation($input: TeamV2Input!){
+  optimaTeamV2Save(input:$input){ id name }
+}`, {
+  input: {
+    name,
+    criteria: [{ dimension: "WORK_ITEM_TYPE", operator: "IN", values: ["CLAIM_VALIDATION"], locked: true }],
+    supervisorIds: [p1.id],
+    groups: [
+      { name: "Shift A", criteria: [{ dimension: "DEPARTMENT", operator: "IN", values: ["Emergency"] }], memberIds: [p1.id, p2.id] },
+      { name: "Shift B", criteria: [{ dimension: "DEPARTMENT", operator: "IN", values: ["Emergency"] }], memberIds: members2 },
+    ],
+  },
+});
+
+const clean = (await makeDup("Dup check, separate people", [p3.id])).optimaTeamV2Save;
+const dirty = (await makeDup("Dup check, shared person", [p2.id])).optimaTeamV2Save;
+const dupR = await run(`{ optimaAllocationReadiness { issues { kind teamName message } } }`);
+const dupIssues = dupR.optimaAllocationReadiness.issues.filter((i) => i.kind === "DUPLICATE_GROUP_RULE");
+check("identical rules with different people are not flagged",
+  !dupIssues.some((i) => i.teamName === clean.name));
+check("identical rules with the same person in both are",
+  dupIssues.some((i) => i.teamName === dirty.name));
+check("and the message names the person, not just the groups",
+  dupIssues.find((i) => i.teamName === dirty.name)?.message.includes(
+    [p2.firstName, p2.lastName].filter(Boolean).join(" "),
+  ),
+  dupIssues.find((i) => i.teamName === dirty.name)?.message);
+for (const id of [clean.id, dirty.id]) {
+  await run(`mutation($id:ID!){ optimaTeamV2Delete(id:$id){ deletedName } }`, { id });
+}
+
+console.log("\n12. A supervisor chosen before any group exists still lands on the team");
+const freshSup = await run(`mutation($input: TeamV2Input!){
+  optimaTeamV2Save(input:$input){ id groups { name members { id isSupervisor } } }
+}`, {
+  input: {
+    name: "Supervisor-first team",
+    criteria: [{ dimension: "WORK_ITEM_TYPE", operator: "IN", values: ["CLAIM_VALIDATION"] }],
+    supervisorIds: [p3.id],
+    groups: [{ name: "Only group", criteria: [], memberIds: [] }],
+  },
+});
+const fresh = freshSup.optimaTeamV2Save;
+// The control moved to step 1, before any group exists, so the save has to
+// resolve a supervisor from the staff list rather than from an empty roster.
+check("the supervisor is added to the group they were never picked into",
+  fresh.groups[0].members.some((m) => m.id === p3.id && m.isSupervisor),
+  fresh.groups[0].members.map((m) => m.id).join(", ") || "nobody");
+/*
+ * Supervising is per team, not a flag on the person.
+ *
+ * p3 now supervises the team above. They are also an ordinary member of other
+ * teams, and saving one of those must not take the title away where they do
+ * supervise , which is exactly what a single `isSupervisor` on the user did.
+ */
+const otherTeam = teams.find((t) => t.id === "d2");
+const resaved = await run(`mutation($id:ID!,$input: TeamV2Input!){
+  optimaTeamV2Save(id:$id, input:$input){ id supervisorIds }
+}`, {
+  id: otherTeam.id,
+  input: {
+    name: otherTeam.name,
+    criteria: otherTeam.criteria.map((c) => ({
+      dimension: c.dimension, operator: c.operator, values: c.values, locked: c.locked,
+    })),
+    supervisorIds: [p1.id],
+    groups: otherTeam.groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      criteria: g.criteria.map((c) => ({
+        dimension: c.dimension, operator: c.operator, values: c.values,
+      })),
+      memberIds: [],
+    })),
+  },
+});
+check("a team names its own supervisors",
+  resaved.optimaTeamV2Save.supervisorIds.join() === String(p1.id),
+  resaved.optimaTeamV2Save.supervisorIds.join(", "));
+const stillSup = await run(`query($id:ID!){ optimaTeamV2(id:$id){ supervisorIds } }`, { id: fresh.id });
+check("and saving a different team does not demote them on theirs",
+  stillSup.optimaTeamV2.supervisorIds.includes(p3.id),
+  stillSup.optimaTeamV2.supervisorIds.join(", ") || "nobody");
+
+await run(`mutation($id:ID!){ optimaTeamV2Delete(id:$id){ deletedName } }`, { id: fresh.id });
 
 console.log(`\n${failures ? `${failures} FAILURES` : "all checks passed"}\n`);
 process.exit(failures ? 1 : 0);

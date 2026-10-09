@@ -11,6 +11,22 @@
  * dimension out already means "anything", which is what the section says. The
  * contract still carries NOT_IN and ANY for anything that needs them.
  *
+ * On a TEAM there is one more control per filter: the lock. It gives an admin
+ * the three things they actually want to say about a dimension, and nothing
+ * else is expressible:
+ *
+ *   locked      the team decides it for everyone. "Every group here does claim
+ *               validation and claim submission." Groups never see the field.
+ *   unlocked    the team's values are a menu. "We cover Ajman, Sharjah and
+ *               RAK", and each group then picks its own from those three.
+ *   no filter   the team says nothing, and groups filter however they like.
+ *
+ * The lock is also the ONLY thing that withholds a dimension from a group. The
+ * registry's `level` says what a TEAM may filter on and stops there: a team that
+ * names three facilities and unlocks them gets a group picking from those three,
+ * and a team that says nothing about facility at all gets a group picking from
+ * all sixteen. `groupDimensions` is where that rule lives.
+ *
  * Values come from `ApiAutocomplete` bound to the `dimensionOptions` source, so
  * a department here is picked from the same paginated, searchable, server-backed
  * list Optima uses everywhere else. The dimension is passed as a filter variable,
@@ -18,7 +34,7 @@
  */
 import { useMemo, useState } from "react";
 import { gql, useApolloClient, useQuery } from "@apollo/client";
-import { Lock, Plus, X } from "lucide-react";
+import { Lock, Plus, Unlock, X } from "lucide-react";
 
 import { Badge, Button, Label, cn } from "@optima/ui";
 import { ApiAutocomplete, autocompleteQueriesMapper } from "@/shared/autocomplete/index.js";
@@ -35,6 +51,10 @@ export const DIMENSIONS_QUERY = gql`
       itemField
       coverageChecked
       valueStyle
+      numeric
+      unit
+      numericOptions
+      appliesToTypes
       sortOrder
       values {
         value
@@ -42,6 +62,14 @@ export const DIMENSIONS_QUERY = gql`
       }
     }
   }
+`;
+
+/** Criteria carry `locked`, so anything selecting them has to ask for it. */
+export const CRITERION_FIELDS = `
+  dimension
+  operator
+  values
+  locked
 `;
 
 /**
@@ -60,12 +88,17 @@ const DIMENSION_VALUES = gql`
   }
 `;
 
-export type CriterionOperator = "IN" | "NOT_IN" | "ANY";
+export type CriterionOperator = "IN" | "NOT_IN" | "ANY" | "GREATER_THAN";
 
 export interface Criterion {
   dimension: string;
   operator: CriterionOperator;
   values: string[];
+  /**
+   * Team criteria only. Locked, every group inherits this clause as written.
+   * Unlocked, the values are the menu each group picks its own subset from.
+   */
+  locked?: boolean;
 }
 
 export interface Dimension {
@@ -77,14 +110,53 @@ export interface Dimension {
   itemField: string;
   coverageChecked: boolean;
   valueStyle: string;
+  /**
+   * A number compared with an operator, not a value picked off a list. This
+   * editor is a value picker, so it cannot edit one and leaves it alone; the
+   * dimension brings its own control, which for claim value is the high-cost
+   * switch on the group card.
+   */
+  numeric?: boolean;
+  unit?: string | null;
+  numericOptions?: number[];
+  appliesToTypes?: string[];
   sortOrder: number;
   values?: { value: string; label: string }[];
 }
 
 
-/** Dimensions editable at a level. BOTH shows up on teams and on groups. */
+/**
+ * Dimensions editable at a level. BOTH shows up on teams and on groups.
+ *
+ * Numeric dimensions are excluded everywhere. They are real criteria and the
+ * matcher treats them like any other, but they are not a list of values to
+ * tick, so this editor has nothing to render for one. Claim value is the only
+ * one, and the group card gives it a switch and an amount instead.
+ */
 export const dimensionsFor = (dims: Dimension[], level: "TEAM" | "GROUP") =>
-  dims.filter((d) => d.level === level || d.level === "BOTH");
+  dims.filter((d) => !d.numeric && (d.level === level || d.level === "BOTH"));
+
+/** What a team's filter on one dimension does to its groups. */
+export type TeamFilterMode = "LOCKED" | "CHOICE" | "OPEN";
+
+export const filterModeOf = (
+  teamCriteria: Criterion[] | undefined,
+  code: string,
+): TeamFilterMode => {
+  const c = (teamCriteria ?? []).find((x) => x.dimension === code);
+  if (!c) return "OPEN";
+  return c.locked ? "LOCKED" : "CHOICE";
+};
+
+/**
+ * Dimensions a group may constrain: everything its team has not locked. Mirrors
+ * `groupEditableDimensions` in allocation-model.ts.
+ *
+ * `level` is not consulted. It governs what a TEAM may filter on; on the group
+ * side the only thing that withholds a dimension is the team having locked it.
+ */
+export const groupDimensions = (dims: Dimension[], teamCriteria: Criterion[] | undefined) =>
+  dims.filter((d) => !d.numeric && filterModeOf(teamCriteria, d.code) !== "LOCKED");
 
 export interface CriteriaBuilderProps {
   criteria: Criterion[];
@@ -115,7 +187,14 @@ export function CriteriaBuilder({
   const [loadingAll, setLoadingAll] = useState<string | null>(null);
 
   const allDims: Dimension[] = data?.allocationDimensions ?? [];
-  const dims = useMemo(() => dimensionsFor(allDims, level), [allDims, level]);
+  /**
+   * On a team, the registry's own TEAM/BOTH set. On a group, that set widened by
+   * whatever the team unlocked and narrowed by whatever it locked.
+   */
+  const dims = useMemo(
+    () => (level === "TEAM" ? dimensionsFor(allDims, "TEAM") : groupDimensions(allDims, inherited)),
+    [allDims, level, inherited],
+  );
 
   /** What the team already decided on this dimension, when editing a group. */
   const inheritedOn = (code: string) => (inherited ?? []).find((c) => c.dimension === code);
@@ -126,7 +205,8 @@ export function CriteriaBuilder({
    * A group can only narrow its team, so a dimension the team pinned to a
    * single value has nothing left to choose: repeating it just invites someone
    * to set it to something that can never match. Those are dropped, and the
-   * inherited row above already says what they are.
+   * inherited row above already says what they are. Locked dimensions are
+   * already gone, dropped by `groupDimensions`.
    */
   const offerable = useMemo(
     () =>
@@ -155,8 +235,14 @@ export function CriteriaBuilder({
     const existing = find(code);
     const next: Criterion = {
       dimension: code,
-      operator: "IN" as CriterionOperator,
+      // IN only for a filter being added. Editing the values of an existing
+      // NOT_IN or ANY clause must not quietly turn it into its opposite, which
+      // is what hardcoding the operator here used to do.
+      operator: existing?.operator ?? ("IN" as CriterionOperator),
       values: existing?.values ?? [],
+      // Only a team locks a dimension, so the flag is never carried onto a
+      // group's own clause even if one somehow arrives with it set.
+      ...(level === "TEAM" ? { locked: existing?.locked ?? false } : {}),
       ...patch,
     };
     onChange([...criteria.filter((c) => c.dimension !== code), next]);
@@ -194,15 +280,27 @@ export function CriteriaBuilder({
 
   const shown = offerable.filter((d) => find(d.code));
   const addable = offerable.filter((d) => !find(d.code));
+  /** Dimensions this editor deliberately does not draw, so it can say so. */
+  const hidden = useMemo(
+    () => new Set(allDims.filter((d) => d.numeric).map((d) => d.code)),
+    [allDims],
+  );
 
   return (
     <div className={cn("space-y-2", className)}>
       {inherited && inherited.length > 0 && <InheritedRow inherited={inherited} dims={allDims} />}
 
-      {shown.length === 0 && (
+      {/*
+        * Empty only when the rule is actually empty. A group filtering on a
+        * numeric dimension has no field here, because this editor cannot draw
+        * one, and telling it that it "takes everything" while its own high-cost
+        * switch is on said the opposite of the truth right next to the switch.
+        */}
+      {shown.length === 0 && !criteria.some((c) => hidden.has(c.dimension)) && (
         <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500 dark:border-dark-border dark:text-slate-400">
-          No filters yet. Without any, this {level === "TEAM" ? "team" : "group"} takes
-          everything that reaches it.
+          {level === "TEAM"
+            ? "No filters yet. Leave it that way and this team takes everything in the estate, and its groups are free to filter on anything."
+            : "No filters yet. Without any, this group takes everything that reaches it."}
         </p>
       )}
 
@@ -222,6 +320,19 @@ export function CriteriaBuilder({
             <div className="flex items-center justify-between gap-2">
               <Label>{d.label}</Label>
               <div className="flex items-center gap-2">
+                {/*
+                  * The lock. Three things a team can say about a dimension, and
+                  * leaving the filter off is the third, so only two of them are
+                  * a control: decide it for every group, or offer it as a menu
+                  * the groups choose from.
+                  */}
+                {level === "TEAM" && (
+                  <LockToggle
+                    locked={c.locked === true}
+                    onChange={(locked) => put(d.code, { locked })}
+                    label={d.label}
+                  />
+                )}
                 {/*
                   * Only where there is a list worth selecting. A dimension the
                   * team narrowed to two values already renders as toggles, so
@@ -274,6 +385,14 @@ export function CriteriaBuilder({
               <p className="text-[11px] text-amber-700 dark:text-amber-400">
                 No values picked yet, so nothing matches this filter.
               </p>
+            ) : level === "TEAM" ? (
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                {c.locked
+                  ? `Applied to every group automatically. Groups cannot change ${d.label.toLowerCase()}.`
+                  : c.values.length === 1
+                    ? "Only one value, so every group takes it. Add more for the groups to split between."
+                    : `Each group picks its own ${d.label.toLowerCase()} from these ${c.values.length}. A group that picks none takes all of them.`}
+              </p>
             ) : null}
           </div>
         );
@@ -309,6 +428,55 @@ export function CriteriaBuilder({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Locked, or a menu the groups choose from.
+ *
+ * A segmented pair rather than a switch, because a switch would need a label
+ * saying which way is which, and the two states here are not an on and an off.
+ * The third option, no filter at all, is the X next to this.
+ */
+function LockToggle({
+  locked,
+  onChange,
+  label,
+}: {
+  locked: boolean;
+  onChange: (locked: boolean) => void;
+  label: string;
+}) {
+  const base =
+    "flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium transition first:rounded-l-full last:rounded-r-full";
+  const on = "bg-primary text-white";
+  const off =
+    "bg-white text-slate-500 hover:text-slate-700 dark:bg-dark-card dark:text-slate-400 dark:hover:text-slate-200";
+  return (
+    <div
+      role="group"
+      aria-label={`How groups inherit ${label}`}
+      className="flex overflow-hidden rounded-full border border-slate-200 dark:border-dark-border"
+    >
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        aria-pressed={locked}
+        title="Every group gets this filter and cannot change it"
+        className={cn(base, locked ? on : off)}
+      >
+        <Lock size={10} /> Locked
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        aria-pressed={!locked}
+        title="Each group picks its own values out of these"
+        className={cn(base, locked ? off : on)}
+      >
+        <Unlock size={10} /> Groups choose
+      </button>
     </div>
   );
 }
@@ -424,25 +592,53 @@ function widened(code: string, c?: Criterion, inherited?: Criterion[]): boolean 
   return c.values.some((v) => !allowed.has(v));
 }
 
-/** What the team already decided, shown so a group's rule reads in context. */
+/**
+ * What the team already decided, shown so a group's rule reads in context.
+ *
+ * Split in two, because the two halves mean opposite things to whoever is
+ * editing this group: the locked half is settled and the fields for it are not
+ * even on the form, while the unlocked half is the menu the fields below are
+ * drawn from. One undifferentiated "from the team" row made the second look as
+ * final as the first, and people stopped looking for the choice.
+ */
 function InheritedRow({ inherited, dims }: { inherited: Criterion[]; dims: Dimension[] }) {
   const label = (code: string) => dims.find((d) => d.code === code)?.label ?? code;
-  const shown = inherited.filter((c) => c.operator === "ANY" || c.values.length);
+  const shown = inherited.filter(
+    (c) => (c.operator === "ANY" || c.values.length) && c.operator !== "GREATER_THAN",
+  );
+  const locked = shown.filter((c) => c.locked);
+  const choose = shown.filter((c) => !c.locked);
   if (!shown.length) return null;
+
+  const chip = (c: Criterion) => (
+    <Badge key={c.dimension} variant="default">
+      {label(c.dimension)}
+      {c.operator === "ANY"
+        ? ": any"
+        : `: ${c.values.slice(0, 2).map(pretty).join(", ")}${c.values.length > 2 ? ` +${c.values.length - 2}` : ""}`}
+    </Badge>
+  );
+
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 dark:bg-dark-surface">
-      <Lock size={11} className="text-slate-400" />
-      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-        From the team
-      </span>
-      {shown.map((c) => (
-        <Badge key={c.dimension} variant="default">
-          {label(c.dimension)}
-          {c.operator === "ANY"
-            ? ": any"
-            : `: ${c.values.slice(0, 2).map(pretty).join(", ")}${c.values.length > 2 ? ` +${c.values.length - 2}` : ""}`}
-        </Badge>
-      ))}
+    <div className="space-y-1.5">
+      {locked.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 dark:bg-dark-surface">
+          <Lock size={11} className="text-slate-400" />
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            Locked by the team
+          </span>
+          {locked.map(chip)}
+        </div>
+      )}
+      {choose.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 dark:bg-dark-surface">
+          <Unlock size={11} className="text-slate-400" />
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            Choose from
+          </span>
+          {choose.map(chip)}
+        </div>
+      )}
     </div>
   );
 }

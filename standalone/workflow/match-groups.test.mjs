@@ -116,6 +116,23 @@ check('NOT_IN barely narrows', spec([NOT_IN]) < spec(oneDept), true);
 check('a broad group never outranks a narrow one on value count alone',
   spec(sixDepts) < spec(oneDept), true);
 
+/* ── high cost ─────────────────────────────────────────────────────────── */
+console.log('high cost');
+
+const OVER = { dimension: 'CLAIM_VALUE', operator: 'GREATER_THAN', values: ['5000'] };
+
+check('over the amount is admitted', M.criterionAccepts(OVER, { net: 7400 }), true);
+check('under it is not', M.criterionAccepts(OVER, { net: 1200 }), false);
+check('exactly it is not', M.criterionAccepts(OVER, { net: 5000 }), false);
+// Authorisation work carries no net value. It has to fall out of a high-cost
+// group, not flood it, which is the same asymmetry IN has on a missing value.
+check('a missing value is not admitted', M.criterionAccepts(OVER, {}), false);
+check('a null value is not admitted', M.criterionAccepts(OVER, { net: null }), false);
+check('a numeric string still compares', M.criterionAccepts(OVER, { net: '7400' }), true);
+// This is the whole point of storing it as a criterion rather than a flag.
+check('a high-cost group outranks the plain one',
+  spec([...oneDept, OVER]) > spec(oneDept), true);
+
 /* ── team to group merge ───────────────────────────────────────────────── */
 console.log('narrowing');
 
@@ -124,6 +141,36 @@ const group = [{ dimension: 'DEPARTMENT', operator: 'IN', values: ['ENT'] }];
 check('a group inherits its team rule', M.mergeCriteria(team, group).length, 2);
 check('the group wins on a shared dimension',
   M.mergeCriteria(team, [{ dimension: 'ENCOUNTER_TYPE', operator: 'IN', values: ['IP'] }])[0].values, ['IP']);
+
+/* ── locked criteria ───────────────────────────────────────────────────── */
+console.log('locked team criteria');
+
+const lockedTeam = [
+  { dimension: 'WORK_ITEM_TYPE', operator: 'IN', values: ['CLAIM_VALIDATION'], locked: true },
+  { dimension: 'FACILITY', operator: 'IN', values: ['SGH- Ajman', 'SGH- Sharjah'], locked: false },
+];
+check('a locked dimension beats the group that restates it',
+  M.mergeCriteria(lockedTeam, [
+    { dimension: 'WORK_ITEM_TYPE', operator: 'IN', values: ['CLAIM_RESUBMISSION'] },
+  ]).find((c) => c.dimension === 'WORK_ITEM_TYPE').values, ['CLAIM_VALIDATION']);
+check('an unlocked dimension still lets the group narrow it',
+  M.mergeCriteria(lockedTeam, [
+    { dimension: 'FACILITY', operator: 'IN', values: ['SGH- Ajman'] },
+  ]).find((c) => c.dimension === 'FACILITY').values, ['SGH- Ajman']);
+check('a group that says nothing inherits the whole unlocked menu',
+  M.mergeCriteria(lockedTeam, []).find((c) => c.dimension === 'FACILITY').values,
+  ['SGH- Ajman', 'SGH- Sharjah']);
+// Locking a dimension on a team whose groups already constrain it must narrow
+// the run, not empty it: the team's clause applies and the group's is dropped.
+check('locking never leaves a group matching nothing',
+  M.criteriaAccept(
+    M.mergeCriteria(lockedTeam, [
+      { dimension: 'WORK_ITEM_TYPE', operator: 'IN', values: ['CLAIM_RESUBMISSION'] },
+    ]),
+    { workItemType: 'CLAIM_VALIDATION', facilityId: 'SGH- Ajman' },
+  ), true);
+check('a team with no criteria at all leaves the group rule untouched',
+  M.mergeCriteria([], [{ dimension: 'PAYER', operator: 'IN', values: ['INS020'] }]).length, 1);
 
 /* ── the v2 shape adapter ──────────────────────────────────────────────── */
 console.log('v2 adapter');

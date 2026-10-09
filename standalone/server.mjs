@@ -74,6 +74,7 @@ const TOOLS = {
       }
       allocationDimensions {
         code itemField matchMode coverageChecked sortOrder
+        numeric unit numericOptions appliesToTypes
         aliases { from to }
       }
     }`,

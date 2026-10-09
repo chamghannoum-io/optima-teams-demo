@@ -30,10 +30,12 @@ const src = fs.readFileSync(path.join(here, 'match-groups.js'), 'utf8');
 const wf = new Function(
   '$',
   `${src.replace(/^return \[\{[\s\S]*$/m, '')}
-   return { criterionAccepts, specificityOf };`
+   return { criterionAccepts, specificityOf, mergeCriteria };`
 )(() => ({ first: () => ({ json: { items: [] } }) }));
 
 const D = (dimension, operator, values = []) => ({ dimension, operator, values });
+/** A team criterion the groups may not restate. */
+const L = (dimension, values) => ({ dimension, operator: 'IN', values, locked: true });
 
 /* Every row is (criterion, item). Both implementations must return the same
    verdict; what that verdict is belongs to match-groups.test.mjs. */
@@ -66,6 +68,16 @@ const CASES = [
   [D('PAYER', 'IN', ['INS012']), { payer: null }],
   [D('WORK_ITEM_TYPE', 'IN', ['CLAIM_SUBMISSION']), { workItemType: 'CLAIM_SUBMISSION' }],
   [D('WORK_ITEM_TYPE', 'IN', ['CLAIM_SUBMISSION']), { workItemType: 'RECONCILIATION' }],
+  // High cost. The boundary and the missing value are the two rows that
+  // decide whether an authorisation item lands in a claims high-cost group.
+  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: 7400 }],
+  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: 5000 }],
+  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: 1200 }],
+  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: 0 }],
+  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: null }],
+  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), {}],
+  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: '7400' }],
+  [D('CLAIM_VALUE', 'GREATER_THAN', []), { net: 7400 }],
 ];
 
 const RULES = [
@@ -75,6 +87,8 @@ const RULES = [
   [D('PAYER', 'ANY')],
   [D('PAYER', 'NOT_IN', ['INS012'])],
   [D('DEPARTMENT', 'IN', [])],
+  [D('CLAIM_VALUE', 'GREATER_THAN', ['10000'])],
+  [D('DEPARTMENT', 'IN', ['ENT']), D('CLAIM_VALUE', 'GREATER_THAN', ['10000'])],
   [],
 ];
 
@@ -101,6 +115,42 @@ for (const r of RULES) {
   else {
     fail += 1;
     console.log(`  DIVERGES  ${JSON.stringify(r)}\n            app ${a}, workflow ${b}`);
+  }
+}
+
+/* Team rule, group rule. Locking lives in mergeCriteria on both sides now, so
+   a divergence here is the Review screen and the nightly run disagreeing about
+   which filters a group is even subject to. */
+const MERGES = [
+  [[], []],
+  [[D('ENCOUNTER_TYPE', 'IN', ['OP'])], [D('DEPARTMENT', 'IN', ['ENT'])]],
+  [[D('ENCOUNTER_TYPE', 'IN', ['OP'])], [D('ENCOUNTER_TYPE', 'IN', ['IP'])]],
+  [[L('WORK_ITEM_TYPE', ['CLAIM_VALIDATION'])], [D('WORK_ITEM_TYPE', 'IN', ['CLAIM_RESUBMISSION'])]],
+  [[L('WORK_ITEM_TYPE', ['CLAIM_VALIDATION'])], []],
+  [
+    [L('WORK_ITEM_TYPE', ['CLAIM_RESUBMISSION']), D('FACILITY', 'IN', ['SGH- Ajman', 'SGH- Sharjah'])],
+    [D('FACILITY', 'IN', ['SGH- Ajman'])],
+  ],
+  [
+    [L('FACILITY', ['SGH- Ajman'])],
+    [D('FACILITY', 'IN', ['SGH- Sharjah']), D('PAYER', 'IN', ['INS012'])],
+  ],
+];
+
+console.log('mergeCriteria');
+const norm = (cs) =>
+  [...cs]
+    .map((c) => `${c.dimension}:${c.operator}:${c.values.join('+')}`)
+    .sort()
+    .join(' | ');
+for (const [team, group] of MERGES) {
+  const a = norm(app.mergeCriteria(team, group));
+  const b = norm(wf.mergeCriteria(team, group));
+  if (a === b) pass += 1;
+  else {
+    fail += 1;
+    console.log(`  DIVERGES  team ${JSON.stringify(team)} group ${JSON.stringify(group)}`);
+    console.log(`            app ${a}\n            workflow ${b}`);
   }
 }
 

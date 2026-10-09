@@ -53,6 +53,7 @@ const FILTER_OPTIONS = gql`
       code
       label
       itemField
+      numeric
       sortOrder
       values {
         value
@@ -62,13 +63,20 @@ const FILTER_OPTIONS = gql`
   }
 `;
 
-type Criterion = { dimension: string; operator: "IN" | "NOT_IN" | "ANY"; values: string[] };
+type Criterion = {
+  dimension: string;
+  operator: "IN" | "NOT_IN" | "ANY" | "GREATER_THAN";
+  values: string[];
+  /** Team criteria only. Locked ones apply to every group as written. */
+  locked?: boolean;
+};
 
-/** A group inherits its team's rule; same dimension on both, the group wins. */
+/** Group wins on a shared dimension, unless the team locked it. */
 const mergeRules = (team: Criterion[] = [], group: Criterion[] = []): Criterion[] => {
+  const locked = new Set(team.filter((c) => c.locked).map((c) => c.dimension));
   const out = new Map<string, Criterion>();
   for (const c of team) out.set(c.dimension, c);
-  for (const c of group) out.set(c.dimension, c);
+  for (const c of group) if (!locked.has(c.dimension)) out.set(c.dimension, c);
   return [...out.values()];
 };
 
@@ -79,6 +87,7 @@ const normKey = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
 const admitsValue = (criteria: Criterion[], dimension: string, value: string): boolean => {
   const c = criteria.find((x) => x.dimension === dimension);
   if (!c || c.operator === "ANY") return true;
+  if (c.operator === "GREATER_THAN") return Number(value) > Number(c.values[0]);
   const hit = c.values.some((v) => normKey(v) === normKey(value));
   return c.operator === "NOT_IN" ? !hit : hit;
 };
@@ -192,7 +201,11 @@ export default function TeamsPage() {
       },
       // One filter per routing dimension. This list is the registry, not a
       // hand-written set of fields, so it follows whatever the tenant routes on.
+      // Numeric dimensions are skipped: the bar offers a list of values to
+      // tick, and claim value has none. Filtering teams by "high cost over
+      // what" would want a different control and nobody has asked for it.
       ...[...(filterOpts?.allocationDimensions ?? [])]
+        .filter((d: any) => !d.numeric)
         .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
         .map((d: any) => ({
           name: `dim:${d.code}`,
@@ -244,7 +257,7 @@ export default function TeamsPage() {
      * the same one the matcher uses, evaluated over the group's effective rule,
      * so what the filter finds and what the engine routes cannot disagree.
      */
-    const dims = filterOpts?.allocationDimensions ?? [];
+    const dims = (filterOpts?.allocationDimensions ?? []).filter((d: any) => !d.numeric);
     for (const d of dims) {
       const wanted = (table.filterValues[`dim:${d.code}`] as string[] | undefined) ?? [];
       if (!wanted.length) continue;

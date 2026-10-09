@@ -12,24 +12,28 @@ import { makeExecutableSchema } from "@graphql-tools/schema";
 import { queueDashboardTypeDefs, queueDashboardResolvers } from "./queue-dashboard.js";
 import { FACILITY_NAMES, siteKeyOf, facilityOfLicence } from "./facilities.js";
 import seed from "./teams-v2-real.json";
+import { DEMO_TEAMS, type DemoTeam } from "./demo-teams.js";
 import peopleSeed from "./people.json";
 import volumes from "./volumes.json";
 import {
   CAPACITY_FAMILIES,
   DIMENSIONS,
   POLICIES,
+  type AllocationPolicy,
   type Criterion,
   admittedValues,
   criteriaAccept,
   criterionFor,
   describeCriteria,
   dimensionByCode,
+  duplicateRuleConflicts,
   familyOfWorkItemType,
+  highCostOf,
+  lockedDimensions,
   mergeCriteria,
   normKey,
   policiesFor,
   policyByCode,
-  policyFlags,
   prettyValue,
   rejectingCriterion,
   specificityOf,
@@ -42,7 +46,7 @@ const typeDefs = /* GraphQL */ `
   enum RcmTeamLogicAxis { DEPARTMENT PAYER }
   enum RcmTeamAdviceSeverity { BLOCKER WARNING INFO }
 
-  enum CriterionOperator { IN NOT_IN ANY }
+  enum CriterionOperator { IN NOT_IN ANY GREATER_THAN }
   enum CriterionLevel { TEAM GROUP BOTH }
 
   """
@@ -69,6 +73,22 @@ const typeDefs = /* GraphQL */ `
     aliases: [DimensionAlias!]!
     """How to render a value: a business code as-is, or one of our enums as prose."""
     valueStyle: String!
+    """
+    A number compared with an operator rather than a value picked off a list.
+    The generic criteria builder skips these; the dimension brings its own
+    control. Claim value is the one, and it is what the high-cost switch writes.
+    """
+    numeric: Boolean!
+    """What the number is denominated in, e.g. AED."""
+    unit: String
+    """
+    The amounts a numeric dimension may be set to. A dropdown, never free text:
+    the figure is a business decision, and 500 typed where 5,000 was meant
+    silently reroutes a day's expensive claims. Set by a supervisor.
+    """
+    numericOptions: [Float!]!
+    """Work item types this dimension can say anything about. Empty means all."""
+    appliesToTypes: [String!]!
     sortOrder: Int!
     """Estate-wide pickable values, so a filter bar needs one round trip."""
     values: [DimensionValue!]!
@@ -85,6 +105,12 @@ const typeDefs = /* GraphQL */ `
     dimension: String!
     operator: CriterionOperator!
     values: [String!]!
+    """
+    Team criteria only. Locked, every group inherits this clause exactly and
+    cannot restate it. Unlocked, the values are a menu its groups choose from.
+    Always false on a group's own criteria.
+    """
+    locked: Boolean!
     """Resolved display labels, so chips do not show raw payer codes."""
     labels: [String!]!
   }
@@ -92,6 +118,8 @@ const typeDefs = /* GraphQL */ `
     dimension: String!
     operator: CriterionOperator!
     values: [String!]
+    """Ignored on group criteria; only a team can lock a dimension."""
+    locked: Boolean
   }
 
   """A pickable value for one dimension."""
@@ -308,6 +336,12 @@ const typeDefs = /* GraphQL */ `
     specificity: Int!
     members(availableOnly: Boolean): [User!]!
     capacity: RcmTeamCapacity!
+    """
+    The amount above which this group takes work, or null when it is not a
+    high-cost group. Derived from the CLAIM_VALUE criterion, so the switch and
+    the rule cannot disagree.
+    """
+    highCostThreshold: Float
 
     "Derived from criteria. Kept so v1-shaped callers keep working."
     workItemTypes: [RcmWorkItemType!]!
@@ -392,6 +426,13 @@ const typeDefs = /* GraphQL */ `
 
     """One cap for everyone, or per-member overrides."""
     uniformCapacity: Boolean!
+
+    """
+    Who supervises this team. Per team, not a flag on the person: somebody can
+    work on two teams and supervise only one of them.
+    """
+    supervisorIds: [ID!]!
+    supervisors: [User!]!
 
     "Derived from criteria and policies. Kept so v1-shaped callers keep working."
     highCostThreshold: Float
@@ -828,6 +869,19 @@ const typeDefs = /* GraphQL */ `
     """Create or update a v2 team with its groups in one call."""
     optimaTeamV2Save(id: ID, input: TeamV2Input!): RcmTeamV2
 
+    """
+    Set the amounts a numeric dimension may be filtered at, tenant-wide.
+
+    This is the supervisor's half of the high-cost switch. Everyone configuring
+    a team picks an amount from this list; only a supervisor decides what is on
+    it, which is the point of the dropdown , the threshold is a policy decision
+    about money, not a number each team lead types in.
+    """
+    allocationDimensionOptionsSet(
+      dimension: String!
+      numericOptions: [Float!]!
+    ): AllocationDimension!
+
     """Deactivate or remove a team. Reports what the removal leaves uncovered."""
     optimaTeamV2Delete(id: ID!): TeamDeletionResult!
 
@@ -880,14 +934,54 @@ type Team = {
   /** Keys into the volume data, one per facility the rule admits. */
   siteKeys: string[];
   rotationEnabled: boolean;
+  /**
+   * Who supervises THIS team.
+   *
+   * Supervising is a relationship between a person and a team, and it was
+   * being stored as `User.isSupervisor`, a single flag on the person. That
+   * reads correctly only while nobody works on two teams. The moment they do,
+   * the supervisor of one team shows up as a supervisor on the other's screen,
+   * and saving that other team sets the flag back to false and quietly demotes
+   * them where they really do supervise. So the team holds the list, and the
+   * flag on the user keeps the only meaning it can carry on its own: this
+   * person supervises something, somewhere.
+   */
+  supervisorIds: string[];
   groups: Group[];
 };
 
-const IN = (dimension: string, values: string[]): Criterion => ({
+const IN = (dimension: string, values: string[], locked = false): Criterion => ({
   dimension,
   operator: "IN",
   values,
+  locked,
 });
+
+/**
+ * Policy settings for every family a team's work touches, plus the team-wide
+ * policies that work makes relevant. Shared by the migrated seed and by the
+ * demo teams, which are written in the v3 shape and so skip the migration.
+ */
+function defaultPolicies(allTypes: string[]): PolicySetting[] {
+  const families = [
+    ...new Set(allTypes.map((w) => familyOfWorkItemType(w)?.code).filter(Boolean)),
+  ] as string[];
+  const policies: PolicySetting[] = [];
+  for (const code of families.length ? families : ["CLAIM"]) {
+    const f = CAPACITY_FAMILIES.find((x) => x.code === code)!;
+    policies.push({ code: "DAILY_LIMIT", family: code, number: f.defaultLimit });
+    policies.push({ code: "ALLOW_EXCEED", family: code, flag: f.allowExceedByDefault });
+  }
+  for (const p of policiesFor(allTypes)) {
+    if (p.scope !== "TEAM") continue;
+    policies.push(
+      p.valueType === "NUMBER"
+        ? { code: p.code, number: p.defaultValue as number }
+        : { code: p.code, flag: p.defaultValue as boolean },
+    );
+  }
+  return policies;
+}
 
 /**
  * The seed is the v1-shaped estate: facilityId, division, encounterScope, a
@@ -898,9 +992,32 @@ function migrateSeedTeam(raw: any): Team {
   // The seed stores a site code. Resolve it to the facility it names, so a
   // stored criterion reads the same as what the picker offers.
   const seedFacility = facilityOfLicence(raw.facilityId) ?? raw.facilityId;
-  const teamCriteria: Criterion[] = [IN("FACILITY", [seedFacility])];
+
+  /*
+   * Which of the three filter modes each clause lands in, read off the v1 data
+   * rather than chosen. The business approved locked / unlocked / no filter on
+   * the demo teams and asked for it across the estate; this is what the estate
+   * already says, once you look at what its groups vary.
+   *
+   *   FACILITY        locked. Every v1 team names exactly one facility and not
+   *                   one group varies from it. That is a locked filter by
+   *                   definition, and leaving it unlocked would invite a group
+   *                   to be pointed at a site its team does not serve.
+   *   ENCOUNTER_TYPE  locked, where the team has one. The migration only ever
+   *                   wrote a group-level encounter clause when the group
+   *                   DIFFERED from its team, and across all eleven teams none
+   *                   does. A Sharjah team scoped BOTH gets no clause at all,
+   *                   so its groups stay free to split IP from OP.
+   *   WORK_ITEM_TYPE  unlocked. The team's list is the union of its groups'
+   *                   and each group takes a slice, which is exactly what an
+   *                   unlocked filter means: the team's values are the menu.
+   */
+  const teamCriteria: Criterion[] = [IN("FACILITY", [seedFacility], true)];
   if (raw.encounterScope && raw.encounterScope !== "BOTH") {
-    teamCriteria.push(IN("ENCOUNTER_TYPE", [raw.encounterScope]));
+    const varied = (raw.groups ?? []).some(
+      (g: any) => g.encounterScope && g.encounterScope !== raw.encounterScope,
+    );
+    teamCriteria.push(IN("ENCOUNTER_TYPE", [raw.encounterScope], !varied));
   }
   // The team prefilters on the union of what its groups actually handle.
   const allTypes = [
@@ -919,36 +1036,22 @@ function migrateSeedTeam(raw: any): Team {
     if (g.payerCatchAll) criteria.push({ dimension: "PAYER", operator: "ANY", values: [] });
     else if (g.payers?.length) criteria.push(IN("PAYER", g.payers));
     if (g.claimStatuses?.length) criteria.push(IN("CLAIM_STATUS", g.claimStatuses));
+    // A group never carries a clause on a dimension its team locked: the
+    // matcher would ignore it and the card would read as doing something it
+    // is not. Same rule as the save path, applied once on the way in.
+    const lockedHere = new Set(teamCriteria.filter((c) => c.locked).map((c) => c.dimension));
     return {
       id: String(g.id),
       rcmTeamId: String(raw.id),
       name: g.name,
       active: g.active ?? true,
-      criteria,
+      criteria: criteria.filter((c) => !lockedHere.has(c.dimension)),
       rotationOrder: g.rotationOrder ?? i,
       members: g.members ?? [],
     };
   });
 
-  // Policy settings for every family the team's work touches, plus the team-wide
-  // policies that work makes relevant.
-  const families = [
-    ...new Set(allTypes.map((w) => familyOfWorkItemType(w)?.code).filter(Boolean)),
-  ] as string[];
-  const policies: PolicySetting[] = [];
-  for (const code of families.length ? families : ["CLAIM"]) {
-    const f = CAPACITY_FAMILIES.find((x) => x.code === code)!;
-    policies.push({ code: "DAILY_LIMIT", family: code, number: f.defaultLimit });
-    policies.push({ code: "ALLOW_EXCEED", family: code, flag: f.allowExceedByDefault });
-  }
-  for (const p of policiesFor(allTypes)) {
-    if (p.scope !== "TEAM") continue;
-    policies.push(
-      p.valueType === "NUMBER"
-        ? { code: p.code, number: p.defaultValue as number }
-        : { code: p.code, flag: p.defaultValue as boolean },
-    );
-  }
+  const policies = defaultPolicies(allTypes);
 
   return {
     ...raw,
@@ -961,7 +1064,47 @@ function migrateSeedTeam(raw: any): Team {
   };
 }
 
-const teams: Team[] = (JSON.parse(JSON.stringify(seed)) as any[]).map(migrateSeedTeam);
+/**
+ * A demo team, already in the v3 shape, so only the derived fields are filled
+ * in: the work item types its groups handle decide its policies, and its
+ * facility criterion decides its branches and volume keys (both resolved below,
+ * once `facilitiesOf` and `siteKeysOf` exist).
+ */
+function buildDemoTeam(raw: DemoTeam): Team {
+  const types = [
+    ...new Set(
+      raw.groups.flatMap((g) =>
+        [
+          ...(criterionFor(raw.criteria, "WORK_ITEM_TYPE")?.values ?? []),
+          ...(criterionFor(g.criteria, "WORK_ITEM_TYPE")?.values ?? []),
+        ],
+      ),
+    ),
+  ];
+  return {
+    ...raw,
+    criteria: raw.criteria.map((c) => ({ ...c, values: [...c.values] })),
+    policies: defaultPolicies(types),
+    priority: 0,
+    siteKeys: [],
+    groups: raw.groups.map((g, i) => ({
+      id: g.id,
+      rcmTeamId: raw.id,
+      name: g.name,
+      active: true,
+      criteria: g.criteria.map((c) => ({ ...c, values: [...c.values] })),
+      rotationOrder: i,
+      members: g.memberIds
+        .map((id) => (peopleSeed as User[]).find((u) => u.id === id))
+        .filter(Boolean) as User[],
+    })),
+  } as Team;
+}
+
+const teams: Team[] = [
+  ...(JSON.parse(JSON.stringify(seed)) as any[]).map(migrateSeedTeam),
+  ...DEMO_TEAMS.map(buildDemoTeam),
+];
 
 /** facility code to volume key, learned from the seed. */
 const SITE_KEY = new Map<string, string>();
@@ -970,6 +1113,29 @@ for (const raw of seed as any[]) {
 }
 
 const allUsers: User[] = peopleSeed as User[];
+
+/*
+ * One person, one object.
+ *
+ * The captured seed embeds a copy of each member inside the team that holds
+ * them, so somebody on two teams was two JavaScript objects with the same id.
+ * Every per-person flag we have since added , supervisor, handler tags, a
+ * capacity override, an unavailability window , is set on whichever copy the
+ * code reached, and is invisible through the other. The visible symptom was a
+ * supervisor who is a supervisor on one team's screen and an ordinary member
+ * on another's, and, because the UI normalises by id, whichever copy was
+ * serialised last silently won.
+ *
+ * Re-pointing every membership at the shared record fixes all of those at
+ * once. Every seed member exists in people.json with the same fields, so
+ * nothing is lost; the copies were never carrying anything of their own.
+ */
+const byUserId = new Map(allUsers.map((u) => [String(u.id), u]));
+for (const t of teams) {
+  for (const g of t.groups) {
+    g.members = g.members.map((m: any) => byUserId.get(String(m.id)) ?? m);
+  }
+}
 
 let nextGroupId = Math.max(0, ...teams.flatMap((t) => t.groups.map((g) => +g.id))) + 1;
 
@@ -1008,6 +1174,24 @@ const siteKeysOf = (t: Team): string[] =>
   facilitiesOf(t)
     .map((f) => siteKeyOf(f))
     .filter(Boolean) as string[];
+
+/*
+ * Demo teams declare only their rule. Their branches and volume keys are
+ * derived from it, exactly as `optimaTeamV2Save` derives them for a team
+ * someone configures in the UI, so they behave the same from here on.
+ */
+for (const id of DEMO_TEAMS.map((d) => d.id)) {
+  const t = teams.find((x) => x.id === id) as any;
+  if (!t) continue;
+  t.siteKeys = siteKeysOf(t);
+  t.branchIds = facilitiesOf(t);
+  t.branches = facilitiesOf(t).map((f) => ({
+    id: f,
+    name: f,
+    nameAr: null,
+    healthLicense: f,
+  }));
+}
 
 const deptVolumes = (t: Team): Record<string, number> =>
   sumVolumes(siteKeysOf(t), "departments");
@@ -1084,6 +1268,7 @@ for (const t of teams as any[]) {
   if (!roster.length) continue;
 
   const supervisor = roster[0];
+  t.supervisorIds = [String(supervisor.id)];
   supervisor.isSupervisor = true;
   syncSupervisor(t, supervisor);
 
@@ -1143,20 +1328,24 @@ function capacitiesOf(t: Team) {
 }
 
 /**
- * Policies that flag this item, with the members allowed to take it. This is
- * the generalisation of the high-cost rule: a policy names a handler tag, and
- * an item it flags may only go to members carrying that tag.
+ * Policies that flag an item and narrow who may take it.
+ *
+ * Empty today, and deliberately still here. High cost was the only policy that
+ * worked this way and it is a group criterion now, so the matcher routes it
+ * instead of a second mechanism filtering the pool afterwards. The hook stays
+ * because the next such rule , an authorisation ageing past its turnaround,
+ * say , plugs into it as a registry row rather than a rewrite.
  */
-function flaggingPolicies(t: Team, item: any) {
-  return POLICIES.filter((p) => {
-    if (!p.handlerTag) return false;
-    const setting = settingOf(t, p.code);
-    const value = p.valueType === "NUMBER" ? setting?.number : setting?.flag;
-    return policyFlags(p, value ?? undefined, item);
-  });
+function flaggingPolicies(_t: Team, _item: any): AllocationPolicy[] {
+  return POLICIES.filter((p) => p.handlerTag);
 }
 
 const hasTag = (m: any, tag: string) => (m.handlerTags ?? []).includes(tag);
+
+/** Every high-cost amount in use across a team's groups, lowest first. */
+const highCostAmountsOf = (t: Team): number[] =>
+  [...new Set(t.groups.map((g) => highCostOf(g.criteria)).filter((n): n is number => n != null))]
+    .sort((a, b) => a - b);
 
 /**
  * A member's daily cap. With several families on one team the headline figure is
@@ -1501,10 +1690,20 @@ function buildItems(t: Team, count: number) {
     const workItemType = types.length ? types[Math.floor(rand() * types.length)] : "CLAIM_VALIDATION";
     const claimStatus = statusFor(workItemType, rand());
     const rank = Math.round((PRIORITY_SCORE[priority] + ageDays * 0.7) * 100) / 100;
-    // Claim work carries a net value; authorisation work does not. That is
-    // exactly why one policy can apply to claims and another to authorisations.
+    /*
+     * Claim work carries a net value; authorisation work does not. That is
+     * exactly why one dimension can apply to claims and not to authorisations.
+     *
+     * Skewed, not uniform. This was `rand() * 8000`, which says every claim
+     * value between nothing and eight thousand is equally likely and caps the
+     * estate at AED 8,000 , so a high-cost group set at 10,000 received
+     * literally nothing and the preview showed it working. Claim values are
+     * long-tailed: a lot of small ones, a thin tail of expensive ones, which
+     * is the shape that makes a high-cost group worth having at all. This
+     * runs roughly AED 150 to 22,000 with a median near 1,800.
+     */
     const net = familyOfWorkItemType(workItemType)?.code === "CLAIM"
-      ? Math.round(rand() * 8000)
+      ? Math.round(150 * Math.exp(rand() * 5))
       : null;
     items.push({
       id: `${t.id}-${i + 1}`,
@@ -1664,22 +1863,27 @@ function allocationPreview(t: Team, count: number) {
     });
   }
 
-  // Per-policy counts, so the preview reports whatever policies are in play
-  // rather than a hardcoded high-cost pair.
-  const relevant = policiesFor(typesHandled(t)).filter((p) => p.handlerTag);
-  const policyImpact = relevant.map((p) => {
-    const setting = settingOf(t, p.code);
-    const flaggedCount = items.filter((i: any) =>
-      policyFlags(p, (p.valueType === "NUMBER" ? setting?.number : setting?.flag) ?? undefined, i),
-    ).length;
-    const lost = unmatched.filter((i: any) => (i.flaggedBy ?? []).includes(p.code)).length;
+  /*
+   * High-cost counts, one row per amount the team's groups actually filter at.
+   *
+   * This used to read the team's single HIGH_COST policy setting. There is no
+   * such setting now , each group names its own amount , so the preview asks
+   * the groups and reports a row per distinct threshold. A team with no
+   * high-cost group reports nothing, which is the honest answer and the same
+   * thing the empty policy list used to produce.
+   */
+  const valueDim = dimensionByCode("CLAIM_VALUE");
+  const policyImpact = highCostAmountsOf(t).map((threshold) => {
+    const over = (i: any) => typeof i.net === "number" && i.net > threshold;
     return {
-      code: p.code,
-      label: p.label,
-      unit: p.unit ?? null,
-      threshold: setting?.number ?? (p.defaultValue as number),
-      flagged: flaggedCount,
-      unassigned: lost,
+      code: "HIGH_COST",
+      // The amount is in the label because a team may run several, and the
+      // preview renders one tile per row keyed on it.
+      label: `High cost over ${threshold.toLocaleString()}`,
+      unit: valueDim?.unit ?? "AED",
+      threshold,
+      flagged: items.filter(over).length,
+      unassigned: unmatched.filter(over).length,
     };
   });
   return {
@@ -1869,13 +2073,15 @@ const settingsFor = (teamId: string) =>
 const nameOf = (m: any): string =>
   [m.firstName, m.lastName].filter(Boolean).join(" ") || String(m.id);
 
-/** Distinct members of a team flagged as supervising it. */
+/**
+ * Who supervises this team. Read off the team's own list, not off a flag on
+ * the person: the flag says they supervise something, this says they supervise
+ * THIS. See `Team.supervisorIds`.
+ */
 function supervisorsOf(t: any): any[] {
-  const seen = new Map<string, any>();
-  for (const g of t.groups ?? []) {
-    for (const m of g.members ?? []) if (m.isSupervisor) seen.set(String(m.id), m);
-  }
-  return [...seen.values()];
+  return (t.supervisorIds ?? [])
+    .map((id: string) => allUsers.find((u) => String(u.id) === String(id)))
+    .filter(Boolean);
 }
 
 /** The (facility, work item type, encounter) space a team's rule admits. */
@@ -2056,6 +2262,34 @@ function readinessOf(input: any[]): any {
       );
     }
 
+    /*
+     * Two groups with the same rule AND the same person in both.
+     *
+     * Deliberately not "two groups overlap". Partial overlap is how
+     * narrowest-wins is meant to work and flagging it lit up most cards in the
+     * estate, which says nothing. Identical rules on their own are legal too,
+     * and sometimes meant , two shifts covering one slice of work. It is only
+     * a fault when the same person sits in both, because then the tie-break is
+     * choosing between two pools that are partly the same pool, and that one
+     * person quietly carries a double share. So the person is named, not the
+     * rule: they are the thing somebody has to go and fix.
+     */
+    for (const dup of duplicateRuleConflicts(active, t.criteria, t.supervisorIds ?? [])) {
+      ready.delete(t.id);
+      add(
+        {
+          severity: "WARNING",
+          kind: "DUPLICATE_GROUP_RULE",
+          message: `${t.name}, ${dup.groupNames.join(" and ")} filter on exactly the same thing and ${
+            dup.members.length === 1
+              ? `${dup.members[0].name} is in both`
+              : `${dup.members.map((m) => m.name).join(", ")} are in more than one`
+          }, so the same work can reach them twice. Give the groups different filters, or the person one group.`,
+        },
+        t,
+      );
+    }
+
     // Without a supervisor there is nobody to warn, which defeats the point.
     if (!supervisorsOf(t).length) {
       add(
@@ -2164,7 +2398,24 @@ function deletionResult(t: any, without: any[]): any {
 const resolvers = {
   User: {
     handlerTags: (u: any) => u.handlerTags ?? [],
-    handlesHighCost: (u: any) => (u.handlerTags ?? []).includes("HIGH_COST"),
+    /*
+     * Derived from where the person actually works, not from a tick-box.
+     *
+     * This used to read a HIGH_COST clearance tag. High cost is a group's
+     * filter now, so the honest answer to "does this person handle high-cost
+     * work" is whether any group they are in filters on it. Kept because the
+     * field is part of the published shape, and a field that can only ever
+     * answer false is worse than no field.
+     */
+    handlesHighCost: (u: any) =>
+      teams.some((t) =>
+        t.groups.some(
+          (g) =>
+            g.active &&
+            highCostOf(g.criteria) != null &&
+            g.members.some((m: any) => String(m.id) === String(u.id)),
+        ),
+      ),
     unavailabilities: (u: any) => windowsFor(u.id),
     unavailableToday: (u: any) => isUnavailable(u.id),
     // v1 wrapped a member around the user. Here a member is the user, so the
@@ -2217,6 +2468,10 @@ const resolvers = {
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map((d) => ({
           ...d,
+          numeric: d.numeric === true,
+          unit: d.unit ?? null,
+          numericOptions: d.numericOptions ?? [],
+          appliesToTypes: d.appliesToTypes ?? [],
           // The registry holds a map because that is what the matcher indexes
           // into; GraphQL wants rows.
           aliases: Object.entries(d.aliases ?? {}).map(([from, to]) => ({ from, to })),
@@ -2506,6 +2761,8 @@ const resolvers = {
 
   /** Values on a criterion are ids; labels are what a chip should show. */
   Criterion: {
+    /** Stored only where it is set, so absent reads as unlocked. */
+    locked: (c: Criterion) => c.locked === true,
     labels: (c: Criterion) => {
       if (c.operator === "ANY") return [];
       return c.values;
@@ -2514,6 +2771,8 @@ const resolvers = {
 
   RcmTeamV2: {
     capacity: teamCapacity,
+    supervisorIds: (t: Team) => t.supervisorIds ?? [],
+    supervisors: supervisorsOf,
     usersDetails: (t: Team) => {
       const seen = new Set<string>();
       return t.groups.flatMap((g) => g.members.filter((m) => !seen.has(m.id) && seen.add(m.id)));
@@ -2583,6 +2842,7 @@ const resolvers = {
     // workflow keeps reading the field it expects.
     payerCatchAll: (g: Group) => criterionFor(g.criteria, "PAYER")?.operator === "ANY",
     claimStatuses: (g: Group) => criterionFor(g.criteria, "CLAIM_STATUS")?.values ?? [],
+    highCostThreshold: (g: Group) => highCostOf(g.criteria),
   },
 
   Mutation: {
@@ -2611,6 +2871,7 @@ const resolvers = {
         dimension: c.dimension,
         operator: c.operator,
         values: c.values ?? [],
+        locked: c.locked === true,
       }));
 
       Object.assign(target, {
@@ -2632,17 +2893,23 @@ const resolvers = {
       target.branchIds = facilitiesOf(target);
 
       if (input.groups) {
+        const lockedSet = new Set(lockedDimensions(criteria));
         let gid = Math.max(0, ...teams.flatMap((t) => t.groups.map((g) => +g.id || 0))) + 1;
         target.groups = input.groups.map((g: any, i: number) => ({
           id: g.id ?? String(gid++),
           rcmTeamId: target.id,
           name: g.name,
           active: g.active ?? true,
-          criteria: (g.criteria ?? []).map((c: any) => ({
-            dimension: c.dimension,
-            operator: c.operator,
-            values: c.values ?? [],
-          })),
+          // Only a team locks a dimension, and a group has no say on one the
+          // team already locked, so those clauses are dropped on the way in
+          // rather than stored and then ignored by the matcher.
+          criteria: (g.criteria ?? [])
+            .filter((c: any) => !lockedSet.has(c.dimension))
+            .map((c: any) => ({
+              dimension: c.dimension,
+              operator: c.operator,
+              values: c.values ?? [],
+            })),
           rotationOrder: i,
           members: (g.memberIds ?? [])
             .map((uid: string) => allUsers.find((u) => u.id === uid))
@@ -2697,16 +2964,31 @@ const resolvers = {
         target.policies = next;
       }
 
-      // Supervisors sit in every active group; policy handlers are tagged in place.
+      /*
+       * Supervisors sit in every active group; policy handlers are tagged in place.
+       *
+       * A supervisor is now chosen on the team's first step, before any group
+       * exists, so they are resolved from the staff list rather than from the
+       * roster: picking one is what PUTS them on the team. Resolving only
+       * against the roster, which is what this did while the control lived
+       * beside the member table, silently dropped anyone who was not already
+       * in a group , i.e. every supervisor chosen on a team being created.
+       */
       if (input.supervisorIds || input.handlers) {
-        const sup = new Set((input.supervisorIds ?? []).map(String));
+        const sup = new Set<string>((input.supervisorIds ?? []).map(String));
+        if (input.supervisorIds) target.supervisorIds = [...sup];
         const byTag = new Map<string, Set<string>>(
           (input.handlers ?? []).map((h: any) => [h.tag, new Set(h.memberIds.map(String))]),
         );
         const roster = new Map<string, any>();
         for (const gr of target.groups) for (const m of gr.members) roster.set(m.id, m);
+        if (input.supervisorIds) {
+          for (const id of sup) {
+            const u = allUsers.find((x) => String(x.id) === id);
+            if (u) roster.set(u.id, u);
+          }
+        }
         for (const m of roster.values()) {
-          if (input.supervisorIds) m.isSupervisor = sup.has(String(m.id));
           if (input.handlers) {
             const tags = new Set<string>(m.handlerTags ?? []);
             for (const [tag, ids] of byTag) {
@@ -2716,11 +2998,50 @@ const resolvers = {
             m.handlerTags = [...tags];
           }
         }
-        for (const m of roster.values()) if (m.isSupervisor) syncSupervisor(target, m);
+        for (const id of sup) {
+          const u = allUsers.find((x) => String(x.id) === id);
+          if (u) syncSupervisor(target, u);
+        }
+
+        /*
+         * Recompute the person-level flag from every team, rather than from
+         * this one. Writing `m.isSupervisor = sup.has(m.id)` here is what
+         * demoted somebody who supervises a team you were not editing.
+         */
+        if (input.supervisorIds) {
+          const supervisesSomething = new Set(
+            teams.flatMap((x) => (x.supervisorIds ?? []).map(String)),
+          );
+          for (const u of allUsers) u.isSupervisor = supervisesSomething.has(String(u.id));
+        }
       }
 
       if (!existing) teams.unshift(target);
       return target;
+    },
+
+    /**
+     * The supervisor's list of allowed amounts. Mutating the registry row in
+     * place is deliberate: the matcher, the pickers and the chips all read the
+     * same row, so a changed list is a changed list everywhere at once, and a
+     * team already filtering at an amount that was removed keeps working , the
+     * criterion holds the number, the list only governs what can be chosen next.
+     */
+    allocationDimensionOptionsSet: (_: unknown, { dimension, numericOptions }: any) => {
+      const dim = dimensionByCode(dimension);
+      if (!dim) throw new Error(`Unknown dimension ${dimension}`);
+      if (!dim.numeric) throw new Error(`${dimension} is not a numeric dimension`);
+      dim.numericOptions = [...new Set((numericOptions ?? []).map(Number))]
+        .filter((n) => Number.isFinite(n) && n > 0)
+        .sort((a, b) => a - b);
+      return {
+        ...dim,
+        numeric: true,
+        unit: dim.unit ?? null,
+        numericOptions: dim.numericOptions,
+        appliesToTypes: dim.appliesToTypes ?? [],
+        aliases: Object.entries(dim.aliases ?? {}).map(([from, to]) => ({ from, to })),
+      };
     },
 
     assignmentSettingTeamSave: (_: unknown, { teamId, input }: any) => {
@@ -2870,12 +3191,17 @@ const resolvers = {
       if (!g) return null;
       if (input.name != null) g.name = input.name;
       if (input.active != null) g.active = input.active;
-      if (input.criteria)
-        g.criteria = input.criteria.map((c: any) => ({
-          dimension: c.dimension,
-          operator: c.operator,
-          values: c.values ?? [],
-        }));
+      if (input.criteria) {
+        // A group cannot speak for a dimension its team locked.
+        const locked = new Set(lockedDimensions(teamOfGroup(groupId)?.criteria));
+        g.criteria = input.criteria
+          .filter((c: any) => !locked.has(c.dimension))
+          .map((c: any) => ({
+            dimension: c.dimension,
+            operator: c.operator,
+            values: c.values ?? [],
+          }));
+      }
       if (input.memberIds)
         g.members = input.memberIds
           .map((id: string) => allUsers.find((u) => u.id === id))
@@ -2890,11 +3216,13 @@ const resolvers = {
         rcmTeamId: t.id,
         name: input.name ?? "New group",
         active: input.active ?? true,
-        criteria: (input.criteria ?? []).map((c: any) => ({
-          dimension: c.dimension,
-          operator: c.operator,
-          values: c.values ?? [],
-        })),
+        criteria: (input.criteria ?? [])
+          .filter((c: any) => !lockedDimensions(t.criteria).includes(c.dimension))
+          .map((c: any) => ({
+            dimension: c.dimension,
+            operator: c.operator,
+            values: c.values ?? [],
+          })),
         rotationOrder: t.groups.length,
         members: (input.memberIds ?? [])
           .map((id: string) => allUsers.find((u) => u.id === id))

@@ -55,6 +55,7 @@ const TEAM_FIELDS = gql`
       dimension
       operator
       values
+      locked
     }
     criteriaSummary
     capacities {
@@ -65,6 +66,7 @@ const TEAM_FIELDS = gql`
     }
     priority
     uniformCapacity
+    supervisorIds
     policies {
       code
       family
