@@ -98,13 +98,13 @@ console.log("what a team may filter on");
 check(
   "group-only dimensions are not offered on a team",
   DIMS.filter((d) => d.level === "GROUP").map((d) => d.code),
-  ["DEPARTMENT", "PAYER", "CLAIM_STATUS", "CLAIM_VALUE"],
+  ["DEPARTMENT", "PAYER", "CLAIM_STATUS", "ITEM_VALUE"],
 );
 
 console.log("high cost, as a criterion");
 // The switch stores a clause, so everything that reads a rule reads this one
 // too. These are the properties the group card and the matcher both rely on.
-const OVER = (n) => ({ dimension: "CLAIM_VALUE", operator: "GREATER_THAN", values: [String(n)] });
+const OVER = (n) => ({ dimension: "ITEM_VALUE", operator: "GREATER_THAN", values: [String(n)] });
 const DEPT = (vals) => IN("DEPARTMENT", vals);
 
 check("the switch round-trips through the rule", M.highCostOf(M.withHighCost([], 5000)), 5000);
@@ -113,14 +113,14 @@ check("no clause means no threshold", M.highCostOf([DEPT(["Cardiology"])]), null
 check(
   "it does not disturb the other clauses",
   M.withHighCost([DEPT(["Cardiology"])], 5000).map((c) => c.dimension),
-  ["DEPARTMENT", "CLAIM_VALUE"],
+  ["DEPARTMENT", "ITEM_VALUE"],
 );
 
 check("over the amount is admitted", M.criteriaAccept([OVER(5000)], { net: 7400 }), true);
 check("under it is not", M.criteriaAccept([OVER(5000)], { net: 1200 }), false);
 check("exactly it is not", M.criteriaAccept([OVER(5000)], { net: 5000 }), false);
-// Authorisation work carries no money. It must fall out of a high-cost group
-// rather than flood it, which is the same asymmetry IN has on a missing value.
+// An item whose value never arrived must fall to a group that is not
+// filtering on value, not count as cheap. Same asymmetry IN has.
 check("an item with no value is not admitted", M.criteriaAccept([OVER(5000)], { net: null }), false);
 
 // This is the whole reason high cost is a criterion: the tie-break already
@@ -134,7 +134,7 @@ check(
 check(
   "it reads as money in the chip text",
   M.describeCriteria([OVER(10000)]),
-  ["Claim value: over 10,000 AED"],
+  ["Work item value: over 10,000 AED"],
 );
 
 console.log("duplicate group rules");

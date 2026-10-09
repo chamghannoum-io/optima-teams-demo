@@ -79,9 +79,9 @@ const DEFAULT_DIMENSIONS = [
     aliases: DEPARTMENT_ALIASES },
   { code: 'PAYER',          itemField: 'payer',          matchMode: 'EXACT',      sortOrder: 50 },
   { code: 'CLAIM_STATUS',   itemField: 'claimStatus',    matchMode: 'EXACT',      sortOrder: 60 },
-  // High cost. A group with this clause takes only the claims above its
+  // High cost. A group with this clause takes only the work above its
   // amount, which is why it needs no handler tag and no second mechanism.
-  { code: 'CLAIM_VALUE',    itemField: 'net',            matchMode: 'EXACT',      sortOrder: 70 },
+  { code: 'ITEM_VALUE',     itemField: 'net',            matchMode: 'EXACT',      sortOrder: 70 },
 ];
 
 /**
@@ -160,9 +160,9 @@ function criterionAccepts(c, item) {
   const present = rawVal != null && String(rawVal) !== '';
 
   // GREATER_THAN is a positive claim about a number, so it follows IN: no
-  // number on the item means it cannot be shown to be over the threshold.
-  // That is what keeps authorisation work, which carries no net value, out
-  // of a high-cost group instead of flooding it.
+  // number on the item means it cannot be shown to be over the threshold, so
+  // it falls to a group that is not filtering on value rather than silently
+  // counting as cheap.
   if (c.operator === 'GREATER_THAN') {
     const n = Number(rawVal);
     const threshold = Number((c.values ?? [])[0]);

@@ -145,7 +145,7 @@ query ($filter: OptimaTeamFilterInput) {
   once per run.
 - **`GREATER_THAN` is a new operator** on `CriterionOperator`, and it is how a
   group says "high cost". A group's criteria may now include
-  `{dimension: "CLAIM_VALUE", operator: "GREATER_THAN", values: ["10000"]}`,
+  `{dimension: "ITEM_VALUE", operator: "GREATER_THAN", values: ["10000"]}`,
   which admits an item only when its `net` is a number above that. The
   workflow's matcher already implements it; a gateway that does not know the
   enum value will fail to serialise the clause, which is the one part of this

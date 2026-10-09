@@ -95,9 +95,9 @@ is not evidence of membership.
 
 `GREATER_THAN` carries exactly one value, the threshold, as a string. It is
 only valid on a dimension whose registry row says `numeric: true`, and today
-that is `CLAIM_VALUE` and nothing else. Rejecting a non-numeric item value is
-what keeps authorisation work, which carries no money, out of a high-cost
-group rather than flooding it.
+that is `ITEM_VALUE` and nothing else. Rejecting a non-numeric item value
+means an item whose value never arrived falls to a group that is not
+filtering on value, rather than silently counting as cheap.
 
 A rule accepts an item when **every** criterion accepts it. Criteria AND
 together; there is no OR at this level. Use several groups instead.
@@ -240,20 +240,23 @@ Normative. High cost is a **group criterion**, not a team policy and not a
 clearance on a person.
 
 ```
-group.criteria += { dimension: "CLAIM_VALUE", operator: "GREATER_THAN", values: ["10000"] }
+group.criteria += { dimension: "ITEM_VALUE", operator: "GREATER_THAN", values: ["10000"] }
 ```
 
-A group carrying it takes only the claims above that amount. Everything
-follows from the ordinary rules:
+**Any group may carry it**, whatever work it handles. A group carrying it
+takes only the work above that amount. Everything follows from the ordinary
+rules:
 
 - **Routing.** It constrains one dimension more than the equivalent group
-  without it, so `specificity` sends the expensive claim to the high-cost
+  without it, so `specificity` sends the expensive item to the high-cost
   group and the cheap one to the department group. No second mechanism.
 - **Explanation.** `rejectingCriterion` names it like any other clause, so
   "why did this not go there" answers itself.
-- **Scope.** `appliesToTypes` on the dimension keeps it off authorisation work,
-  which carries no money. This is the property the old team-level `HIGH_COST`
-  policy carried, moved down a level.
+- **Scope.** None. The dimension declares no `appliesToTypes`, so the switch is
+  offered on every group. An earlier cut restricted it to claim work on the
+  reasoning that an authorisation carries no money; that was wrong, and it is
+  also why the dimension is `ITEM_VALUE` rather than `CLAIM_VALUE`. Every work
+  item carries a value.
 - **The amount is chosen, not typed.** `numericOptions` on the dimension is the
   list, it is tenant-wide, and only an RCM supervisor may change it
   (`allocationDimensionOptionsSet`). Removing an amount does not disturb a

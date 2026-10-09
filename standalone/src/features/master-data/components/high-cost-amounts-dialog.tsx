@@ -25,6 +25,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   Input,
@@ -42,7 +43,7 @@ const SET_OPTIONS = gql`
 export interface HighCostAmountsDialogProps {
   open: boolean;
   onClose: () => void;
-  /** Registry dimension the amounts belong to. CLAIM_VALUE, in practice. */
+  /** Registry dimension the amounts belong to. ITEM_VALUE, in practice. */
   dimension: string;
   unit?: string | null;
   amounts: number[];
@@ -93,72 +94,93 @@ export function HighCostAmountsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v: boolean) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      {/*
+        * Wider than the default, and laid out like the other dialogs in this
+        * feature: body sections carry their own `px-6`, because DialogContent
+        * is `p-0` and the header and footer bring their own padding.
+        *
+        * `max-w-xl` rather than the `max-w-md` this started at, so the amounts
+        * sit four to a row. At `md` they wrapped after three and the add row
+        * was squeezed into half the width, which made a seven-item list read
+        * as a problem rather than a list.
+        */}
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>High-cost amounts</DialogTitle>
         </DialogHeader>
 
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          {canEdit
-            ? "Every high-cost group in the estate picks its threshold from this list. Changing it changes what can be chosen next; groups already set to an amount keep it."
-            : "These are set by an RCM supervisor. Groups pick a threshold from this list rather than typing one, so the figure is a decision somebody owns."}
-        </p>
+        <div className="space-y-4 px-6">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {canEdit
+              ? "Every high-cost group in the estate picks its threshold from this list. Changing it changes what can be chosen next; groups already set to an amount keep it."
+              : "These are set by an RCM supervisor. Groups pick a threshold from this list rather than typing one, so the figure is a decision somebody owns."}
+          </p>
 
-        <div className="flex flex-wrap gap-1.5 py-1">
-          {draft.map((n) => (
-            <span
-              key={n}
-              className="inline-flex items-center gap-1 rounded-full bg-slate-100 py-1 pl-3 pr-2 text-xs text-slate-700 dark:bg-dark-surface dark:text-slate-300"
-            >
-              {n.toLocaleString()}
-              {unit ? ` ${unit}` : ""}
-              {canEdit && (
-                <button
-                  type="button"
-                  aria-label={`Remove ${n}`}
-                  onClick={() => setDraft(draft.filter((x) => x !== n))}
-                  className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                >
-                  <X size={11} />
-                </button>
-              )}
-            </span>
-          ))}
-          {!draft.length && (
-            <span className="text-xs italic text-slate-400">
-              No amounts. No group can be made high cost until one is added.
-            </span>
+          <div className="flex flex-wrap gap-2">
+            {draft.map((n) => (
+              <span
+                key={n}
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 py-1.5 pl-3.5 pr-2.5 text-xs text-slate-700 dark:bg-dark-bg dark:text-slate-300"
+              >
+                <span className="whitespace-nowrap font-medium">
+                  {n.toLocaleString()}
+                  {unit ? ` ${unit}` : ""}
+                </span>
+                {canEdit && (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${n}`}
+                    onClick={() => setDraft(draft.filter((x) => x !== n))}
+                    className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </span>
+            ))}
+            {!draft.length && (
+              <span className="text-xs italic text-slate-400">
+                No amounts. No group can be made high cost until one is added.
+              </span>
+            )}
+          </div>
+
+          {canEdit && (
+            <div className="flex items-center gap-2">
+              <Input
+                className="flex-1"
+                value={entry}
+                onChange={(e: any) => setEntry(e.target.value)}
+                onKeyDown={(e: any) => e.key === "Enter" && (e.preventDefault(), add())}
+                placeholder={`Add an amount${unit ? ` in ${unit}` : ""}`}
+                inputMode="numeric"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={add}
+                disabled={!entry.trim()}
+                className="shrink-0"
+              >
+                <Plus size={13} /> Add
+              </Button>
+            </div>
+          )}
+
+          {canEdit && dropped.length > 0 && (
+            <Alert variant="warning">
+              <AlertDescription>
+                {dropped.map((n) => n.toLocaleString()).join(", ")}
+                {dropped.length === 1 ? " is" : " are"} in use by a group. Removing{" "}
+                {dropped.length === 1 ? "it" : "them"} leaves those groups filtering at the
+                same amount; it only stops anyone choosing{" "}
+                {dropped.length === 1 ? "it" : "them"} again.
+              </AlertDescription>
+            </Alert>
           )}
         </div>
 
-        {canEdit && (
-          <div className="flex items-center gap-2">
-            <Input
-              value={entry}
-              onChange={(e: any) => setEntry(e.target.value)}
-              onKeyDown={(e: any) => e.key === "Enter" && (e.preventDefault(), add())}
-              placeholder={`Add an amount${unit ? ` in ${unit}` : ""}`}
-              inputMode="numeric"
-            />
-            <Button type="button" variant="outline" onClick={add} disabled={!entry.trim()}>
-              <Plus size={13} /> Add
-            </Button>
-          </div>
-        )}
-
-        {canEdit && dropped.length > 0 && (
-          <Alert variant="warning">
-            <AlertDescription>
-              {dropped.map((n) => n.toLocaleString()).join(", ")}
-              {dropped.length === 1 ? " is" : " are"} in use by a group. Removing{" "}
-              {dropped.length === 1 ? "it" : "them"} leaves those groups filtering at the
-              same amount; it only stops anyone choosing{" "}
-              {dropped.length === 1 ? "it" : "them"} again.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <div className="flex justify-end gap-2 pt-1">
+        <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {canEdit ? "Cancel" : "Close"}
           </Button>
@@ -167,7 +189,7 @@ export function HighCostAmountsDialog({
               {loading ? "Saving…" : "Save amounts"}
             </Button>
           )}
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

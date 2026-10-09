@@ -69,15 +69,15 @@ const CASES = [
   [D('WORK_ITEM_TYPE', 'IN', ['CLAIM_SUBMISSION']), { workItemType: 'CLAIM_SUBMISSION' }],
   [D('WORK_ITEM_TYPE', 'IN', ['CLAIM_SUBMISSION']), { workItemType: 'RECONCILIATION' }],
   // High cost. The boundary and the missing value are the two rows that
-  // decide whether an authorisation item lands in a claims high-cost group.
-  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: 7400 }],
-  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: 5000 }],
-  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: 1200 }],
-  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: 0 }],
-  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: null }],
-  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), {}],
-  [D('CLAIM_VALUE', 'GREATER_THAN', ['5000']), { net: '7400' }],
-  [D('CLAIM_VALUE', 'GREATER_THAN', []), { net: 7400 }],
+  // decide where an item with no value on the field ends up.
+  [D('ITEM_VALUE', 'GREATER_THAN', ['5000']), { net: 7400 }],
+  [D('ITEM_VALUE', 'GREATER_THAN', ['5000']), { net: 5000 }],
+  [D('ITEM_VALUE', 'GREATER_THAN', ['5000']), { net: 1200 }],
+  [D('ITEM_VALUE', 'GREATER_THAN', ['5000']), { net: 0 }],
+  [D('ITEM_VALUE', 'GREATER_THAN', ['5000']), { net: null }],
+  [D('ITEM_VALUE', 'GREATER_THAN', ['5000']), {}],
+  [D('ITEM_VALUE', 'GREATER_THAN', ['5000']), { net: '7400' }],
+  [D('ITEM_VALUE', 'GREATER_THAN', []), { net: 7400 }],
 ];
 
 const RULES = [
@@ -87,8 +87,8 @@ const RULES = [
   [D('PAYER', 'ANY')],
   [D('PAYER', 'NOT_IN', ['INS012'])],
   [D('DEPARTMENT', 'IN', [])],
-  [D('CLAIM_VALUE', 'GREATER_THAN', ['10000'])],
-  [D('DEPARTMENT', 'IN', ['ENT']), D('CLAIM_VALUE', 'GREATER_THAN', ['10000'])],
+  [D('ITEM_VALUE', 'GREATER_THAN', ['10000'])],
+  [D('DEPARTMENT', 'IN', ['ENT']), D('ITEM_VALUE', 'GREATER_THAN', ['10000'])],
   [],
 ];
 

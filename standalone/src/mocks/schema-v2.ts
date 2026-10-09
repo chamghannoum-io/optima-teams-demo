@@ -338,7 +338,7 @@ const typeDefs = /* GraphQL */ `
     capacity: RcmTeamCapacity!
     """
     The amount above which this group takes work, or null when it is not a
-    high-cost group. Derived from the CLAIM_VALUE criterion, so the switch and
+    high-cost group. Derived from the ITEM_VALUE criterion, so the switch and
     the rule cannot disagree.
     """
     highCostThreshold: Float
@@ -1691,20 +1691,20 @@ function buildItems(t: Team, count: number) {
     const claimStatus = statusFor(workItemType, rand());
     const rank = Math.round((PRIORITY_SCORE[priority] + ageDays * 0.7) * 100) / 100;
     /*
-     * Claim work carries a net value; authorisation work does not. That is
-     * exactly why one dimension can apply to claims and not to authorisations.
+     * Every work item carries a value, authorisation included. The first cut
+     * gave one only to claim work, which made the high-cost switch useless on
+     * an authorisation group: `GREATER_THAN` rejects a missing number, so the
+     * group would have matched nothing and looked broken rather than empty.
      *
-     * Skewed, not uniform. This was `rand() * 8000`, which says every claim
-     * value between nothing and eight thousand is equally likely and caps the
-     * estate at AED 8,000 , so a high-cost group set at 10,000 received
-     * literally nothing and the preview showed it working. Claim values are
-     * long-tailed: a lot of small ones, a thin tail of expensive ones, which
-     * is the shape that makes a high-cost group worth having at all. This
-     * runs roughly AED 150 to 22,000 with a median near 1,800.
+     * Skewed, not uniform. This was `rand() * 8000`, which says every value
+     * between nothing and eight thousand is equally likely and caps the estate
+     * at AED 8,000 , so a high-cost group set at 10,000 received literally
+     * nothing and the preview showed it working. Real values are long-tailed:
+     * a lot of small ones, a thin tail of expensive ones, which is the shape
+     * that makes a high-cost group worth having at all. This runs roughly AED
+     * 150 to 22,000 with a median near 1,800.
      */
-    const net = familyOfWorkItemType(workItemType)?.code === "CLAIM"
-      ? Math.round(150 * Math.exp(rand() * 5))
-      : null;
+    const net = Math.round(150 * Math.exp(rand() * 5));
     items.push({
       id: `${t.id}-${i + 1}`,
       workItemType,
@@ -1872,7 +1872,7 @@ function allocationPreview(t: Team, count: number) {
    * high-cost group reports nothing, which is the honest answer and the same
    * thing the empty policy list used to produce.
    */
-  const valueDim = dimensionByCode("CLAIM_VALUE");
+  const valueDim = dimensionByCode("ITEM_VALUE");
   const policyImpact = highCostAmountsOf(t).map((threshold) => {
     const over = (i: any) => typeof i.net === "number" && i.net > threshold;
     return {

@@ -63,7 +63,7 @@ const IN = (dimension: string, values: string[], locked = false): Criterion => (
 
 /** The high-cost switch, as the criterion it actually is. */
 const OVER = (amount: number): Criterion => ({
-  dimension: "CLAIM_VALUE",
+  dimension: "ITEM_VALUE",
   operator: "GREATER_THAN",
   values: [String(amount)],
 });

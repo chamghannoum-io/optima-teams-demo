@@ -15,7 +15,7 @@
  * always a mistake, so the card names the person rather than the rule.
  *
  * High cost lives on the card too, as a switch and an amount. It is stored as
- * an ordinary criterion on the group's rule (CLAIM_VALUE > n), which is why a
+ * an ordinary criterion on the group's rule (ITEM_VALUE > n), which is why a
  * high-cost group routes, scores and explains itself through the same code as
  * every other group. The amount comes off a list only a supervisor can edit.
  *
@@ -135,7 +135,7 @@ const merge = (team: Criterion[], group: Criterion[]): Criterion[] => {
   return [...out.values()];
 };
 
-export const HIGH_COST_DIMENSION = "CLAIM_VALUE";
+export const HIGH_COST_DIMENSION = "ITEM_VALUE";
 
 /** The high-cost amount on a rule, or null when the switch is off. */
 const highCostOf = (criteria: Criterion[]): number | null => {
@@ -281,10 +281,11 @@ export function TeamGroups({
   /*
    * High cost, which is a criterion the generic builder cannot draw.
    *
-   * Offered only where it can mean anything. The registry says claim value
-   * applies to claim work, so an authorisation team never sees the switch at
-   * all , the same rule that used to keep the high-cost POLICY off an
-   * authorisation team, now applied one level down.
+   * Offered on every group. An earlier cut gated it on the registry's
+   * `appliesToTypes` so an authorisation team never saw it; that was wrong,
+   * any group can be the one that takes the expensive work. The only gate
+   * left is the dimension existing at all, and `appliesToTypes` is still
+   * honoured generically for whatever dimension does use it.
    */
   const valueDim = useMemo(
     () => dimensions.find((d: any) => d.code === HIGH_COST_DIMENSION),
@@ -308,8 +309,6 @@ export function TeamGroups({
   const highCostAvailable =
     !!valueDim &&
     (!(valueDim.appliesToTypes ?? []).length ||
-      // No work item type named anywhere means the team takes everything, so
-      // claim work is among it and the switch is meaningful.
       !teamTypes.length ||
       teamTypes.some((w: string) => (valueDim.appliesToTypes ?? []).includes(w)));
 
@@ -382,7 +381,7 @@ export function TeamGroups({
               </SelectContent>
             </Select>
             <span className="text-[11px] text-slate-500 dark:text-slate-400">
-              Only claims over this reach this group. Anything below goes to whichever
+              Only work over this reaches this group. Anything below goes to whichever
               other group matches.
             </span>
           </>

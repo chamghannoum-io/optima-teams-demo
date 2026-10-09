@@ -119,13 +119,13 @@ check('a broad group never outranks a narrow one on value count alone',
 /* ── high cost ─────────────────────────────────────────────────────────── */
 console.log('high cost');
 
-const OVER = { dimension: 'CLAIM_VALUE', operator: 'GREATER_THAN', values: ['5000'] };
+const OVER = { dimension: 'ITEM_VALUE', operator: 'GREATER_THAN', values: ['5000'] };
 
 check('over the amount is admitted', M.criterionAccepts(OVER, { net: 7400 }), true);
 check('under it is not', M.criterionAccepts(OVER, { net: 1200 }), false);
 check('exactly it is not', M.criterionAccepts(OVER, { net: 5000 }), false);
-// Authorisation work carries no net value. It has to fall out of a high-cost
-// group, not flood it, which is the same asymmetry IN has on a missing value.
+// An item whose value never arrived falls to a group not filtering on value
+// rather than counting as cheap, the same asymmetry IN has.
 check('a missing value is not admitted', M.criterionAccepts(OVER, {}), false);
 check('a null value is not admitted', M.criterionAccepts(OVER, { net: null }), false);
 check('a numeric string still compares', M.criterionAccepts(OVER, { net: '7400' }), true);

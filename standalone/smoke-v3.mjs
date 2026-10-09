@@ -52,8 +52,8 @@ check("policies served as data", reg.allocationPolicies.length >= 2,
 check("capacity families replace division", reg.capacityFamilies.length === 2,
   reg.capacityFamilies.map((f) => `${f.code}(exceed=${f.allowExceedByDefault})`).join(", "));
 
-console.log("\n1b. High cost is a dimension now, and it says which work it applies to");
-const hc = reg.allocationDimensions.find((d) => d.code === "CLAIM_VALUE");
+console.log("\n1b. High cost is a dimension, offered on every group");
+const hc = reg.allocationDimensions.find((d) => d.code === "ITEM_VALUE");
 check("high cost is a group-level numeric dimension",
   hc.level === "GROUP" && hc.numeric && hc.operators.join() === "GREATER_THAN",
   `${hc.operators.join(", ")} on ${hc.itemField}, in ${hc.unit}`);
@@ -61,12 +61,11 @@ check("high cost is a group-level numeric dimension",
 // supervisor owns, and 500 typed where 5,000 was meant reroutes a day silently.
 check("the amounts are a list, not free text", hc.numericOptions.length > 0,
   hc.numericOptions.map((n) => n.toLocaleString()).join(", "));
-// Authorisation work carries no money, so it is never offered there. That is
-// the property the old team-level HIGH_COST policy used to carry.
-check("high cost applies to claim work only",
-  hc.appliesToTypes.length > 0 &&
-  hc.appliesToTypes.every((t) => t.startsWith("CLAIM") || t === "RECONCILIATION"),
-  hc.appliesToTypes.join(", "));
+// Any group can be the high-cost group, authorisation included. An earlier cut
+// restricted this to claim work, which is also why it is no longer called
+// CLAIM_VALUE.
+check("it is not restricted to one kind of work", hc.appliesToTypes.length === 0,
+  hc.appliesToTypes.join(", ") || "every work item type");
 
 console.log("\n2. Generic value source, one query for every dimension");
 for (const code of ["FACILITY", "DEPARTMENT", "PAYER", "WORK_ITEM_TYPE"]) {
@@ -115,12 +114,14 @@ const authTeam = teams.find((t) => t.division === "AUTH");
 const claimTeam = teams.find((t) => t.division === "CLAIM");
 console.log(`       ${authTeam.name}: ${authTeam.applicablePolicies.map((p) => p.label).join(", ")}`);
 console.log(`       ${claimTeam.name}: ${claimTeam.applicablePolicies.map((p) => p.label).join(", ")}`);
-// `appliesToTypes` is what gates the high-cost switch on a group now, exactly
-// as it gated the high-cost policy on a team before.
+// High cost is NOT one of the differences: every group gets the switch now,
+// on an authorisation team as much as a claims one.
 const offersHighCost = (t) =>
-  t.groups.some((g) => g.workItemTypes.some((w) => hc.appliesToTypes.includes(w)));
-check("no group on an auth team is offered high cost", !offersHighCost(authTeam));
-check("groups on a claims team are", offersHighCost(claimTeam));
+  t.groups.length > 0 &&
+  (hc.appliesToTypes.length === 0 ||
+    t.groups.some((g) => g.workItemTypes.some((w) => hc.appliesToTypes.includes(w))));
+check("an auth team's groups are offered high cost too", offersHighCost(authTeam));
+check("and so are a claims team's", offersHighCost(claimTeam));
 check("auth team still gets the policies that apply to all work",
   authTeam.applicablePolicies.some((p) => p.code === "DAILY_LIMIT"),
   authTeam.applicablePolicies.map((p) => p.code).join(", "));
@@ -214,8 +215,8 @@ check("team spans several facilities", s.facilityIds.length > 1, s.facilityIds.j
 check("mixed families allowed, division no longer single-valued", s.division === null,
   `capacities: ${s.capacities.map((c) => `${c.family} exceed=${c.allowExceed}`).join(", ")}`);
 check("capacity declared per family it touches", s.capacities.length === 2);
-check("a mixed team's claim-side groups can still be made high cost",
-  s.groups.some((g) => g.workItemTypes.some((w) => hc.appliesToTypes.includes(w))),
+check("every group on a mixed team can be made high cost",
+  s.groups.length > 0 && hc.appliesToTypes.length === 0,
   s.groups.map((g) => g.workItemTypes.join("+")).join(" / "));
 console.log(`       rule: ${s.criteriaSummary.join(" · ")}`);
 
@@ -361,10 +362,53 @@ check("the preview reports high cost off the groups, with no team policy left",
   hcp.policyImpact.length === 1 && hcp.policyImpact[0].threshold === hcGroup.highCostThreshold,
   hcp.policyImpact.map((r) => `${r.flagged} over ${r.threshold.toLocaleString()} ${r.unit}, ${r.unassigned} unassigned`).join("; "));
 
+console.log("\n10c. High cost works on an authorisation group too");
+/*
+ * The switch is offered on every group, so it has to route on every group.
+ * It did not: authorisation items carried no value, and GREATER_THAN rejects
+ * a missing number, so an authorisation high-cost group matched nothing and
+ * looked broken rather than empty.
+ */
+const authGroupId = authTeam.groups[0].id;
+await run(`mutation($id:ID!,$in:RcmTeamGroupInput!){
+  optimaTeamV2GroupUpdate(groupId:$id, input:$in){ id highCostThreshold }
+}`, {
+  id: authGroupId,
+  in: { criteria: [{ dimension: "ITEM_VALUE", operator: "GREATER_THAN", values: ["5000"] }] },
+});
+const authPrev = await run(`query($id:ID!){
+  optimaAllocationPreview(teamId:$id, itemCount:400){
+    items { groupName net }
+  }
+}`, { id: authTeam.id });
+const authGroupName = authTeam.groups[0].name;
+const intoAuthHigh = authPrev.optimaAllocationPreview.items.filter(
+  (i) => i.groupName === authGroupName,
+);
+check("authorisation work carries a value, so the switch can bite",
+  authPrev.optimaAllocationPreview.items.every((i) => typeof i.net === "number"),
+  `${authPrev.optimaAllocationPreview.items.length} items, all valued`);
+check("and an authorisation high-cost group receives only the expensive ones",
+  intoAuthHigh.length > 0 && intoAuthHigh.every((i) => i.net > 5000),
+  `${intoAuthHigh.length} items into ${authGroupName}, cheapest ${
+    intoAuthHigh.length ? Math.min(...intoAuthHigh.map((i) => i.net)).toLocaleString() : "n/a"
+  } AED`);
+// Put it back; later sections read this team.
+await run(`mutation($id:ID!,$in:RcmTeamGroupInput!){
+  optimaTeamV2GroupUpdate(groupId:$id, input:$in){ id }
+}`, {
+  id: authGroupId,
+  in: {
+    criteria: authTeam.groups[0].criteria.map((c) => ({
+      dimension: c.dimension, operator: c.operator, values: c.values,
+    })),
+  },
+});
+
 console.log("\n10b. The amounts are a list a supervisor owns");
 const widened = await run(`mutation($d:String!,$n:[Float!]!){
   allocationDimensionOptionsSet(dimension:$d, numericOptions:$n){ code numericOptions }
-}`, { d: "CLAIM_VALUE", n: [2500, 7500, 2500, 0, 15000] });
+}`, { d: "ITEM_VALUE", n: [2500, 7500, 2500, 0, 15000] });
 check("the list is de-duplicated and sorted, and junk is dropped",
   widened.allocationDimensionOptionsSet.numericOptions.join() === "2500,7500,15000",
   widened.allocationDimensionOptionsSet.numericOptions.join(", "));
@@ -376,7 +420,7 @@ check("a group already set to a removed amount keeps it",
   stillThere.optimaTeamV2.groups.some((g) => g.highCostThreshold === 10000));
 await run(`mutation($d:String!,$n:[Float!]!){
   allocationDimensionOptionsSet(dimension:$d, numericOptions:$n){ code }
-}`, { d: "CLAIM_VALUE", n: [1000, 3000, 5000, 10000, 25000, 50000, 100000] });
+}`, { d: "ITEM_VALUE", n: [1000, 3000, 5000, 10000, 25000, 50000, 100000] });
 
 console.log("\n11. Duplicate groups are flagged only when a person is in both");
 const dupPeople = await run(`{ allUsers { id firstName lastName } }`);

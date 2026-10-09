@@ -231,22 +231,28 @@ export const DIMENSIONS: AllocationDimension[] = [
    *
    * It used to be a team policy: one threshold for the team, plus a tick-box
    * per member saying who was cleared for the work it flagged. That answered
-   * "who may touch an expensive claim" but not "which group does expensive
-   * claims go to", and the second is the question the business actually asks.
+   * "who may touch an expensive item" but not "which group does expensive
+   * work go to", and the second is the question the business actually asks.
    *
    * As a criterion it is the first answer, for free. A group with it on reads
    * "cardiology AND over AED 10,000", which constrains one dimension more than
    * the plain cardiology group, so `specificityOf` already sends the expensive
-   * claim to it and the cheap one to the other. No new routing concept, no
+   * item to it and the cheap one to the other. No new routing concept, no
    * second matcher, and "why did this go here" explains itself through
    * `rejectingCriterion` like every other clause.
+   *
+   * `ITEM_VALUE`, not `CLAIM_VALUE`, and no `appliesToTypes`. The first cut
+   * offered it on claim work only, on the reasoning that an authorisation
+   * carries no money. Cham corrected that: any group can be the high-cost
+   * group, authorisation included, so the dimension is named after the work
+   * item rather than after one kind of it.
    */
   {
-    code: "CLAIM_VALUE",
-    label: "Claim value",
+    code: "ITEM_VALUE",
+    label: "Work item value",
     level: "GROUP",
     operators: ["GREATER_THAN"],
-    valueSource: "claimValueOptions",
+    valueSource: "itemValueOptions",
     itemField: "net",
     coverageChecked: false,
     matchMode: "EXACT",
@@ -254,19 +260,12 @@ export const DIMENSIONS: AllocationDimension[] = [
     numeric: true,
     unit: "AED",
     numericOptions: [1000, 3000, 5000, 10000, 25000, 50000, 100000],
-    // Authorisation work carries no money, so it is never offered there.
-    appliesToTypes: [
-      "CLAIM_VALIDATION",
-      "CLAIM_SUBMISSION",
-      "CLAIM_RESUBMISSION",
-      "RECONCILIATION",
-    ],
     sortOrder: 70,
   },
 ];
 
 /** The numeric dimension a group's high-cost switch writes to. */
-export const HIGH_COST_DIMENSION = "CLAIM_VALUE";
+export const HIGH_COST_DIMENSION = "ITEM_VALUE";
 
 /**
  * What replaces `division`. A family groups work item types that share a daily
@@ -383,7 +382,7 @@ export const POLICIES: AllocationPolicy[] = [
   /*
    * High cost used to be the third row here, as a team-wide threshold plus a
    * per-member clearance tick-box. It is a group criterion now , the
-   * CLAIM_VALUE dimension above , because the business decides high cost per
+   * ITEM_VALUE dimension above , because the business decides high cost per
    * group ("this group does the expensive resubmissions"), not per team, and
    * routing it is the matcher's job rather than a second mechanism bolted
    * beside it. `handlerTag` and the clearance plumbing stay in the contract
@@ -478,9 +477,9 @@ export function criterionAccepts(c: Criterion, item: Record<string, unknown>): b
   if (c.operator === "GREATER_THAN") {
     // A positive claim about a number, so it needs a number: an item with no
     // value on the field cannot be shown to be over the threshold and is
-    // rejected, the same asymmetry IN has against a missing value. This is
-    // what keeps authorisation work, which carries no money, out of a
-    // high-cost group rather than flooding it.
+    // rejected, the same asymmetry IN has against a missing value. An item
+    // whose value never arrives therefore falls to a group that is not
+    // filtering on value, rather than silently counting as cheap.
     const n = Number(raw);
     const threshold = Number((c.values ?? [])[0]);
     if (!present || !Number.isFinite(n) || !Number.isFinite(threshold)) return false;

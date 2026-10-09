@@ -33,7 +33,13 @@ modes. Four things followed:
    the model as honestly as the three written for it.
 
 2. **High cost is a criterion, not a policy.** The toggle writes
-   `{CLAIM_VALUE, GREATER_THAN, ["10000"]}` onto the group's rule.
+   `{ITEM_VALUE, GREATER_THAN, ["10000"]}` onto the group's rule, on **any**
+   group. The first cut restricted it to claim work on the reasoning that an
+   authorisation carries no money; Cham corrected that, so the dimension lost
+   its `appliesToTypes` and is named after the work item rather than after one
+   kind of it. Authorisation items carry a value now too , without one
+   `GREATER_THAN` rejects them and an authorisation high-cost group would have
+   matched nothing and looked broken rather than empty.
 
    The alternative was a pair of fields on the group plus a branch in the
    matcher. As a criterion it needs neither: a high-cost group constrains one
@@ -41,8 +47,8 @@ modes. Four things followed:
    sends the expensive claim one way and the cheap one the other, and
    `rejectingCriterion` already explains it. The only new code in the matcher
    is one operator, and `GREATER_THAN` follows `IN` on a missing value , a
-   positive claim needs evidence , which is what keeps authorisation work,
-   which carries no money, out of a high-cost group rather than flooding it.
+   positive claim needs evidence , so an item whose value never arrived falls
+   to a group that is not filtering on value rather than counting as cheap.
 
    **Removed with it:** the team-level `HIGH_COST` policy and the per-member
    high-cost clearance column. Cham chose "remove both" over keeping the
@@ -110,6 +116,10 @@ means.
 - The criteria builder skips numeric dimensions (it is a value picker and has
   nothing to draw for one) and no longer claims a group "takes everything"
   when its own high-cost switch is on.
+- The amounts dialog is `max-w-xl` and laid out like the other dialogs in the
+  feature, body sections carrying their own `px-6` and a real `DialogFooter`.
+  At `max-w-md` the amounts wrapped after three and the add row was squeezed
+  into half the width, which made a seven-item list read as a problem.
 - The teams filter bar skips them too.
 - `smoke-v3.mjs` section 9 restores the group it mutates. That override
   narrowed Medical from eight departments to one, which made it exactly as
